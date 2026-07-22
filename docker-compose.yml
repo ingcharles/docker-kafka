@@ -1,0 +1,12 @@
+# Combined stack — brings up PostgREST and Kafka together under one
+# `docker compose up`. Each stack still works standalone from its own
+# folder (see postgrest/ and kafka/); this file just includes both
+# without duplicating their service definitions.
+#
+# Requires each stack's .env to exist first — copy postgrest/.env.example
+# to postgrest/.env and kafka/.env.example to kafka/.env before running.
+include:
+  - path: postgrest/docker-compose.yml
+    env_file: postgrest/.env
+  - path: kafka/docker-compose.yml
+    env_file: kafka/.env
