@@ -1,0 +1,62 @@
+package com.facturacion.inventario.application.service;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.validation.Valid;
+
+import io.quarkus.hibernate.reactive.panache.common.WithSession;
+import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
+import io.smallrye.mutiny.Uni;
+
+import com.facturacion.inventario.application.dto.CategoriaResponse;
+import com.facturacion.inventario.application.dto.CrearCategoriaRequest;
+import com.facturacion.inventario.domain.model.entity.Categoria;
+import com.facturacion.inventario.domain.model.enums.TipoCategoria;
+import com.facturacion.inventario.domain.model.vo.PageResult;
+import com.facturacion.inventario.domain.repository.CategoriaRepository;
+import com.facturacion.inventario.infrastructure.persistence.mapper.CategoriaMapper;
+import com.facturacion.inventario.shared.exception.NotFoundException;
+import com.facturacion.inventario.shared.responses.PagedResponse;
+
+@ApplicationScoped
+public class CategoriaService {
+
+    private final CategoriaRepository repository;
+    private final CategoriaMapper mapper;
+
+    @Inject
+    public CategoriaService(CategoriaRepository repository, CategoriaMapper mapper) {
+        this.repository = repository;
+        this.mapper = mapper;
+    }
+
+    @WithTransaction
+    public Uni<CategoriaResponse> crear(@Valid CrearCategoriaRequest request) {
+        Categoria categoria = new Categoria(UUID.randomUUID(), request.getNombre(),
+            TipoCategoria.valueOf(request.getTipo()), request.getDescripcion(), true, Instant.now());
+        return repository.persist(categoria).map(mapper::toResponse);
+    }
+
+    @WithSession
+    public Uni<CategoriaResponse> obtenerPorId(UUID id) {
+        return repository.findById(id)
+            .onItem().ifNull().failWith(() -> new NotFoundException("Categoría no encontrada: " + id))
+            .map(mapper::toResponse);
+    }
+
+    @WithSession
+    public Uni<PagedResponse<CategoriaResponse>> listarPaginado(int page, int limit) {
+        return repository.findPaged(page, limit)
+            .map((PageResult<Categoria> pageResult) -> {
+                List<CategoriaResponse> items = pageResult.items().stream()
+                    .map(mapper::toResponse)
+                    .collect(Collectors.toList());
+                return PagedResponse.of(items, page, limit, pageResult.total());
+            });
+    }
+}

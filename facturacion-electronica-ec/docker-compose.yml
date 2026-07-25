@@ -1,0 +1,210 @@
+# Stack de facturación electrónica SRI Ecuador: un Postgres compartido (un
+# esquema por servicio), los microservicios Quarkus, y un job de bootstrap
+# de tópicos. Reutiliza el broker de Kafka que ya está corriendo en
+# ../kafka (red externa `kafka_net`, nombre fijo) — levanta ese stack
+# primero. Se construye de forma incremental (mismo orden que ecommerce/):
+# por ahora solo están cableados facturacion-db, facturacion-topic-init y
+# firma-electronica-service; los demás servicios se agregan aquí a medida
+# que se van construyendo.
+services:
+  facturacion-db:
+    build:
+      context: ./db
+    restart: unless-stopped
+    # Mismo ajuste que ecommerce-db: varios servicios con pool reactivo de
+    # hasta 20 conexiones cada uno en modo prod pueden superar el
+    # max_connections=100 por defecto de Postgres.
+    command: postgres -c max_connections=200
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-facturacion}
+      INVENTARIO_DB_PASSWORD: ${INVENTARIO_DB_PASSWORD:?INVENTARIO_DB_PASSWORD is required}
+      FIRMA_DB_PASSWORD: ${FIRMA_DB_PASSWORD:?FIRMA_DB_PASSWORD is required}
+      COMPROBANTES_DB_PASSWORD: ${COMPROBANTES_DB_PASSWORD:?COMPROBANTES_DB_PASSWORD is required}
+      SRI_DB_PASSWORD: ${SRI_DB_PASSWORD:?SRI_DB_PASSWORD is required}
+      NOTIFICACION_DB_PASSWORD: ${NOTIFICACION_DB_PASSWORD:?NOTIFICACION_DB_PASSWORD is required}
+      ORQUESTACION_DB_PASSWORD: ${ORQUESTACION_DB_PASSWORD:?ORQUESTACION_DB_PASSWORD is required}
+    volumes:
+      - facturacion_pg_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - facturacion_net
+
+  facturacion-topic-init:
+    build:
+      context: ../kafka/topic-init
+    restart: "no"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: broker:9092
+      KAFKA_TOPICS: >-
+        facturacion.emisor.eventos.v1:6:1,
+        facturacion.emisor.eventos.v1.dlq:3:1,
+        facturacion.inventario.comandos.v1:6:1,
+        facturacion.inventario.comandos.v1.dlq:3:1,
+        facturacion.inventario.eventos.v1:6:1,
+        facturacion.inventario.eventos.v1.dlq:3:1,
+        facturacion.inventario.item.eventos.v1:6:1,
+        facturacion.inventario.item.eventos.v1.dlq:3:1,
+        facturacion.comprobante.eventos.v1:6:1,
+        facturacion.comprobante.eventos.v1.dlq:3:1,
+        facturacion.comprobante.comandos.v1:6:1,
+        facturacion.comprobante.comandos.v1.dlq:3:1,
+        facturacion.firma.comandos.v1:6:1,
+        facturacion.firma.comandos.v1.dlq:3:1,
+        facturacion.firma.eventos.v1:6:1,
+        facturacion.firma.eventos.v1.dlq:3:1,
+        facturacion.sri.comandos.v1:6:1,
+        facturacion.sri.comandos.v1.dlq:3:1,
+        facturacion.sri.eventos.v1:6:1,
+        facturacion.sri.eventos.v1.dlq:3:1,
+        facturacion.notificacion.comandos.v1:6:1,
+        facturacion.notificacion.comandos.v1.dlq:3:1,
+        facturacion.notificacion.eventos.v1:6:1,
+        facturacion.notificacion.eventos.v1.dlq:3:1,
+        facturacion.orquestacion.eventos.v1:3:1
+    networks:
+      - kafka_net_ext
+
+  firma-electronica-service:
+    build:
+      context: ./firma-electronica-service
+    restart: unless-stopped
+    depends_on:
+      facturacion-db:
+        condition: service_healthy
+      facturacion-topic-init:
+        condition: service_completed_successfully
+    environment:
+      FIRMA_DB_PASSWORD: ${FIRMA_DB_PASSWORD:?FIRMA_DB_PASSWORD is required}
+      FIRMA_DB_REACTIVE_URL: postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      FIRMA_DB_JDBC_URL: jdbc:postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      KAFKA_BOOTSTRAP_SERVERS: broker:9092
+      FIRMA_CIFRADO_CLAVE_MAESTRA: ${FIRMA_CIFRADO_CLAVE_MAESTRA:?FIRMA_CIFRADO_CLAVE_MAESTRA is required}
+    ports:
+      - "${FIRMA_SERVICE_PORT:-8091}:8080"
+    networks:
+      - facturacion_net
+      - kafka_net_ext
+
+  inventario-service:
+    build:
+      context: ./inventario-service
+    restart: unless-stopped
+    depends_on:
+      facturacion-db:
+        condition: service_healthy
+      facturacion-topic-init:
+        condition: service_completed_successfully
+    environment:
+      INVENTARIO_DB_PASSWORD: ${INVENTARIO_DB_PASSWORD:?INVENTARIO_DB_PASSWORD is required}
+      INVENTARIO_DB_REACTIVE_URL: postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      INVENTARIO_DB_JDBC_URL: jdbc:postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      KAFKA_BOOTSTRAP_SERVERS: broker:9092
+    ports:
+      - "${INVENTARIO_SERVICE_PORT:-8092}:8080"
+    networks:
+      - facturacion_net
+      - kafka_net_ext
+
+  comprobantes-service:
+    build:
+      context: ./comprobantes-service
+    restart: unless-stopped
+    depends_on:
+      facturacion-db:
+        condition: service_healthy
+      facturacion-topic-init:
+        condition: service_completed_successfully
+    environment:
+      COMPROBANTES_DB_PASSWORD: ${COMPROBANTES_DB_PASSWORD:?COMPROBANTES_DB_PASSWORD is required}
+      COMPROBANTES_DB_REACTIVE_URL: postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      COMPROBANTES_DB_JDBC_URL: jdbc:postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      KAFKA_BOOTSTRAP_SERVERS: broker:9092
+    ports:
+      - "${COMPROBANTES_SERVICE_PORT:-8093}:8080"
+    networks:
+      - facturacion_net
+      - kafka_net_ext
+
+  sri-conector-service:
+    build:
+      context: ./sri-conector-service
+    restart: unless-stopped
+    depends_on:
+      facturacion-db:
+        condition: service_healthy
+      facturacion-topic-init:
+        condition: service_completed_successfully
+    environment:
+      SRI_DB_PASSWORD: ${SRI_DB_PASSWORD:?SRI_DB_PASSWORD is required}
+      SRI_DB_REACTIVE_URL: postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      SRI_DB_JDBC_URL: jdbc:postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      KAFKA_BOOTSTRAP_SERVERS: broker:9092
+    ports:
+      - "${SRI_SERVICE_PORT:-8094}:8080"
+    networks:
+      - facturacion_net
+      - kafka_net_ext
+
+  notificacion-service:
+    build:
+      context: ./notificacion-service
+    restart: unless-stopped
+    depends_on:
+      facturacion-db:
+        condition: service_healthy
+      facturacion-topic-init:
+        condition: service_completed_successfully
+    environment:
+      NOTIFICACION_DB_PASSWORD: ${NOTIFICACION_DB_PASSWORD:?NOTIFICACION_DB_PASSWORD is required}
+      NOTIFICACION_DB_REACTIVE_URL: postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      NOTIFICACION_DB_JDBC_URL: jdbc:postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      KAFKA_BOOTSTRAP_SERVERS: broker:9092
+      SMTP_HOST: ${SMTP_HOST:?SMTP_HOST is required}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:?SMTP_USERNAME is required}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:?SMTP_PASSWORD is required}
+      SMTP_FROM: ${SMTP_FROM:?SMTP_FROM is required}
+    ports:
+      - "${NOTIFICACION_SERVICE_PORT:-8095}:8080"
+    networks:
+      - facturacion_net
+      - kafka_net_ext
+
+  facturacion-orchestrator-service:
+    build:
+      context: ./facturacion-orchestrator-service
+    restart: unless-stopped
+    depends_on:
+      facturacion-db:
+        condition: service_healthy
+      facturacion-topic-init:
+        condition: service_completed_successfully
+    environment:
+      ORQUESTACION_DB_PASSWORD: ${ORQUESTACION_DB_PASSWORD:?ORQUESTACION_DB_PASSWORD is required}
+      ORQUESTACION_DB_REACTIVE_URL: postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      ORQUESTACION_DB_JDBC_URL: jdbc:postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      KAFKA_BOOTSTRAP_SERVERS: broker:9092
+    ports:
+      - "${ORQUESTACION_SERVICE_PORT:-8096}:8080"
+    networks:
+      - facturacion_net
+      - kafka_net_ext
+
+networks:
+  facturacion_net:
+    driver: bridge
+  kafka_net_ext:
+    external: true
+    name: kafka_net
+
+volumes:
+  facturacion_pg_data:

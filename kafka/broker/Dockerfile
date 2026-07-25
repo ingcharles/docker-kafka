@@ -1,7 +1,8 @@
-# Pin an explicit version instead of floating `latest`, so a rebuild months
-# from now can't silently pull in breaking changes.
+# Se fija una versión explícita en vez de flotar sobre `latest`, para que
+# un rebuild dentro de varios meses no jale silenciosamente cambios que rompan algo.
 FROM apache/kafka:3.9.0
 
-# Runs as this non-root user by default (baked into the upstream image);
-# kept explicit here so it survives if the base image ever changes it.
+# Corre como este usuario no-root por defecto (ya viene horneado en la
+# imagen base); se deja explícito acá para que sobreviva si la imagen base
+# alguna vez lo cambia.
 USER appuser

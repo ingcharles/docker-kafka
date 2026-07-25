@@ -1,0 +1,200 @@
+# Stack completo de la saga de e-commerce: un Postgres compartido (un
+# esquema por servicio), los 6 microservicios Quarkus, y un job de
+# bootstrap de tópicos. Reutiliza el broker de Kafka que ya está corriendo
+# en ../kafka (red externa `kafka_net`, con nombre fijo) — levanta ese
+# stack primero (o usa el docker-compose.yml de la raíz, que incluye a
+# ambos).
+services:
+  ecommerce-db:
+    build:
+      context: ./db
+    restart: unless-stopped
+    # max_connections por defecto (100) no alcanza para 6 servicios cuyo pool
+    # reactivo en modo prod llega hasta 20 conexiones cada uno (6*20=120) más
+    # las conexiones JDBC de Flyway — se sube el límite porque esta base de
+    # datos es compartida por diseño (un esquema por servicio), no de un solo tenant.
+    command: postgres -c max_connections=200
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-ecommerce}
+      ORDER_DB_PASSWORD: ${ORDER_DB_PASSWORD:?ORDER_DB_PASSWORD is required}
+      INVENTORY_DB_PASSWORD: ${INVENTORY_DB_PASSWORD:?INVENTORY_DB_PASSWORD is required}
+      PAYMENT_DB_PASSWORD: ${PAYMENT_DB_PASSWORD:?PAYMENT_DB_PASSWORD is required}
+      SHIPPING_DB_PASSWORD: ${SHIPPING_DB_PASSWORD:?SHIPPING_DB_PASSWORD is required}
+      NOTIFICATION_DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?NOTIFICATION_DB_PASSWORD is required}
+      SAGA_DB_PASSWORD: ${SAGA_DB_PASSWORD:?SAGA_DB_PASSWORD is required}
+    volumes:
+      - ecommerce_pg_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - ecommerce_net
+
+  ecommerce-topic-init:
+    build:
+      context: ../kafka/topic-init
+    restart: "no"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: broker:9092
+      KAFKA_TOPICS: >-
+        ecommerce.order.events.v1:6:1,
+        ecommerce.order.events.v1.dlq:3:1,
+        ecommerce.order.commands.v1:6:1,
+        ecommerce.order.commands.v1.dlq:3:1,
+        ecommerce.inventory.commands.v1:6:1,
+        ecommerce.inventory.commands.v1.dlq:3:1,
+        ecommerce.inventory.events.v1:6:1,
+        ecommerce.inventory.events.v1.dlq:3:1,
+        ecommerce.payment.commands.v1:6:1,
+        ecommerce.payment.commands.v1.dlq:3:1,
+        ecommerce.payment.events.v1:6:1,
+        ecommerce.payment.events.v1.dlq:3:1,
+        ecommerce.shipping.commands.v1:6:1,
+        ecommerce.shipping.commands.v1.dlq:3:1,
+        ecommerce.shipping.events.v1:6:1,
+        ecommerce.shipping.events.v1.dlq:3:1,
+        ecommerce.notification.commands.v1:6:1,
+        ecommerce.notification.commands.v1.dlq:3:1,
+        ecommerce.notification.events.v1:6:1,
+        ecommerce.notification.events.v1.dlq:3:1,
+        ecommerce.saga.events.v1:3:1
+    networks:
+      - kafka_net_ext
+
+  order-service:
+    build:
+      context: ./order-service
+    restart: unless-stopped
+    depends_on:
+      ecommerce-db:
+        condition: service_healthy
+      ecommerce-topic-init:
+        condition: service_completed_successfully
+    environment:
+      ORDER_DB_PASSWORD: ${ORDER_DB_PASSWORD:?ORDER_DB_PASSWORD is required}
+      ORDER_DB_REACTIVE_URL: postgresql://ecommerce-db:5432/${POSTGRES_DB:-ecommerce}
+      ORDER_DB_JDBC_URL: jdbc:postgresql://ecommerce-db:5432/${POSTGRES_DB:-ecommerce}
+      KAFKA_BOOTSTRAP_SERVERS: broker:9092
+    ports:
+      - "${ORDER_SERVICE_PORT:-8081}:8080"
+    networks:
+      - ecommerce_net
+      - kafka_net_ext
+
+  inventory-service:
+    build:
+      context: ./inventory-service
+    restart: unless-stopped
+    depends_on:
+      ecommerce-db:
+        condition: service_healthy
+      ecommerce-topic-init:
+        condition: service_completed_successfully
+    environment:
+      INVENTORY_DB_PASSWORD: ${INVENTORY_DB_PASSWORD:?INVENTORY_DB_PASSWORD is required}
+      INVENTORY_DB_REACTIVE_URL: postgresql://ecommerce-db:5432/${POSTGRES_DB:-ecommerce}
+      INVENTORY_DB_JDBC_URL: jdbc:postgresql://ecommerce-db:5432/${POSTGRES_DB:-ecommerce}
+      KAFKA_BOOTSTRAP_SERVERS: broker:9092
+    ports:
+      - "${INVENTORY_SERVICE_PORT:-8082}:8080"
+    networks:
+      - ecommerce_net
+      - kafka_net_ext
+
+  payment-service:
+    build:
+      context: ./payment-service
+    restart: unless-stopped
+    depends_on:
+      ecommerce-db:
+        condition: service_healthy
+      ecommerce-topic-init:
+        condition: service_completed_successfully
+    environment:
+      PAYMENT_DB_PASSWORD: ${PAYMENT_DB_PASSWORD:?PAYMENT_DB_PASSWORD is required}
+      PAYMENT_DB_REACTIVE_URL: postgresql://ecommerce-db:5432/${POSTGRES_DB:-ecommerce}
+      PAYMENT_DB_JDBC_URL: jdbc:postgresql://ecommerce-db:5432/${POSTGRES_DB:-ecommerce}
+      KAFKA_BOOTSTRAP_SERVERS: broker:9092
+      PAYMENT_DECLINE_THRESHOLD: ${PAYMENT_DECLINE_THRESHOLD:-5000}
+    ports:
+      - "${PAYMENT_SERVICE_PORT:-8083}:8080"
+    networks:
+      - ecommerce_net
+      - kafka_net_ext
+
+  shipping-service:
+    build:
+      context: ./shipping-service
+    restart: unless-stopped
+    depends_on:
+      ecommerce-db:
+        condition: service_healthy
+      ecommerce-topic-init:
+        condition: service_completed_successfully
+    environment:
+      SHIPPING_DB_PASSWORD: ${SHIPPING_DB_PASSWORD:?SHIPPING_DB_PASSWORD is required}
+      SHIPPING_DB_REACTIVE_URL: postgresql://ecommerce-db:5432/${POSTGRES_DB:-ecommerce}
+      SHIPPING_DB_JDBC_URL: jdbc:postgresql://ecommerce-db:5432/${POSTGRES_DB:-ecommerce}
+      KAFKA_BOOTSTRAP_SERVERS: broker:9092
+    ports:
+      - "${SHIPPING_SERVICE_PORT:-8084}:8080"
+    networks:
+      - ecommerce_net
+      - kafka_net_ext
+
+  notification-service:
+    build:
+      context: ./notification-service
+    restart: unless-stopped
+    depends_on:
+      ecommerce-db:
+        condition: service_healthy
+      ecommerce-topic-init:
+        condition: service_completed_successfully
+    environment:
+      NOTIFICATION_DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?NOTIFICATION_DB_PASSWORD is required}
+      NOTIFICATION_DB_REACTIVE_URL: postgresql://ecommerce-db:5432/${POSTGRES_DB:-ecommerce}
+      NOTIFICATION_DB_JDBC_URL: jdbc:postgresql://ecommerce-db:5432/${POSTGRES_DB:-ecommerce}
+      KAFKA_BOOTSTRAP_SERVERS: broker:9092
+    ports:
+      - "${NOTIFICATION_SERVICE_PORT:-8085}:8080"
+    networks:
+      - ecommerce_net
+      - kafka_net_ext
+
+  saga-orchestrator-service:
+    build:
+      context: ./saga-orchestrator-service
+    restart: unless-stopped
+    depends_on:
+      ecommerce-db:
+        condition: service_healthy
+      ecommerce-topic-init:
+        condition: service_completed_successfully
+    environment:
+      SAGA_DB_PASSWORD: ${SAGA_DB_PASSWORD:?SAGA_DB_PASSWORD is required}
+      SAGA_DB_REACTIVE_URL: postgresql://ecommerce-db:5432/${POSTGRES_DB:-ecommerce}
+      SAGA_DB_JDBC_URL: jdbc:postgresql://ecommerce-db:5432/${POSTGRES_DB:-ecommerce}
+      KAFKA_BOOTSTRAP_SERVERS: broker:9092
+    ports:
+      - "${SAGA_ORCHESTRATOR_SERVICE_PORT:-8086}:8080"
+    networks:
+      - ecommerce_net
+      - kafka_net_ext
+
+networks:
+  ecommerce_net:
+    driver: bridge
+  kafka_net_ext:
+    external: true
+    name: kafka_net
+
+volumes:
+  ecommerce_pg_data:

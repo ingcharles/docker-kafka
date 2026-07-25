@@ -7,8 +7,8 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:9094
-      # Internal name (broker:9092) for other containers; localhost:9094
-      # for anything connecting from the host machine.
+      # Nombre interno (broker:9092) para otros contenedores; localhost:9094
+      # para cualquier cosa que se conecte desde la máquina anfitriona.
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:9092,PLAINTEXT_HOST://localhost:${KAFKA_HOST_PORT:-9094}
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
@@ -20,8 +20,9 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      # Off on purpose: silent auto-creation from a mistyped topic name
-      # is how you end up with a 1-partition topic in production.
+      # Apagado a propósito: la auto-creación silenciosa a partir de un
+      # nombre de tópico mal tipeado es justo cómo se termina con un
+      # tópico de una sola partición en producción.
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
     ports:
       - "${KAFKA_HOST_PORT:-9094}:9094"
@@ -66,6 +67,7 @@ services:
 
 networks:
   kafka_net:
+    name: kafka_net
     driver: bridge
 
 volumes:

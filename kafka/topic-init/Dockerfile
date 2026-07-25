@@ -1,5 +1,6 @@
-# Reuses the broker image purely for its bundled kafka-topics.sh /
-# kafka-broker-api-versions.sh CLI tools — no extra base image to maintain.
+# Reutiliza la imagen del broker únicamente por sus herramientas CLI
+# incluidas kafka-topics.sh / kafka-broker-api-versions.sh — así no hay
+# que mantener una imagen base extra.
 FROM apache/kafka:3.9.0
 
 USER root

@@ -1,8 +1,9 @@
 #!/bin/bash
-# Idempotent topic bootstrap. Runs once against the broker and exits;
-# kept as a separate short-lived service instead of relying on
-# auto.create.topics.enable, which we leave off (that flag silently
-# creates mis-partitioned topics from typos in production).
+# Bootstrap idempotente de tópicos. Corre una sola vez contra el broker y
+# termina; se mantiene como un servicio de vida corta separado en vez de
+# depender de auto.create.topics.enable, que dejamos apagado (ese flag
+# crea silenciosamente tópicos mal particionados a partir de errores de
+# tipeo en producción).
 set -euo pipefail
 
 : "${KAFKA_BOOTSTRAP_SERVERS:?KAFKA_BOOTSTRAP_SERVERS must be set}"
@@ -10,18 +11,23 @@ set -euo pipefail
 
 KAFKA_BIN=/opt/kafka/bin
 
-echo "Waiting for broker at ${KAFKA_BOOTSTRAP_SERVERS} ..."
+echo "Esperando al broker en ${KAFKA_BOOTSTRAP_SERVERS} ..."
 until "$KAFKA_BIN/kafka-broker-api-versions.sh" --bootstrap-server "$KAFKA_BOOTSTRAP_SERVERS" >/dev/null 2>&1; do
   sleep 2
 done
 
 IFS=',' read -ra TOPIC_DEFS <<< "$KAFKA_TOPICS"
-for def in "${TOPIC_DEFS[@]}"; do
+for raw_def in "${TOPIC_DEFS[@]}"; do
+  # Tolera espacios en blanco alrededor de cada entrada (por ejemplo, un
+  # "folded scalar" de YAML que une líneas con ", " en vez de ",") para que
+  # el formato de KAFKA_TOPICS no sea frágil.
+  def="$(echo "$raw_def" | xargs)"
+  [ -z "$def" ] && continue
   name="$(cut -d: -f1 <<< "$def")"
   partitions="$(cut -d: -f2 <<< "$def")"
   replication="$(cut -d: -f3 <<< "$def")"
 
-  echo "Ensuring topic '${name}' (partitions=${partitions}, replication=${replication}) ..."
+  echo "Asegurando el tópico '${name}' (particiones=${partitions}, replicación=${replication}) ..."
   "$KAFKA_BIN/kafka-topics.sh" --bootstrap-server "$KAFKA_BOOTSTRAP_SERVERS" \
     --create --if-not-exists \
     --topic "$name" \
@@ -29,5 +35,5 @@ for def in "${TOPIC_DEFS[@]}"; do
     --replication-factor "$replication"
 done
 
-echo "Topic bootstrap complete."
+echo "Bootstrap de tópicos completo."
 "$KAFKA_BIN/kafka-topics.sh" --bootstrap-server "$KAFKA_BOOTSTRAP_SERVERS" --list

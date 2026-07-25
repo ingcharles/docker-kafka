@@ -1,12 +1,16 @@
-# Combined stack — brings up PostgREST and Kafka together under one
-# `docker compose up`. Each stack still works standalone from its own
-# folder (see postgrest/ and kafka/); this file just includes both
-# without duplicating their service definitions.
+# Stack combinado — levanta Kafka y los microservicios de la saga de
+# e-commerce juntos bajo un solo `docker compose up`. Cada stack sigue
+# funcionando de forma independiente desde su propia carpeta (ver kafka/,
+# ecommerce/); este archivo solo los incluye a los dos sin duplicar sus
+# definiciones de servicio. ecommerce/ depende del broker de kafka/
+# (nombre de red fijo `kafka_net`) — con `include:`, Compose levanta
+# kafka/ primero sin importar el orden del listado, porque los servicios
+# de ecommerce/ declaran esa dependencia.
 #
-# Requires each stack's .env to exist first — copy postgrest/.env.example
-# to postgrest/.env and kafka/.env.example to kafka/.env before running.
+# Requiere que el .env de cada stack ya exista — copia kafka/.env.example
+# a kafka/.env, y ecommerce/.env.example a ecommerce/.env antes de correrlo.
 include:
-  - path: postgrest/docker-compose.yml
-    env_file: postgrest/.env
   - path: kafka/docker-compose.yml
     env_file: kafka/.env
+  - path: ecommerce/docker-compose.yml
+    env_file: ecommerce/.env
