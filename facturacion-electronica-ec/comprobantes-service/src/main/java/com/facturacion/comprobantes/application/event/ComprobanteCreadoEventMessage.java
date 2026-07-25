@@ -20,7 +20,7 @@ public record ComprobanteCreadoEventMessage(
     UUID eventId,
     UUID comprobanteId,
     String eventType,
-    UUID emisorId,
+    String emisorRuc,
     String claveAcceso,
     String ambiente,
     String xmlGenerado,

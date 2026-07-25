@@ -60,7 +60,7 @@ public class FirmarComprobanteConsumer {
                         command.eventId(), command.comprobanteId());
                     return Uni.createFrom().voidItem();
                 }
-                return firmaXadesService.firmarXml(command.emisorId(), command.xmlSinFirmar())
+                return firmaXadesService.firmarXml(command.ruc(), command.xmlSinFirmar())
                     .onItem().transformToUni(xmlFirmado -> registrarResultado(command, true, xmlFirmado, null))
                     .onFailure().recoverWithUni(falla -> {
                         LOG.errorf(falla, "Falló la firma del comprobante %s", command.comprobanteId());

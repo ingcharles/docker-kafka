@@ -6,8 +6,14 @@ import java.util.UUID;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 
 public class CrearItemRequest {
+
+    /** RUC del emisor/empresa dueña de este ítem — el catálogo es multi-tenant (ver ARQUITECTURA.md). */
+    @NotBlank
+    @Pattern(regexp = "\\d{13}", message = "el RUC debe tener 13 dígitos")
+    private String ruc;
 
     @NotNull
     private String tipo;
@@ -54,6 +60,14 @@ public class CrearItemRequest {
     private String codigoPorcentajeIce;
 
     private BigDecimal tarifaIce;
+
+    public String getRuc() {
+        return ruc;
+    }
+
+    public void setRuc(String ruc) {
+        this.ruc = ruc;
+    }
 
     public String getTipo() {
         return tipo;

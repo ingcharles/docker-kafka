@@ -48,8 +48,9 @@ public class GeneradorXmlLiquidacionCompra implements GeneradorXmlComprobante {
             raiz.appendChild(construirInfoTributaria(doc, c));
             raiz.appendChild(construirInfoLiquidacionCompra(doc, c));
             raiz.appendChild(construirDetalles(doc, c));
-            if (c.isEmisorEsGranContribuyente()) {
-                raiz.appendChild(XmlComprobanteUtil.construirInfoAdicionalGranContribuyente(doc, c));
+            Element infoAdicional = XmlComprobanteUtil.construirInfoAdicional(doc, c);
+            if (infoAdicional != null) {
+                raiz.appendChild(infoAdicional);
             }
 
             return XmlComprobanteUtil.serializar(doc);
@@ -96,7 +97,7 @@ public class GeneradorXmlLiquidacionCompra implements GeneradorXmlComprobante {
         info.appendChild(construirTotalConImpuestos(doc, c));
         XmlComprobanteUtil.texto(doc, info, "importeTotal", XmlComprobanteUtil.montoTexto(c.getImporteTotal()));
         XmlComprobanteUtil.texto(doc, info, "moneda", c.getMoneda());
-        info.appendChild(construirPagos(doc, c));
+        info.appendChild(XmlComprobanteUtil.construirPagos(doc, c.getPagos()));
         return info;
     }
 
@@ -116,15 +117,6 @@ public class GeneradorXmlLiquidacionCompra implements GeneradorXmlComprobante {
             totalConImpuestos.appendChild(totalImpuesto);
         }
         return totalConImpuestos;
-    }
-
-    private Element construirPagos(Document doc, Comprobante c) {
-        Element pagos = doc.createElement("pagos");
-        Element pago = doc.createElement("pago");
-        XmlComprobanteUtil.texto(doc, pago, "formaPago", "01");
-        XmlComprobanteUtil.texto(doc, pago, "total", XmlComprobanteUtil.montoTexto(c.getImporteTotal()));
-        pagos.appendChild(pago);
-        return pagos;
     }
 
     private Element construirDetalles(Document doc, Comprobante c) {

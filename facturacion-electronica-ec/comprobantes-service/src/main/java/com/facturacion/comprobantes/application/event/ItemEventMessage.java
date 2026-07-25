@@ -14,6 +14,7 @@ public record ItemEventMessage(
     UUID eventId,
     UUID itemId,
     String eventType,
+    String ruc,
     String tipo,
     String codigoPrincipal,
     String codigoAuxiliar,

@@ -48,8 +48,9 @@ public class GeneradorXmlGuiaRemision implements GeneradorXmlComprobante {
             raiz.appendChild(construirInfoTributaria(doc, c));
             raiz.appendChild(construirInfoGuiaRemision(doc, c));
             raiz.appendChild(construirDestinatarios(doc, c));
-            if (c.isEmisorEsGranContribuyente()) {
-                raiz.appendChild(XmlComprobanteUtil.construirInfoAdicionalGranContribuyente(doc, c));
+            Element infoAdicional = XmlComprobanteUtil.construirInfoAdicional(doc, c);
+            if (infoAdicional != null) {
+                raiz.appendChild(infoAdicional);
             }
 
             return XmlComprobanteUtil.serializar(doc);

@@ -17,7 +17,7 @@ public interface ItemRepository {
 
     Uni<Item> findById(UUID id);
 
-    Uni<PageResult<Item>> findPaged(int page, int limit, TipoItem tipo, UUID categoriaId);
+    Uni<PageResult<Item>> findPaged(int page, int limit, TipoItem tipo, UUID categoriaId, String ruc);
 
     /** UPDATE atómico: solo reserva si hay suficiente disponible. Retorna filas afectadas (0 o 1). */
     Uni<Integer> tryReservar(UUID itemId, BigDecimal cantidad);

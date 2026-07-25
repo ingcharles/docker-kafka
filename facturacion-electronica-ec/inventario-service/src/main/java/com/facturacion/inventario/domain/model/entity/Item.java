@@ -16,6 +16,8 @@ import com.facturacion.inventario.domain.model.enums.TipoItem;
 public class Item {
 
     private UUID id;
+    /** RUC del emisor/empresa dueña de este ítem — el catálogo es multi-tenant, cada ítem pertenece a un solo emisor. */
+    private String ruc;
     private TipoItem tipo;
     private UUID categoriaId;
     private String codigoPrincipal;
@@ -45,12 +47,13 @@ public class Item {
     public Item() {
     }
 
-    public Item(UUID id, TipoItem tipo, UUID categoriaId, String codigoPrincipal, String codigoAuxiliar,
+    public Item(UUID id, String ruc, TipoItem tipo, UUID categoriaId, String codigoPrincipal, String codigoAuxiliar,
             String descripcion, BigDecimal precioUnitario, String unidadMedida, BigDecimal cantidadDisponible,
             BigDecimal cantidadReservada, BigDecimal stockMinimo, boolean activo, String codigoImpuesto,
             String codigoPorcentaje, BigDecimal tarifaIva, boolean tieneIce, String codigoPorcentajeIce,
             BigDecimal tarifaIce, Instant creadoEn, Instant actualizadoEn) {
         this.id = id;
+        this.ruc = ruc;
         this.tipo = tipo;
         this.categoriaId = categoriaId;
         this.codigoPrincipal = codigoPrincipal;
@@ -82,6 +85,14 @@ public class Item {
 
     public void setId(UUID id) {
         this.id = id;
+    }
+
+    public String getRuc() {
+        return ruc;
+    }
+
+    public void setRuc(String ruc) {
+        this.ruc = ruc;
     }
 
     public TipoItem getTipo() {

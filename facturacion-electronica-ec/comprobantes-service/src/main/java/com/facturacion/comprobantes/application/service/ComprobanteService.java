@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import jakarta.enterprise.context.ApplicationScoped;
@@ -26,6 +25,7 @@ import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.comprobantes.application.dto.CampoAdicionalRequest;
 import com.facturacion.comprobantes.application.dto.ComprobanteResponse;
 import com.facturacion.comprobantes.application.dto.CrearFacturaRequest;
 import com.facturacion.comprobantes.application.dto.CrearGuiaRemisionRequest;
@@ -36,7 +36,9 @@ import com.facturacion.comprobantes.application.dto.CrearRetencionRequest;
 import com.facturacion.comprobantes.application.dto.DestinatarioGuiaRemisionRequest;
 import com.facturacion.comprobantes.application.dto.DetalleComprobanteRequest;
 import com.facturacion.comprobantes.application.dto.DetalleGuiaRemisionRequest;
+import com.facturacion.comprobantes.application.dto.EmisorRequest;
 import com.facturacion.comprobantes.application.dto.MotivoNotaDebitoRequest;
+import com.facturacion.comprobantes.application.dto.PagoRequest;
 import com.facturacion.comprobantes.application.dto.RetencionLineaRequest;
 import com.facturacion.comprobantes.application.event.ActualizarComprobanteCommand;
 import com.facturacion.comprobantes.application.event.ComprobanteAutorizadoEventMessage;
@@ -44,14 +46,15 @@ import com.facturacion.comprobantes.application.event.ComprobanteCreadoEventMess
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.entity.DestinatarioGuiaRemision;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
-import com.facturacion.comprobantes.domain.model.entity.EmisorLocal;
 import com.facturacion.comprobantes.domain.model.entity.ItemLocal;
+import com.facturacion.comprobantes.domain.model.enums.AmbienteSri;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
+import com.facturacion.comprobantes.domain.model.vo.CampoAdicional;
 import com.facturacion.comprobantes.domain.model.vo.Impuesto;
+import com.facturacion.comprobantes.domain.model.vo.Pago;
 import com.facturacion.comprobantes.domain.model.vo.PageResult;
 import com.facturacion.comprobantes.domain.repository.ComprobanteRepository;
-import com.facturacion.comprobantes.domain.repository.EmisorLocalRepository;
 import com.facturacion.comprobantes.domain.repository.ItemLocalRepository;
 import com.facturacion.comprobantes.domain.service.ClaveAccesoGenerador;
 import com.facturacion.comprobantes.infrastructure.outbox.OutboxEventEntity;
@@ -60,19 +63,26 @@ import com.facturacion.comprobantes.infrastructure.persistence.mapper.Comprobant
 import com.facturacion.comprobantes.infrastructure.ride.RideGenerador;
 import com.facturacion.comprobantes.infrastructure.xml.GeneradorXmlComprobanteResolver;
 import com.facturacion.comprobantes.shared.constant.MessagingConstants;
-import com.facturacion.comprobantes.shared.exception.EmisorSinCertificadoException;
 import com.facturacion.comprobantes.shared.exception.NotFoundException;
 import com.facturacion.comprobantes.shared.responses.PagedResponse;
 
 /**
  * Dueño del agregado Comprobante. Un método {@code crear*} por tipo de
- * comprobante (todos comparten {@link #emitir} para el flujo común: buscar
- * el emisor, obtener el siguiente secuencial de forma atómica, generar el
- * XML y dejarlo en el outbox); {@link #aplicarComando} aplica cada
- * transición de estado que llega del orquestador — es ahí, en
- * {@code MARCAR_AUTORIZADO}, donde se genera y se guarda el RIDE en PDF
- * (nunca antes: el RIDE debe mostrar el número/fecha de autorización real).
- * Ver {@code EstadoComprobante} para qué campo se llena en cada paso.
+ * comprobante (todos comparten {@link #emitir} para el flujo común: reservar
+ * el siguiente secuencial de forma atómica, generar el XML y dejarlo en el
+ * outbox); {@link #aplicarComando} aplica cada transición de estado que
+ * llega del orquestador — es ahí, en {@code MARCAR_AUTORIZADO}, donde se
+ * genera y se guarda el RIDE en PDF (nunca antes: el RIDE debe mostrar el
+ * número/fecha de autorización real). Ver {@code EstadoComprobante} para qué
+ * campo se llena en cada paso.
+ * <p>
+ * Este servicio ya no mantiene ninguna copia local del Emisor de
+ * firma-electronica-service — cada request de creación trae inline los
+ * datos del emisor (identificado por {@code ruc}, no por un {@code emisorId}
+ * interno de otro servicio). Sí sigue manteniendo la réplica local del
+ * catálogo de inventario-service ({@code item_local}, ahora scoped por
+ * {@code ruc} — un ítem solo deriva impuesto para el emisor dueño de ese
+ * ítem). Ver ARQUITECTURA.md, "Emisor sin ID".
  */
 @ApplicationScoped
 public class ComprobanteService {
@@ -80,7 +90,6 @@ public class ComprobanteService {
     private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final ComprobanteRepository comprobanteRepository;
-    private final EmisorLocalRepository emisorLocalRepository;
     private final ItemLocalRepository itemLocalRepository;
     private final GeneradorXmlComprobanteResolver xmlResolver;
     private final RideGenerador rideGenerador;
@@ -89,12 +98,10 @@ public class ComprobanteService {
     private final ObjectMapper objectMapper;
 
     @Inject
-    public ComprobanteService(ComprobanteRepository comprobanteRepository, EmisorLocalRepository emisorLocalRepository,
-            ItemLocalRepository itemLocalRepository, GeneradorXmlComprobanteResolver xmlResolver,
-            RideGenerador rideGenerador, ComprobanteMapper mapper, OutboxEventRepository outboxRepository,
-            ObjectMapper objectMapper) {
+    public ComprobanteService(ComprobanteRepository comprobanteRepository, ItemLocalRepository itemLocalRepository,
+            GeneradorXmlComprobanteResolver xmlResolver, RideGenerador rideGenerador, ComprobanteMapper mapper,
+            OutboxEventRepository outboxRepository, ObjectMapper objectMapper) {
         this.comprobanteRepository = comprobanteRepository;
-        this.emisorLocalRepository = emisorLocalRepository;
         this.itemLocalRepository = itemLocalRepository;
         this.xmlResolver = xmlResolver;
         this.rideGenerador = rideGenerador;
@@ -105,86 +112,87 @@ public class ComprobanteService {
 
     @WithTransaction
     public Uni<ComprobanteResponse> crearFactura(@Valid CrearFacturaRequest request) {
-        return emitir(request.getEmisorId(), TipoComprobante.FACTURA,
-            (emisor, secuencial) -> construirFactura(emisor, request, secuencial));
+        return emitir(request.getEmisor(), TipoComprobante.FACTURA,
+            secuencial -> construirFactura(request, secuencial));
     }
 
     @WithTransaction
     public Uni<ComprobanteResponse> crearNotaCredito(@Valid CrearNotaCreditoRequest request) {
-        return emitir(request.getEmisorId(), TipoComprobante.NOTA_CREDITO,
-            (emisor, secuencial) -> construirNotaCredito(emisor, request, secuencial));
+        return emitir(request.getEmisor(), TipoComprobante.NOTA_CREDITO,
+            secuencial -> construirNotaCredito(request, secuencial));
     }
 
     @WithTransaction
     public Uni<ComprobanteResponse> crearNotaDebito(@Valid CrearNotaDebitoRequest request) {
-        return emitir(request.getEmisorId(), TipoComprobante.NOTA_DEBITO,
-            (emisor, secuencial) -> construirNotaDebito(emisor, request, secuencial));
+        return emitir(request.getEmisor(), TipoComprobante.NOTA_DEBITO,
+            secuencial -> construirNotaDebito(request, secuencial));
     }
 
     @WithTransaction
     public Uni<ComprobanteResponse> crearGuiaRemision(@Valid CrearGuiaRemisionRequest request) {
-        return emitir(request.getEmisorId(), TipoComprobante.GUIA_REMISION,
-            (emisor, secuencial) -> construirGuiaRemision(emisor, request, secuencial));
+        return emitir(request.getEmisor(), TipoComprobante.GUIA_REMISION,
+            secuencial -> construirGuiaRemision(request, secuencial));
     }
 
     @WithTransaction
     public Uni<ComprobanteResponse> crearRetencion(@Valid CrearRetencionRequest request) {
-        return emitir(request.getEmisorId(), TipoComprobante.RETENCION,
-            (emisor, secuencial) -> construirRetencion(emisor, request, secuencial));
+        return emitir(request.getEmisor(), TipoComprobante.RETENCION,
+            secuencial -> construirRetencion(request, secuencial));
     }
 
     @WithTransaction
     public Uni<ComprobanteResponse> crearLiquidacionCompra(@Valid CrearLiquidacionCompraRequest request) {
-        return emitir(request.getEmisorId(), TipoComprobante.LIQUIDACION_COMPRA,
-            (emisor, secuencial) -> construirLiquidacionCompra(emisor, request, secuencial));
+        return emitir(request.getEmisor(), TipoComprobante.LIQUIDACION_COMPRA,
+            secuencial -> construirLiquidacionCompra(request, secuencial));
     }
 
     /**
-     * Flujo común a los 6 tipos: busca el emisor, reserva el siguiente
-     * secuencial de forma atómica para esa combinación
-     * emisor+tipo+establecimiento+puntoEmision, arma el agregado (delegado a
-     * {@code constructor}), genera el XML sin firmar y lo persiste junto con
-     * el evento {@code ComprobanteCreado} en el outbox.
+     * Flujo común a los 6 tipos: reserva el siguiente secuencial de forma
+     * atómica para esa combinación ruc+tipo+establecimiento+puntoEmision,
+     * arma el agregado (delegado a {@code constructor}), genera el XML sin
+     * firmar y lo persiste junto con el evento {@code ComprobanteCreado} en
+     * el outbox.
      */
-    private Uni<ComprobanteResponse> emitir(UUID emisorId, TipoComprobante tipo,
-            BiFunction<EmisorLocal, Long, Uni<Comprobante>> constructor) {
-        return emisorLocalRepository.findById(emisorId)
-            .onItem().ifNull().failWith(() -> new EmisorSinCertificadoException(emisorId))
-            .onItem().transformToUni(emisor -> comprobanteRepository
-                .siguienteSecuencial(emisor.getId(), tipo, emisor.getEstablecimientoDefecto(),
-                    emisor.getPuntoEmisionDefecto())
-                .onItem().transformToUni(secuencial -> constructor.apply(emisor, secuencial)
-                    .onItem().transformToUni(comprobante -> {
-                        // El XML se genera ya con la clave de acceso, los totales y el detalle
-                        // completos — es este texto el que queda guardado en xml_generado y el
-                        // que viaja, sin cambios, hasta firma-electronica-service.
-                        comprobante.setXmlGenerado(xmlResolver.generar(comprobante));
-                        return comprobanteRepository.persist(comprobante)
-                            .chain(guardado -> outboxRepository.persist(construirEventoCreado(guardado))
-                                .replaceWith(guardado))
-                            .map(mapper::toResponse);
-                    })));
+    private Uni<ComprobanteResponse> emitir(EmisorRequest emisor, TipoComprobante tipo,
+            java.util.function.Function<Long, Uni<Comprobante>> constructor) {
+        return comprobanteRepository
+            .siguienteSecuencial(emisor.getRuc(), tipo, emisor.getEstablecimiento(), emisor.getPuntoEmision())
+            .onItem().transformToUni(secuencial -> constructor.apply(secuencial)
+                .onItem().transformToUni(comprobante -> {
+                    // El XML se genera ya con la clave de acceso, los totales y el detalle
+                    // completos — es este texto el que queda guardado en xml_generado y el
+                    // que viaja, sin cambios, hasta firma-electronica-service.
+                    comprobante.setXmlGenerado(xmlResolver.generar(comprobante));
+                    return comprobanteRepository.persist(comprobante)
+                        .chain(guardado -> outboxRepository.persist(construirEventoCreado(guardado))
+                            .replaceWith(guardado))
+                        .map(mapper::toResponse);
+                }));
     }
 
-    /** Encabezado común a los 6 tipos (clave de acceso, snapshot del emisor, estado inicial). */
-    private Comprobante construirEncabezado(EmisorLocal emisor, TipoComprobante tipo, long secuencial, Instant ahora) {
+    /** Encabezado común a los 6 tipos (clave de acceso, snapshot del emisor inline, estado inicial). */
+    private Comprobante construirEncabezado(EmisorRequest emisor, TipoComprobante tipo, long secuencial,
+            Instant ahora) {
+        AmbienteSri ambiente = parseAmbiente(emisor.getAmbiente());
         String claveAcceso = ClaveAccesoGenerador.generar(ClaveAccesoGenerador.hoyEnEcuador(), tipo, emisor.getRuc(),
-            emisor.getAmbiente(), emisor.getEstablecimientoDefecto(), emisor.getPuntoEmisionDefecto(), secuencial);
+            ambiente, emisor.getEstablecimiento(), emisor.getPuntoEmision(), secuencial);
 
         Comprobante comprobante = new Comprobante();
         comprobante.setId(UUID.randomUUID());
         comprobante.setTipoComprobante(tipo);
         comprobante.setClaveAcceso(claveAcceso);
-        comprobante.setAmbiente(emisor.getAmbiente());
-        comprobante.setEstablecimiento(emisor.getEstablecimientoDefecto());
-        comprobante.setPuntoEmision(emisor.getPuntoEmisionDefecto());
+        comprobante.setAmbiente(ambiente);
+        comprobante.setEstablecimiento(emisor.getEstablecimiento());
+        comprobante.setPuntoEmision(emisor.getPuntoEmision());
         comprobante.setSecuencial(String.format("%09d", secuencial));
-        comprobante.setEmisorId(emisor.getId());
         comprobante.setEmisorRuc(emisor.getRuc());
         comprobante.setEmisorRazonSocial(emisor.getRazonSocial());
         comprobante.setEmisorNombreComercial(emisor.getNombreComercial());
         comprobante.setEmisorDireccionMatriz(emisor.getDireccionMatriz());
-        comprobante.setDireccionEstablecimiento(emisor.getDireccionMatriz());
+        comprobante.setDireccionEstablecimiento(
+            emisor.getDireccionEstablecimiento() != null && !emisor.getDireccionEstablecimiento().isBlank()
+                ? emisor.getDireccionEstablecimiento()
+                : emisor.getDireccionMatriz());
         comprobante.setEmisorObligadoContabilidad(emisor.isObligadoContabilidad());
         comprobante.setEmisorContribuyenteEspecial(emisor.isContribuyenteEspecial());
         comprobante.setEmisorNumeroContribuyenteEspecial(emisor.getNumeroContribuyenteEspecial());
@@ -197,11 +205,12 @@ public class ComprobanteService {
         return comprobante;
     }
 
-    private Uni<Comprobante> construirFactura(EmisorLocal emisor, CrearFacturaRequest request, long secuencial) {
+    private Uni<Comprobante> construirFactura(CrearFacturaRequest request, long secuencial) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = construirEncabezado(emisor, TipoComprobante.FACTURA, secuencial, ahora);
+        Comprobante comprobante = construirEncabezado(request.getEmisor(), TipoComprobante.FACTURA, secuencial,
+            ahora);
 
-        return cargarItemsParaAutoImpuestos(request.getDetalles())
+        return cargarItemsParaAutoImpuestos(request.getDetalles(), request.getEmisor().getRuc())
             .map(itemsPorId -> {
                 List<DetalleComprobante> detalles = request.getDetalles().stream()
                     .map(det -> construirDetalle(det, itemsPorId))
@@ -215,16 +224,18 @@ public class ComprobanteService {
                 comprobante.setCompradorCorreo(request.getCompradorCorreo());
                 comprobante.setMoneda(request.getMoneda());
                 comprobante.setDetalles(detalles);
+                comprobante.setPagos(construirPagos(request.getPagos(), comprobante.getImporteTotal()));
+                comprobante.setCamposAdicionales(construirCamposAdicionales(request.getCampoAdicional()));
                 return comprobante;
             });
     }
 
-    private Uni<Comprobante> construirNotaCredito(EmisorLocal emisor, CrearNotaCreditoRequest request,
-            long secuencial) {
+    private Uni<Comprobante> construirNotaCredito(CrearNotaCreditoRequest request, long secuencial) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = construirEncabezado(emisor, TipoComprobante.NOTA_CREDITO, secuencial, ahora);
+        Comprobante comprobante = construirEncabezado(request.getEmisor(), TipoComprobante.NOTA_CREDITO, secuencial,
+            ahora);
 
-        return cargarItemsParaAutoImpuestos(request.getDetalles())
+        return cargarItemsParaAutoImpuestos(request.getDetalles(), request.getEmisor().getRuc())
             .map(itemsPorId -> {
                 List<DetalleComprobante> detalles = request.getDetalles().stream()
                     .map(det -> construirDetalle(det, itemsPorId))
@@ -242,14 +253,15 @@ public class ComprobanteService {
                 comprobante.setDocModificadoNumero(request.getDocModificadoNumero());
                 comprobante.setDocModificadoFecha(parseFecha(request.getDocModificadoFecha()));
                 comprobante.setMotivo(request.getMotivo());
+                comprobante.setCamposAdicionales(construirCamposAdicionales(request.getCampoAdicional()));
                 return comprobante;
             });
     }
 
-    private Uni<Comprobante> construirNotaDebito(EmisorLocal emisor, CrearNotaDebitoRequest request,
-            long secuencial) {
+    private Uni<Comprobante> construirNotaDebito(CrearNotaDebitoRequest request, long secuencial) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = construirEncabezado(emisor, TipoComprobante.NOTA_DEBITO, secuencial, ahora);
+        Comprobante comprobante = construirEncabezado(request.getEmisor(), TipoComprobante.NOTA_DEBITO, secuencial,
+            ahora);
 
         BigDecimal totalMotivos = request.getMotivos().stream()
             .map(MotivoNotaDebitoRequest::getValor)
@@ -298,13 +310,15 @@ public class ComprobanteService {
         comprobante.setDocModificadoTipo(request.getDocModificadoTipo());
         comprobante.setDocModificadoNumero(request.getDocModificadoNumero());
         comprobante.setDocModificadoFecha(parseFecha(request.getDocModificadoFecha()));
+        comprobante.setPagos(construirPagos(request.getPagos(), comprobante.getImporteTotal()));
+        comprobante.setCamposAdicionales(construirCamposAdicionales(request.getCampoAdicional()));
         return Uni.createFrom().item(comprobante);
     }
 
-    private Uni<Comprobante> construirGuiaRemision(EmisorLocal emisor, CrearGuiaRemisionRequest request,
-            long secuencial) {
+    private Uni<Comprobante> construirGuiaRemision(CrearGuiaRemisionRequest request, long secuencial) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = construirEncabezado(emisor, TipoComprobante.GUIA_REMISION, secuencial, ahora);
+        Comprobante comprobante = construirEncabezado(request.getEmisor(), TipoComprobante.GUIA_REMISION, secuencial,
+            ahora);
 
         List<DestinatarioGuiaRemision> destinatarios = new ArrayList<>();
         List<DetalleComprobante> detalles = new ArrayList<>();
@@ -352,12 +366,14 @@ public class ComprobanteService {
         comprobante.setFechaIniTransporte(parseFecha(request.getFechaIniTransporte()));
         comprobante.setFechaFinTransporte(parseFecha(request.getFechaFinTransporte()));
         comprobante.setPlaca(request.getPlaca());
+        comprobante.setCamposAdicionales(construirCamposAdicionales(request.getCampoAdicional()));
         return Uni.createFrom().item(comprobante);
     }
 
-    private Uni<Comprobante> construirRetencion(EmisorLocal emisor, CrearRetencionRequest request, long secuencial) {
+    private Uni<Comprobante> construirRetencion(CrearRetencionRequest request, long secuencial) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = construirEncabezado(emisor, TipoComprobante.RETENCION, secuencial, ahora);
+        Comprobante comprobante = construirEncabezado(request.getEmisor(), TipoComprobante.RETENCION, secuencial,
+            ahora);
 
         List<DetalleComprobante> detalles = new ArrayList<>();
         BigDecimal totalBaseImponible = BigDecimal.ZERO;
@@ -400,15 +416,16 @@ public class ComprobanteService {
         comprobante.setTotalDescuento(BigDecimal.ZERO);
         comprobante.setImporteTotal(totalRetenido);
         comprobante.setPeriodoFiscal(request.getPeriodoFiscal());
+        comprobante.setCamposAdicionales(construirCamposAdicionales(request.getCampoAdicional()));
         return Uni.createFrom().item(comprobante);
     }
 
-    private Uni<Comprobante> construirLiquidacionCompra(EmisorLocal emisor, CrearLiquidacionCompraRequest request,
-            long secuencial) {
+    private Uni<Comprobante> construirLiquidacionCompra(CrearLiquidacionCompraRequest request, long secuencial) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = construirEncabezado(emisor, TipoComprobante.LIQUIDACION_COMPRA, secuencial, ahora);
+        Comprobante comprobante = construirEncabezado(request.getEmisor(), TipoComprobante.LIQUIDACION_COMPRA,
+            secuencial, ahora);
 
-        return cargarItemsParaAutoImpuestos(request.getDetalles())
+        return cargarItemsParaAutoImpuestos(request.getDetalles(), request.getEmisor().getRuc())
             .map(itemsPorId -> {
                 List<DetalleComprobante> detalles = request.getDetalles().stream()
                     .map(det -> construirDetalle(det, itemsPorId))
@@ -425,6 +442,8 @@ public class ComprobanteService {
                 comprobante.setCompradorCorreo(request.getProveedorCorreo());
                 comprobante.setMoneda(request.getMoneda());
                 comprobante.setDetalles(detalles);
+                comprobante.setPagos(construirPagos(request.getPagos(), comprobante.getImporteTotal()));
+                comprobante.setCamposAdicionales(construirCamposAdicionales(request.getCampoAdicional()));
                 return comprobante;
             });
     }
@@ -443,6 +462,25 @@ public class ComprobanteService {
         comprobante.setSubtotalSinImpuestos(subtotal);
         comprobante.setTotalDescuento(totalDescuento);
         comprobante.setImporteTotal(subtotal.add(totalImpuestos));
+    }
+
+    /** Si el caller no manda pagos explícitos, se asume una sola forma de pago "01" (sin utilización del sistema financiero) por el total. */
+    private List<Pago> construirPagos(List<PagoRequest> pagosRequest, BigDecimal importeTotal) {
+        if (pagosRequest == null || pagosRequest.isEmpty()) {
+            return List.of(new Pago("01", importeTotal, null, null));
+        }
+        return pagosRequest.stream()
+            .map(p -> new Pago(p.getFormaPago(), p.getTotal(), p.getPlazo(), p.getUnidadTiempo()))
+            .collect(Collectors.toList());
+    }
+
+    private List<CampoAdicional> construirCamposAdicionales(List<CampoAdicionalRequest> camposRequest) {
+        if (camposRequest == null) {
+            return List.of();
+        }
+        return camposRequest.stream()
+            .map(c -> new CampoAdicional(c.getNombre(), c.getValor()))
+            .collect(Collectors.toList());
     }
 
     private Instant parseFecha(String ddMmAaaa) {
@@ -542,8 +580,8 @@ public class ComprobanteService {
 
     @WithSession
     public Uni<PagedResponse<ComprobanteResponse>> listarPaginado(int page, int limit, EstadoComprobante estado,
-            UUID emisorId) {
-        return comprobanteRepository.findPaged(page, limit, estado, emisorId)
+            String emisorRuc) {
+        return comprobanteRepository.findPaged(page, limit, estado, emisorRuc)
             .map((PageResult<Comprobante> pageResult) -> {
                 List<ComprobanteResponse> items = pageResult.items().stream()
                     .map(mapper::toResponse)
@@ -556,15 +594,18 @@ public class ComprobanteService {
      * Trae de una sola vez (batch) la copia local de todos los ítems que
      * necesitarán derivar su impuesto automáticamente — es decir, las
      * líneas que no traen {@code impuestos} explícitos pero sí un
-     * {@code itemId}. Si una línea ya trae impuestos, o no tiene itemId, no
-     * se incluye en la consulta.
+     * {@code itemId}. El catálogo es multi-tenant: solo se consideran
+     * ítems que pertenezcan al {@code ruc} del emisor que está emitiendo
+     * este comprobante — el ítem de otro emisor nunca hace match, aunque el
+     * UUID exista.
      */
-    private Uni<Map<UUID, ItemLocal>> cargarItemsParaAutoImpuestos(List<DetalleComprobanteRequest> detalles) {
+    private Uni<Map<UUID, ItemLocal>> cargarItemsParaAutoImpuestos(List<DetalleComprobanteRequest> detalles,
+            String ruc) {
         Set<UUID> ids = detalles.stream()
             .filter(d -> (d.getImpuestos() == null || d.getImpuestos().isEmpty()) && d.getItemId() != null)
             .map(DetalleComprobanteRequest::getItemId)
             .collect(Collectors.toSet());
-        return itemLocalRepository.findByIds(ids);
+        return itemLocalRepository.findByIdsAndRuc(ids, ruc);
     }
 
     private DetalleComprobante construirDetalle(DetalleComprobanteRequest request, Map<UUID, ItemLocal> itemsPorId) {
@@ -597,8 +638,8 @@ public class ComprobanteService {
                     + (request.getItemId() == null
                         ? "tampoco un itemId del que derivarlos."
                         : "el itemId " + request.getItemId() + " no está (todavía) en el catálogo local de "
-                            + "inventario-service — puede que el evento ItemCreado no haya llegado aún, o que el "
-                            + "ítem no exista."));
+                            + "inventario-service para este emisor — puede que el evento ItemCreado no haya "
+                            + "llegado aún, que el ítem no exista, o que pertenezca a otro emisor."));
             }
             impuestos = construirImpuestosDesdeItem(item, baseImponible);
         }
@@ -636,7 +677,7 @@ public class ComprobanteService {
             UUID.randomUUID(),
             comprobante.getId(),
             MessagingConstants.EVENT_TYPE_COMPROBANTE_CREADO,
-            comprobante.getEmisorId(),
+            comprobante.getEmisorRuc(),
             comprobante.getClaveAcceso(),
             comprobante.getAmbiente().name(),
             comprobante.getXmlGenerado(),
@@ -650,6 +691,15 @@ public class ComprobanteService {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("No se pudo serializar el payload del outbox", e);
+        }
+    }
+
+    /** Traduce el texto "PRUEBAS"/"PRODUCCION" del request a {@code AmbienteSri}, con un mensaje de error legible si viene mal. */
+    private static AmbienteSri parseAmbiente(String texto) {
+        try {
+            return AmbienteSri.valueOf(texto);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("emisor.ambiente debe ser PRUEBAS o PRODUCCION, se recibió: " + texto);
         }
     }
 }

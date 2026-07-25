@@ -16,8 +16,8 @@ public class SecuencialComprobanteEntity extends PanacheEntityBase {
     @Id
     public UUID id;
 
-    @Column(name = "emisor_id", nullable = false)
-    public UUID emisorId;
+    @Column(nullable = false)
+    public String ruc;
 
     @Column(name = "tipo_comprobante", nullable = false)
     public String tipoComprobante;

@@ -1,7 +1,6 @@
 package com.facturacion.comprobantes.application.dto;
 
 import java.util.List;
-import java.util.UUID;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -18,7 +17,8 @@ import jakarta.validation.constraints.NotNull;
 public class CrearLiquidacionCompraRequest {
 
     @NotNull
-    private UUID emisorId;
+    @Valid
+    private EmisorRequest emisor;
 
     @NotBlank
     private String proveedorTipoIdentificacion;
@@ -39,12 +39,19 @@ public class CrearLiquidacionCompraRequest {
     @Valid
     private List<DetalleComprobanteRequest> detalles;
 
-    public UUID getEmisorId() {
-        return emisorId;
+    /** Opcional — si no se manda, se asume una sola forma de pago "01" por el importe total. */
+    @Valid
+    private List<PagoRequest> pagos;
+
+    @Valid
+    private List<CampoAdicionalRequest> campoAdicional = List.of();
+
+    public EmisorRequest getEmisor() {
+        return emisor;
     }
 
-    public void setEmisorId(UUID emisorId) {
-        this.emisorId = emisorId;
+    public void setEmisor(EmisorRequest emisor) {
+        this.emisor = emisor;
     }
 
     public String getProveedorTipoIdentificacion() {
@@ -101,5 +108,21 @@ public class CrearLiquidacionCompraRequest {
 
     public void setDetalles(List<DetalleComprobanteRequest> detalles) {
         this.detalles = detalles;
+    }
+
+    public List<PagoRequest> getPagos() {
+        return pagos;
+    }
+
+    public void setPagos(List<PagoRequest> pagos) {
+        this.pagos = pagos;
+    }
+
+    public List<CampoAdicionalRequest> getCampoAdicional() {
+        return campoAdicional;
+    }
+
+    public void setCampoAdicional(List<CampoAdicionalRequest> campoAdicional) {
+        this.campoAdicional = campoAdicional;
     }
 }

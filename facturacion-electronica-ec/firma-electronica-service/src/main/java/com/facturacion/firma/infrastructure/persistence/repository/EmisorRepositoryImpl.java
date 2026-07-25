@@ -63,6 +63,12 @@ public class EmisorRepositoryImpl implements EmisorRepository {
     }
 
     @Override
+    public Uni<Emisor> findByRuc(String ruc) {
+        return repository.<EmisorEntity>find("ruc", ruc).firstResult()
+            .map(entity -> entity == null ? null : mapper.toDomain(entity));
+    }
+
+    @Override
     public Uni<Boolean> existsByRuc(String ruc) {
         return repository.count("ruc", ruc).map(count -> count > 0);
     }

@@ -15,6 +15,8 @@ public interface EmisorRepository {
 
     Uni<Emisor> findById(UUID id);
 
+    Uni<Emisor> findByRuc(String ruc);
+
     Uni<Boolean> existsByRuc(String ruc);
 
     Uni<PageResult<Emisor>> findPaged(int page, int limit);

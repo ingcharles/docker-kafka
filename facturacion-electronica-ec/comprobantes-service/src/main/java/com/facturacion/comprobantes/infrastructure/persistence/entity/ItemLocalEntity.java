@@ -18,6 +18,9 @@ public class ItemLocalEntity extends PanacheEntityBase {
     @Id
     public UUID id;
 
+    @Column(nullable = false)
+    public String ruc;
+
     @Column(name = "codigo_principal", nullable = false)
     public String codigoPrincipal;
 

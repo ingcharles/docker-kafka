@@ -1,7 +1,6 @@
 package com.facturacion.comprobantes.application.dto;
 
 import java.util.List;
-import java.util.UUID;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -19,7 +18,8 @@ import jakarta.validation.constraints.NotNull;
 public class CrearRetencionRequest {
 
     @NotNull
-    private UUID emisorId;
+    @Valid
+    private EmisorRequest emisor;
 
     @NotBlank
     private String sujetoRetenidoTipoIdentificacion;
@@ -40,12 +40,15 @@ public class CrearRetencionRequest {
     @Valid
     private List<RetencionLineaRequest> retenciones;
 
-    public UUID getEmisorId() {
-        return emisorId;
+    @Valid
+    private List<CampoAdicionalRequest> campoAdicional = List.of();
+
+    public EmisorRequest getEmisor() {
+        return emisor;
     }
 
-    public void setEmisorId(UUID emisorId) {
-        this.emisorId = emisorId;
+    public void setEmisor(EmisorRequest emisor) {
+        this.emisor = emisor;
     }
 
     public String getSujetoRetenidoTipoIdentificacion() {
@@ -94,5 +97,13 @@ public class CrearRetencionRequest {
 
     public void setRetenciones(List<RetencionLineaRequest> retenciones) {
         this.retenciones = retenciones;
+    }
+
+    public List<CampoAdicionalRequest> getCampoAdicional() {
+        return campoAdicional;
+    }
+
+    public void setCampoAdicional(List<CampoAdicionalRequest> campoAdicional) {
+        this.campoAdicional = campoAdicional;
     }
 }

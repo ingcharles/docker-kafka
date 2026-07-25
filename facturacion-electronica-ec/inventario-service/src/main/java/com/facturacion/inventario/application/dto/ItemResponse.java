@@ -7,6 +7,7 @@ import java.util.UUID;
 public class ItemResponse {
 
     private UUID id;
+    private String ruc;
     private String tipo;
     private UUID categoriaId;
     private String codigoPrincipal;
@@ -33,6 +34,14 @@ public class ItemResponse {
 
     public void setId(UUID id) {
         this.id = id;
+    }
+
+    public String getRuc() {
+        return ruc;
+    }
+
+    public void setRuc(String ruc) {
+        this.ruc = ruc;
     }
 
     public String getTipo() {

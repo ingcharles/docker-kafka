@@ -7,7 +7,7 @@ import java.util.UUID;
 public record FirmarComprobanteCommand(
     UUID eventId,
     UUID comprobanteId,
-    UUID emisorId,
+    String ruc,
     String xmlSinFirmar,
     Instant occurredAt) {
 }

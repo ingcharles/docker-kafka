@@ -34,6 +34,7 @@ public class ItemLocalRepositoryImpl implements ItemLocalRepository {
                 if (existente == null) {
                     return repository.persist(mapper.toEntity(domain)).map(mapper::toDomain);
                 }
+                existente.ruc = domain.getRuc();
                 existente.codigoPrincipal = domain.getCodigoPrincipal();
                 existente.descripcion = domain.getDescripcion();
                 existente.codigoImpuesto = domain.getCodigoImpuesto();
@@ -49,11 +50,11 @@ public class ItemLocalRepositoryImpl implements ItemLocalRepository {
     }
 
     @Override
-    public Uni<Map<UUID, ItemLocal>> findByIds(Set<UUID> ids) {
+    public Uni<Map<UUID, ItemLocal>> findByIdsAndRuc(Set<UUID> ids, String ruc) {
         if (ids.isEmpty()) {
             return Uni.createFrom().item(Map.of());
         }
-        return repository.list("id in ?1", ids)
+        return repository.list("id in ?1 and ruc = ?2", ids, ruc)
             .map(entities -> entities.stream()
                 .map(mapper::toDomain)
                 .collect(Collectors.toMap(ItemLocal::getId, item -> item)));

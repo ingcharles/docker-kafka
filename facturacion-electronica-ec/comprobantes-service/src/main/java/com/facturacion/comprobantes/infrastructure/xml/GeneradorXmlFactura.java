@@ -46,10 +46,11 @@ public class GeneradorXmlFactura implements GeneradorXmlComprobante {
             factura.appendChild(construirInfoTributaria(doc, c));
             factura.appendChild(construirInfoFactura(doc, c));
             factura.appendChild(construirDetalles(doc, c));
-            // infoAdicional: solo se agrega si el emisor es Gran Contribuyente
-            // (Anexo 24) — de lo contrario el tag es opcional y se omite.
-            if (c.isEmisorEsGranContribuyente()) {
-                factura.appendChild(XmlComprobanteUtil.construirInfoAdicionalGranContribuyente(doc, c));
+            // infoAdicional: granContribuyente (si aplica) + campoAdicional del
+            // request — el tag completo es opcional y se omite si no hay nada.
+            Element infoAdicional = XmlComprobanteUtil.construirInfoAdicional(doc, c);
+            if (infoAdicional != null) {
+                factura.appendChild(infoAdicional);
             }
 
             return XmlComprobanteUtil.serializar(doc);
@@ -96,7 +97,7 @@ public class GeneradorXmlFactura implements GeneradorXmlComprobante {
         XmlComprobanteUtil.texto(doc, info, "propina", "0.00");
         XmlComprobanteUtil.texto(doc, info, "importeTotal", XmlComprobanteUtil.montoTexto(c.getImporteTotal()));
         XmlComprobanteUtil.texto(doc, info, "moneda", c.getMoneda());
-        info.appendChild(construirPagos(doc, c));
+        info.appendChild(XmlComprobanteUtil.construirPagos(doc, c.getPagos()));
         return info;
     }
 
@@ -117,16 +118,6 @@ public class GeneradorXmlFactura implements GeneradorXmlComprobante {
             totalConImpuestos.appendChild(totalImpuesto);
         }
         return totalConImpuestos;
-    }
-
-    /** Forma de pago genérica (sin plazo) — suficiente para el alcance de esta versión de referencia. */
-    private Element construirPagos(Document doc, Comprobante c) {
-        Element pagos = doc.createElement("pagos");
-        Element pago = doc.createElement("pago");
-        XmlComprobanteUtil.texto(doc, pago, "formaPago", "01");
-        XmlComprobanteUtil.texto(doc, pago, "total", XmlComprobanteUtil.montoTexto(c.getImporteTotal()));
-        pagos.appendChild(pago);
-        return pagos;
     }
 
     private Element construirDetalles(Document doc, Comprobante c) {

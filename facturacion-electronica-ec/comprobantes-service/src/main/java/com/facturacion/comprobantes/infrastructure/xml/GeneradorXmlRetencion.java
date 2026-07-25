@@ -45,8 +45,9 @@ public class GeneradorXmlRetencion implements GeneradorXmlComprobante {
             raiz.appendChild(construirInfoTributaria(doc, c));
             raiz.appendChild(construirInfoCompRetencion(doc, c));
             raiz.appendChild(construirImpuestos(doc, c));
-            if (c.isEmisorEsGranContribuyente()) {
-                raiz.appendChild(XmlComprobanteUtil.construirInfoAdicionalGranContribuyente(doc, c));
+            Element infoAdicional = XmlComprobanteUtil.construirInfoAdicional(doc, c);
+            if (infoAdicional != null) {
+                raiz.appendChild(infoAdicional);
             }
 
             return XmlComprobanteUtil.serializar(doc);

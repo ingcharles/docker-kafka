@@ -42,9 +42,6 @@ public class ComprobanteEntity extends PanacheEntityBase {
     @Column(nullable = false)
     public String secuencial;
 
-    @Column(name = "emisor_id", nullable = false)
-    public UUID emisorId;
-
     @Column(name = "emisor_ruc", nullable = false)
     public String emisorRuc;
 
@@ -169,6 +166,13 @@ public class ComprobanteEntity extends PanacheEntityBase {
 
     @Column
     public String placa;
+
+    /** Serializados como JSON — mismo patrón que {@code impuestos_json} en DetalleComprobanteEntity (ver ComprobanteMapper). */
+    @Column(name = "pagos_json", columnDefinition = "text")
+    public String pagosJson;
+
+    @Column(name = "campos_adicionales_json", columnDefinition = "text")
+    public String camposAdicionalesJson;
 
     @OneToMany(mappedBy = "comprobante", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("id")

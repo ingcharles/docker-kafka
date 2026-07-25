@@ -97,11 +97,12 @@ public class ItemResource {
 
     @GET
     @Path("/items")
-    @Operation(summary = "Listar ítems", description = "Paginado, con filtro opcional por tipo (PRODUCTO/SERVICIO) y/o categoría.")
+    @Operation(summary = "Listar ítems", description = "Paginado, con filtro opcional por tipo (PRODUCTO/SERVICIO), categoría y/o ruc del emisor dueño.")
     @APIResponse(responseCode = "200", description = "Listado")
     public Uni<Response> listar(@Valid @BeanParam PageRequest pageRequest,
-            @QueryParam("tipo") TipoItem tipo, @QueryParam("categoriaId") UUID categoriaId) {
-        return itemService.listarPaginado(pageRequest.getPage(), pageRequest.getLimit(), tipo, categoriaId)
+            @QueryParam("tipo") TipoItem tipo, @QueryParam("categoriaId") UUID categoriaId,
+            @QueryParam("ruc") String ruc) {
+        return itemService.listarPaginado(pageRequest.getPage(), pageRequest.getLimit(), tipo, categoriaId, ruc)
             .map((PagedResponse<ItemResponse> paged) -> Response.ok(paged).build());
     }
 

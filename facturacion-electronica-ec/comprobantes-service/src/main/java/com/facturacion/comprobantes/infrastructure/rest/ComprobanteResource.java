@@ -64,7 +64,6 @@ public class ComprobanteResource {
     @Operation(summary = "Crear una factura", description = "Genera la clave de acceso y el XML sin firmar, y publica ComprobanteCreado — arranca la saga.")
     @APIResponse(responseCode = "201", description = "Factura creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
-    @APIResponse(responseCode = "404", description = "El emisor no existe (o su copia local todavía no llegó por Kafka)")
     public Uni<Response> crearFactura(@Valid CrearFacturaRequest request, @Context UriInfo uriInfo) {
         return comprobanteService.crearFactura(request)
             .map(response -> {
@@ -80,7 +79,6 @@ public class ComprobanteResource {
     @Operation(summary = "Crear una nota de crédito", description = "Modifica (total o parcialmente) un comprobante ya emitido.")
     @APIResponse(responseCode = "201", description = "Nota de crédito creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
-    @APIResponse(responseCode = "404", description = "El emisor no existe (o su copia local todavía no llegó por Kafka)")
     public Uni<Response> crearNotaCredito(@Valid CrearNotaCreditoRequest request, @Context UriInfo uriInfo) {
         return comprobanteService.crearNotaCredito(request)
             .map(response -> {
@@ -96,7 +94,6 @@ public class ComprobanteResource {
     @Operation(summary = "Crear una nota de débito", description = "Cobra un valor adicional sobre un comprobante ya emitido (intereses, mora, etc.).")
     @APIResponse(responseCode = "201", description = "Nota de débito creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
-    @APIResponse(responseCode = "404", description = "El emisor no existe (o su copia local todavía no llegó por Kafka)")
     public Uni<Response> crearNotaDebito(@Valid CrearNotaDebitoRequest request, @Context UriInfo uriInfo) {
         return comprobanteService.crearNotaDebito(request)
             .map(response -> {
@@ -112,7 +109,6 @@ public class ComprobanteResource {
     @Operation(summary = "Crear una guía de remisión", description = "Traslada bienes a uno o más destinatarios — no es una venta, no lleva comprador ni valores.")
     @APIResponse(responseCode = "201", description = "Guía de remisión creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
-    @APIResponse(responseCode = "404", description = "El emisor no existe (o su copia local todavía no llegó por Kafka)")
     public Uni<Response> crearGuiaRemision(@Valid CrearGuiaRemisionRequest request, @Context UriInfo uriInfo) {
         return comprobanteService.crearGuiaRemision(request)
             .map(response -> {
@@ -128,7 +124,6 @@ public class ComprobanteResource {
     @Operation(summary = "Crear un comprobante de retención", description = "Certifica la retención de IVA/renta aplicada sobre uno o más documentos sustento.")
     @APIResponse(responseCode = "201", description = "Retención creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
-    @APIResponse(responseCode = "404", description = "El emisor no existe (o su copia local todavía no llegó por Kafka)")
     public Uni<Response> crearRetencion(@Valid CrearRetencionRequest request, @Context UriInfo uriInfo) {
         return comprobanteService.crearRetencion(request)
             .map(response -> {
@@ -144,7 +139,6 @@ public class ComprobanteResource {
     @Operation(summary = "Crear una liquidación de compra", description = "El propio comprador emite el comprobante en nombre del proveedor, cuando este no puede emitir el suyo.")
     @APIResponse(responseCode = "201", description = "Liquidación de compra creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
-    @APIResponse(responseCode = "404", description = "El emisor no existe (o su copia local todavía no llegó por Kafka)")
     public Uni<Response> crearLiquidacionCompra(@Valid CrearLiquidacionCompraRequest request,
             @Context UriInfo uriInfo) {
         return comprobanteService.crearLiquidacionCompra(request)
@@ -170,8 +164,8 @@ public class ComprobanteResource {
     @Operation(summary = "Listar comprobantes", description = "Paginado, con filtro opcional por estado y/o emisor.")
     @APIResponse(responseCode = "200", description = "Listado")
     public Uni<Response> listar(@Valid @BeanParam PageRequest pageRequest,
-            @QueryParam("estado") EstadoComprobante estado, @QueryParam("emisorId") UUID emisorId) {
-        return comprobanteService.listarPaginado(pageRequest.getPage(), pageRequest.getLimit(), estado, emisorId)
+            @QueryParam("estado") EstadoComprobante estado, @QueryParam("emisorRuc") String emisorRuc) {
+        return comprobanteService.listarPaginado(pageRequest.getPage(), pageRequest.getLimit(), estado, emisorRuc)
             .map((PagedResponse<ComprobanteResponse> paged) -> Response.ok(paged).build());
     }
 

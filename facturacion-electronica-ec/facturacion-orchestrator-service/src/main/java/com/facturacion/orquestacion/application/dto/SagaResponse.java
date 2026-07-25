@@ -8,7 +8,7 @@ public class SagaResponse {
 
     private UUID comprobanteId;
     private String state;
-    private UUID emisorId;
+    private String emisorRuc;
     private String claveAcceso;
     private String ambiente;
     private String failureReason;
@@ -32,12 +32,12 @@ public class SagaResponse {
         this.state = state;
     }
 
-    public UUID getEmisorId() {
-        return emisorId;
+    public String getEmisorRuc() {
+        return emisorRuc;
     }
 
-    public void setEmisorId(UUID emisorId) {
-        this.emisorId = emisorId;
+    public void setEmisorRuc(String emisorRuc) {
+        this.emisorRuc = emisorRuc;
     }
 
     public String getClaveAcceso() {

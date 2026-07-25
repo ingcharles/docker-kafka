@@ -8,6 +8,8 @@ import java.util.UUID;
 import com.facturacion.comprobantes.domain.model.enums.AmbienteSri;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
+import com.facturacion.comprobantes.domain.model.vo.CampoAdicional;
+import com.facturacion.comprobantes.domain.model.vo.Pago;
 
 /**
  * El agregado central de este servicio. Guarda el XML en cada una de sus
@@ -26,8 +28,9 @@ public class Comprobante {
     private String puntoEmision;
     private String secuencial;
 
-    // Snapshot del emisor al momento de emitir (ver EmisorLocal / EmisorLocal.md en ARQUITECTURA.md)
-    private UUID emisorId;
+    // Datos del emisor recibidos inline en el request de creación — este
+    // servicio ya no mantiene una copia local de Emisor (ver ARQUITECTURA.md,
+    // "Emisor sin ID"); no hay ningún emisorId de firma-electronica-service.
     private String emisorRuc;
     private String emisorRazonSocial;
     private String emisorNombreComercial;
@@ -90,6 +93,11 @@ public class Comprobante {
 
     private List<DetalleComprobante> detalles;
 
+    /** Solo Factura/Nota de Débito/Liquidación de Compra — null en los otros 3 tipos (ver Pago). */
+    private List<Pago> pagos = List.of();
+
+    private List<CampoAdicional> camposAdicionales = List.of();
+
     private Instant creadoEn;
     private Instant actualizadoEn;
 
@@ -147,14 +155,6 @@ public class Comprobante {
 
     public void setSecuencial(String secuencial) {
         this.secuencial = secuencial;
-    }
-
-    public UUID getEmisorId() {
-        return emisorId;
-    }
-
-    public void setEmisorId(UUID emisorId) {
-        this.emisorId = emisorId;
     }
 
     public String getEmisorRuc() {
@@ -491,6 +491,22 @@ public class Comprobante {
 
     public void setDetalles(List<DetalleComprobante> detalles) {
         this.detalles = detalles;
+    }
+
+    public List<Pago> getPagos() {
+        return pagos;
+    }
+
+    public void setPagos(List<Pago> pagos) {
+        this.pagos = pagos;
+    }
+
+    public List<CampoAdicional> getCamposAdicionales() {
+        return camposAdicionales;
+    }
+
+    public void setCamposAdicionales(List<CampoAdicional> camposAdicionales) {
+        this.camposAdicionales = camposAdicionales;
     }
 
     public Instant getCreadoEn() {

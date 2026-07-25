@@ -60,7 +60,7 @@ public class ItemRepositoryImpl implements ItemRepository {
     }
 
     @Override
-    public Uni<PageResult<Item>> findPaged(int page, int limit, TipoItem tipo, UUID categoriaId) {
+    public Uni<PageResult<Item>> findPaged(int page, int limit, TipoItem tipo, UUID categoriaId, String ruc) {
         StringBuilder query = new StringBuilder("1 = 1");
         Map<String, Object> params = new HashMap<>();
         if (tipo != null) {
@@ -70,6 +70,10 @@ public class ItemRepositoryImpl implements ItemRepository {
         if (categoriaId != null) {
             query.append(" and categoriaId = :categoriaId");
             params.put("categoriaId", categoriaId);
+        }
+        if (ruc != null) {
+            query.append(" and ruc = :ruc");
+            params.put("ruc", ruc);
         }
 
         var panacheQuery = repository.find(query.toString(), params).page(Page.of(page, limit));

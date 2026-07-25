@@ -86,9 +86,9 @@ public class ItemService {
     public Uni<ItemResponse> crear(@Valid CrearItemRequest request) {
         TipoItem tipo = TipoItem.valueOf(request.getTipo());
         Instant ahora = Instant.now();
-        Item item = new Item(UUID.randomUUID(), tipo, request.getCategoriaId(), request.getCodigoPrincipal(),
-            request.getCodigoAuxiliar(), request.getDescripcion(), request.getPrecioUnitario(),
-            request.getUnidadMedida(), BigDecimal.ZERO, BigDecimal.ZERO,
+        Item item = new Item(UUID.randomUUID(), request.getRuc(), tipo, request.getCategoriaId(),
+            request.getCodigoPrincipal(), request.getCodigoAuxiliar(), request.getDescripcion(),
+            request.getPrecioUnitario(), request.getUnidadMedida(), BigDecimal.ZERO, BigDecimal.ZERO,
             tipo == TipoItem.PRODUCTO ? request.getStockMinimo() : BigDecimal.ZERO, true,
             request.getCodigoImpuesto(), request.getCodigoPorcentaje(), request.getTarifaIva(),
             request.isTieneIce(), request.getCodigoPorcentajeIce(), request.getTarifaIce(), ahora, ahora);
@@ -156,6 +156,7 @@ public class ItemService {
             UUID.randomUUID(),
             item.getId(),
             eventType,
+            item.getRuc(),
             item.getTipo().name(),
             item.getCodigoPrincipal(),
             item.getCodigoAuxiliar(),
@@ -212,8 +213,9 @@ public class ItemService {
     }
 
     @WithSession
-    public Uni<PagedResponse<ItemResponse>> listarPaginado(int page, int limit, TipoItem tipo, UUID categoriaId) {
-        return repository.findPaged(page, limit, tipo, categoriaId)
+    public Uni<PagedResponse<ItemResponse>> listarPaginado(int page, int limit, TipoItem tipo, UUID categoriaId,
+            String ruc) {
+        return repository.findPaged(page, limit, tipo, categoriaId, ruc)
             .map((PageResult<Item> pageResult) -> {
                 List<ItemResponse> items = pageResult.items().stream()
                     .map(mapper::toResponse)

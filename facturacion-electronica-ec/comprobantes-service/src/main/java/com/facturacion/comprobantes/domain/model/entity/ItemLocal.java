@@ -13,6 +13,8 @@ import java.util.UUID;
 public class ItemLocal {
 
     private UUID id;
+    /** RUC del emisor/empresa dueño de este ítem — el catálogo de inventario-service es multi-tenant, scoped por ruc (ver ARQUITECTURA.md). */
+    private String ruc;
     private String codigoPrincipal;
     private String descripcion;
     private String codigoImpuesto;
@@ -30,6 +32,14 @@ public class ItemLocal {
 
     public void setId(UUID id) {
         this.id = id;
+    }
+
+    public String getRuc() {
+        return ruc;
+    }
+
+    public void setRuc(String ruc) {
+        this.ruc = ruc;
     }
 
     public String getCodigoPrincipal() {

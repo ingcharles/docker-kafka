@@ -72,16 +72,16 @@ public class ComprobanteRepositoryImpl implements ComprobanteRepository {
     }
 
     @Override
-    public Uni<PageResult<Comprobante>> findPaged(int page, int limit, EstadoComprobante estado, UUID emisorId) {
+    public Uni<PageResult<Comprobante>> findPaged(int page, int limit, EstadoComprobante estado, String emisorRuc) {
         StringBuilder query = new StringBuilder("1 = 1");
         Map<String, Object> params = new HashMap<>();
         if (estado != null) {
             query.append(" and estado = :estado");
             params.put("estado", estado.name());
         }
-        if (emisorId != null) {
-            query.append(" and emisorId = :emisorId");
-            params.put("emisorId", emisorId);
+        if (emisorRuc != null) {
+            query.append(" and emisorRuc = :emisorRuc");
+            params.put("emisorRuc", emisorRuc);
         }
 
         var panacheQuery = repository.find(query.toString(), params).page(Page.of(page, limit));
@@ -96,17 +96,17 @@ public class ComprobanteRepositoryImpl implements ComprobanteRepository {
     }
 
     @Override
-    public Uni<Long> siguienteSecuencial(UUID emisorId, TipoComprobante tipo, String establecimiento,
+    public Uni<Long> siguienteSecuencial(String ruc, TipoComprobante tipo, String establecimiento,
             String puntoEmision) {
         return secuencialRepository.update(
                 "ultimoSecuencial = ultimoSecuencial + 1 "
-                    + "where emisorId = ?1 and tipoComprobante = ?2 and establecimiento = ?3 and puntoEmision = ?4",
-                emisorId, tipo.name(), establecimiento, puntoEmision)
+                    + "where ruc = ?1 and tipoComprobante = ?2 and establecimiento = ?3 and puntoEmision = ?4",
+                ruc, tipo.name(), establecimiento, puntoEmision)
             .onItem().transformToUni(filasActualizadas -> {
                 if (filasActualizadas == 0) {
                     SecuencialComprobanteEntity nuevo = new SecuencialComprobanteEntity();
                     nuevo.id = UUID.randomUUID();
-                    nuevo.emisorId = emisorId;
+                    nuevo.ruc = ruc;
                     nuevo.tipoComprobante = tipo.name();
                     nuevo.establecimiento = establecimiento;
                     nuevo.puntoEmision = puntoEmision;
@@ -118,8 +118,8 @@ public class ComprobanteRepositoryImpl implements ComprobanteRepository {
                 // (no hay caché de primer nivel obsoleto que arrastrar, a diferencia
                 // del caso documentado en inventario-service/ItemService).
                 return secuencialRepository.find(
-                        "emisorId = ?1 and tipoComprobante = ?2 and establecimiento = ?3 and puntoEmision = ?4",
-                        emisorId, tipo.name(), establecimiento, puntoEmision)
+                        "ruc = ?1 and tipoComprobante = ?2 and establecimiento = ?3 and puntoEmision = ?4",
+                        ruc, tipo.name(), establecimiento, puntoEmision)
                     .<SecuencialComprobanteEntity>firstResult()
                     .map(entity -> entity.ultimoSecuencial);
             });

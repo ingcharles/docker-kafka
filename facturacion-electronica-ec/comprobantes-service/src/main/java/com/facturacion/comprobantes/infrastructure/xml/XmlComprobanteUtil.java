@@ -21,7 +21,9 @@ import org.w3c.dom.Element;
 
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
+import com.facturacion.comprobantes.domain.model.vo.CampoAdicional;
 import com.facturacion.comprobantes.domain.model.vo.Impuesto;
+import com.facturacion.comprobantes.domain.model.vo.Pago;
 
 /**
  * Construcción de DOM y serialización compartidas entre los 6 generadores
@@ -103,13 +105,53 @@ final class XmlComprobanteUtil {
             .collect(Collectors.groupingBy(imp -> imp.codigo() + "|" + imp.codigoPorcentaje()));
     }
 
-    /** {@code <infoAdicional>} con el campo "granContribuyente" — Anexo 24, solo cuando el emisor es Gran Contribuyente. */
-    static Element construirInfoAdicionalGranContribuyente(Document doc, Comprobante c) {
+    /**
+     * {@code <infoAdicional>} completo: el campo "granContribuyente" (Anexo
+     * 24, solo cuando el emisor es Gran Contribuyente — calculado por el
+     * sistema, no algo que el llamador mande) seguido de cada
+     * {@code campoAdicional} que haya venido en el request. Devuelve
+     * {@code null} si no hay nada que agregar (el tag completo es opcional
+     * en el XSD del SRI).
+     */
+    static Element construirInfoAdicional(Document doc, Comprobante c) {
+        boolean hayGranContribuyente = c.isEmisorEsGranContribuyente();
+        boolean hayCamposAdicionales = c.getCamposAdicionales() != null && !c.getCamposAdicionales().isEmpty();
+        if (!hayGranContribuyente && !hayCamposAdicionales) {
+            return null;
+        }
         Element infoAdicional = doc.createElement("infoAdicional");
-        Element campo = doc.createElement("campoAdicional");
-        campo.setAttribute("nombre", "granContribuyente");
-        campo.setTextContent("Gran Contribuyente " + c.getEmisorNumeroResolucionGranContribuyente());
-        infoAdicional.appendChild(campo);
+        if (hayGranContribuyente) {
+            Element campo = doc.createElement("campoAdicional");
+            campo.setAttribute("nombre", "granContribuyente");
+            campo.setTextContent("Gran Contribuyente " + c.getEmisorNumeroResolucionGranContribuyente());
+            infoAdicional.appendChild(campo);
+        }
+        if (hayCamposAdicionales) {
+            for (CampoAdicional campoAdicional : c.getCamposAdicionales()) {
+                Element campo = doc.createElement("campoAdicional");
+                campo.setAttribute("nombre", campoAdicional.nombre());
+                campo.setTextContent(campoAdicional.valor());
+                infoAdicional.appendChild(campo);
+            }
+        }
         return infoAdicional;
+    }
+
+    /** {@code <pagos>} — solo Factura, Nota de Débito y Liquidación de Compra lo llevan (ver {@code Pago}). */
+    static Element construirPagos(Document doc, List<Pago> pagos) {
+        Element pagosEl = doc.createElement("pagos");
+        for (Pago pago : pagos) {
+            Element pagoEl = doc.createElement("pago");
+            texto(doc, pagoEl, "formaPago", pago.formaPago());
+            texto(doc, pagoEl, "total", montoTexto(pago.total()));
+            if (pago.plazo() != null && !pago.plazo().isBlank()) {
+                texto(doc, pagoEl, "plazo", pago.plazo());
+            }
+            if (pago.unidadTiempo() != null && !pago.unidadTiempo().isBlank()) {
+                texto(doc, pagoEl, "unidadTiempo", pago.unidadTiempo());
+            }
+            pagosEl.appendChild(pagoEl);
+        }
+        return pagosEl;
     }
 }

@@ -19,6 +19,9 @@ public class ItemEntity extends PanacheEntityBase {
     public UUID id;
 
     @Column(nullable = false)
+    public String ruc;
+
+    @Column(nullable = false)
     public String tipo;
 
     @Column(name = "categoria_id")

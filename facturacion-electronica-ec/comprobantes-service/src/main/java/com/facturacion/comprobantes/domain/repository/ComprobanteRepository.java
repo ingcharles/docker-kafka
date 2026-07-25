@@ -19,12 +19,12 @@ public interface ComprobanteRepository {
 
     Uni<Comprobante> findByClaveAcceso(String claveAcceso);
 
-    Uni<PageResult<Comprobante>> findPaged(int page, int limit, EstadoComprobante estado, UUID emisorId);
+    Uni<PageResult<Comprobante>> findPaged(int page, int limit, EstadoComprobante estado, String emisorRuc);
 
     /**
      * Devuelve el siguiente secuencial (empezando en 1) para esa combinación
-     * emisor+tipo+establecimiento+puntoEmision, de forma atómica — el SRI
+     * ruc+tipo+establecimiento+puntoEmision, de forma atómica — el SRI
      * exige que sea consecutivo y sin huecos (Tabla 1, campo "N° del comprobante").
      */
-    Uni<Long> siguienteSecuencial(UUID emisorId, TipoComprobante tipo, String establecimiento, String puntoEmision);
+    Uni<Long> siguienteSecuencial(String ruc, TipoComprobante tipo, String establecimiento, String puntoEmision);
 }

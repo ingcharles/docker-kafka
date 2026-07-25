@@ -73,10 +73,10 @@ public class SagaOrchestratorService {
             return Uni.createFrom().voidItem();
         }
         return ifNotProcessed(event.eventId(), () -> {
-            SagaInstance saga = SagaInstance.start(event.comprobanteId(), event.emisorId(), event.claveAcceso(),
+            SagaInstance saga = SagaInstance.start(event.comprobanteId(), event.emisorRuc(), event.claveAcceso(),
                 event.ambiente());
             FirmarComprobanteCommand command = new FirmarComprobanteCommand(UUID.randomUUID(), event.comprobanteId(),
-                event.emisorId(), event.xmlGenerado(), Instant.now());
+                event.emisorRuc(), event.xmlGenerado(), Instant.now());
 
             return sagaInstanceRepository.persist(saga)
                 .chain(() -> logReceived(event.comprobanteId(), MessagingConstants.EVENT_TYPE_COMPROBANTE_CREADO))

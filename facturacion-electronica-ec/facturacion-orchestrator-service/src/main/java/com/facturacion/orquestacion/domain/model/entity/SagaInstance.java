@@ -10,14 +10,16 @@ import com.facturacion.orquestacion.domain.model.enums.SagaState;
  * directamente el {@code comprobanteId} (el id de correlación de toda la
  * saga). Guarda solo lo que hace falta para construir cualquier comando de
  * aquí en adelante sin volver a preguntarle nada a comprobantes-service —
- * {@code emisorId} lo necesita {@code FirmarComprobanteCommand},
- * {@code claveAcceso}+{@code ambiente} los necesita {@code EnviarComprobanteCommand}.
+ * {@code emisorRuc} lo necesita {@code FirmarComprobanteCommand} (el emisor
+ * ya no se identifica por un id interno de firma-electronica-service, ver
+ * ARQUITECTURA.md "Emisor sin ID"), {@code claveAcceso}+{@code ambiente} los
+ * necesita {@code EnviarComprobanteCommand}.
  */
 public class SagaInstance {
 
     private UUID id;
     private SagaState state;
-    private UUID emisorId;
+    private String emisorRuc;
     private String claveAcceso;
     private String ambiente;
     private String failureReason;
@@ -27,11 +29,11 @@ public class SagaInstance {
     public SagaInstance() {
     }
 
-    public static SagaInstance start(UUID comprobanteId, UUID emisorId, String claveAcceso, String ambiente) {
+    public static SagaInstance start(UUID comprobanteId, String emisorRuc, String claveAcceso, String ambiente) {
         SagaInstance instance = new SagaInstance();
         instance.id = comprobanteId;
         instance.state = SagaState.CREADO;
-        instance.emisorId = emisorId;
+        instance.emisorRuc = emisorRuc;
         instance.claveAcceso = claveAcceso;
         instance.ambiente = ambiente;
         Instant now = Instant.now();
@@ -56,12 +58,12 @@ public class SagaInstance {
         this.state = state;
     }
 
-    public UUID getEmisorId() {
-        return emisorId;
+    public String getEmisorRuc() {
+        return emisorRuc;
     }
 
-    public void setEmisorId(UUID emisorId) {
-        this.emisorId = emisorId;
+    public void setEmisorRuc(String emisorRuc) {
+        this.emisorRuc = emisorRuc;
     }
 
     public String getClaveAcceso() {

@@ -50,8 +50,9 @@ public class GeneradorXmlNotaDebito implements GeneradorXmlComprobante {
             raiz.appendChild(construirInfoTributaria(doc, c));
             raiz.appendChild(construirInfoNotaDebito(doc, c));
             raiz.appendChild(construirMotivos(doc, c));
-            if (c.isEmisorEsGranContribuyente()) {
-                raiz.appendChild(XmlComprobanteUtil.construirInfoAdicionalGranContribuyente(doc, c));
+            Element infoAdicional = XmlComprobanteUtil.construirInfoAdicional(doc, c);
+            if (infoAdicional != null) {
+                raiz.appendChild(infoAdicional);
             }
 
             return XmlComprobanteUtil.serializar(doc);
@@ -97,7 +98,7 @@ public class GeneradorXmlNotaDebito implements GeneradorXmlComprobante {
         XmlComprobanteUtil.texto(doc, info, "totalSinImpuestos", XmlComprobanteUtil.montoTexto(c.getSubtotalSinImpuestos()));
         info.appendChild(construirImpuestos(doc, c));
         XmlComprobanteUtil.texto(doc, info, "valorTotal", XmlComprobanteUtil.montoTexto(c.getImporteTotal()));
-        info.appendChild(construirPagos(doc, c));
+        info.appendChild(XmlComprobanteUtil.construirPagos(doc, c.getPagos()));
         return info;
     }
 
@@ -118,15 +119,6 @@ public class GeneradorXmlNotaDebito implements GeneradorXmlComprobante {
             impuestos.appendChild(impuesto);
         }
         return impuestos;
-    }
-
-    private Element construirPagos(Document doc, Comprobante c) {
-        Element pagos = doc.createElement("pagos");
-        Element pago = doc.createElement("pago");
-        XmlComprobanteUtil.texto(doc, pago, "formaPago", "01");
-        XmlComprobanteUtil.texto(doc, pago, "total", XmlComprobanteUtil.montoTexto(c.getImporteTotal()));
-        pagos.appendChild(pago);
-        return pagos;
     }
 
     private Element construirMotivos(Document doc, Comprobante c) {

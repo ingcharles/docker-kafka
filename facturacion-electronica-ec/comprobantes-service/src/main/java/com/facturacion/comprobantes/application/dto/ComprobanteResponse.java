@@ -14,7 +14,6 @@ public class ComprobanteResponse {
     private String establecimiento;
     private String puntoEmision;
     private String secuencial;
-    private UUID emisorId;
     private String emisorRuc;
     private String emisorRazonSocial;
     private Instant fechaEmision;
@@ -48,6 +47,8 @@ public class ComprobanteResponse {
     private List<DestinatarioGuiaRemisionResponse> destinatarios;
 
     private List<DetalleComprobanteResponse> detalles;
+    private List<PagoResponse> pagos;
+    private List<CampoAdicionalResponse> camposAdicionales;
     private Instant creadoEn;
     private Instant actualizadoEn;
 
@@ -105,14 +106,6 @@ public class ComprobanteResponse {
 
     public void setSecuencial(String secuencial) {
         this.secuencial = secuencial;
-    }
-
-    public UUID getEmisorId() {
-        return emisorId;
-    }
-
-    public void setEmisorId(UUID emisorId) {
-        this.emisorId = emisorId;
     }
 
     public String getEmisorRuc() {
@@ -361,6 +354,22 @@ public class ComprobanteResponse {
 
     public void setDetalles(List<DetalleComprobanteResponse> detalles) {
         this.detalles = detalles;
+    }
+
+    public List<PagoResponse> getPagos() {
+        return pagos;
+    }
+
+    public void setPagos(List<PagoResponse> pagos) {
+        this.pagos = pagos;
+    }
+
+    public List<CampoAdicionalResponse> getCamposAdicionales() {
+        return camposAdicionales;
+    }
+
+    public void setCamposAdicionales(List<CampoAdicionalResponse> camposAdicionales) {
+        this.camposAdicionales = camposAdicionales;
     }
 
     public Instant getCreadoEn() {

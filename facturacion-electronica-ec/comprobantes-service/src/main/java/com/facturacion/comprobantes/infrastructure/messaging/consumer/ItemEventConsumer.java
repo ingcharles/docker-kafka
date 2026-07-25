@@ -32,6 +32,7 @@ public class ItemEventConsumer {
     public Uni<Void> onEvent(ItemEventMessage evento) {
         ItemLocal item = new ItemLocal();
         item.setId(evento.itemId());
+        item.setRuc(evento.ruc());
         item.setCodigoPrincipal(evento.codigoPrincipal());
         item.setDescripcion(evento.descripcion());
         item.setCodigoImpuesto(evento.codigoImpuesto());
