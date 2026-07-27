@@ -37,6 +37,8 @@ import com.facturacion.comprobantes.application.dto.CrearRetencionRequest;
 import com.facturacion.comprobantes.application.service.ComprobanteService;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
+import com.facturacion.comprobantes.infrastructure.security.TokenPrincipal;
+import com.facturacion.comprobantes.shared.exception.SinPermisoException;
 import com.facturacion.comprobantes.shared.requests.PageRequest;
 import com.facturacion.comprobantes.shared.responses.PagedResponse;
 
@@ -44,7 +46,9 @@ import com.facturacion.comprobantes.shared.responses.PagedResponse;
  * Superficie de observabilidad y de creación — igual que en ecommerce/,
  * nada aquí modifica el estado de un comprobante una vez creado: eso
  * siempre ocurre vía los comandos que manda facturacion-orchestrator-service
- * por Kafka.
+ * por Kafka. Cada creación valida que el {@code ruc} del emisor coincida
+ * con el de la api-key usada (ver ApiKeyAuthFilter) — una key solo puede
+ * emitir para el ruc al que está asociada.
  */
 @Path("")
 @Produces(MediaType.APPLICATION_JSON)
@@ -52,10 +56,19 @@ import com.facturacion.comprobantes.shared.responses.PagedResponse;
 public class ComprobanteResource {
 
     private final ComprobanteService comprobanteService;
+    private final TokenPrincipal tokenPrincipal;
 
     @Inject
-    public ComprobanteResource(ComprobanteService comprobanteService) {
+    public ComprobanteResource(ComprobanteService comprobanteService, TokenPrincipal tokenPrincipal) {
         this.comprobanteService = comprobanteService;
+        this.tokenPrincipal = tokenPrincipal;
+    }
+
+    private void validarRuc(String rucRequest) {
+        if (!tokenPrincipal.getRuc().equals(rucRequest)) {
+            throw new SinPermisoException(
+                "La api-key usada es para el ruc " + tokenPrincipal.getRuc() + ", no para " + rucRequest);
+        }
     }
 
     @POST
@@ -64,7 +77,9 @@ public class ComprobanteResource {
     @Operation(summary = "Crear una factura", description = "Genera la clave de acceso y el XML sin firmar, y publica ComprobanteCreado — arranca la saga.")
     @APIResponse(responseCode = "201", description = "Factura creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
+    @APIResponse(responseCode = "403", description = "La api-key no es del ruc del emisor")
     public Uni<Response> crearFactura(@Valid CrearFacturaRequest request, @Context UriInfo uriInfo) {
+        validarRuc(request.getEmisor().getRuc());
         return comprobanteService.crearFactura(request)
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
@@ -79,7 +94,9 @@ public class ComprobanteResource {
     @Operation(summary = "Crear una nota de crédito", description = "Modifica (total o parcialmente) un comprobante ya emitido.")
     @APIResponse(responseCode = "201", description = "Nota de crédito creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
+    @APIResponse(responseCode = "403", description = "La api-key no es del ruc del emisor")
     public Uni<Response> crearNotaCredito(@Valid CrearNotaCreditoRequest request, @Context UriInfo uriInfo) {
+        validarRuc(request.getEmisor().getRuc());
         return comprobanteService.crearNotaCredito(request)
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
@@ -94,7 +111,9 @@ public class ComprobanteResource {
     @Operation(summary = "Crear una nota de débito", description = "Cobra un valor adicional sobre un comprobante ya emitido (intereses, mora, etc.).")
     @APIResponse(responseCode = "201", description = "Nota de débito creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
+    @APIResponse(responseCode = "403", description = "La api-key no es del ruc del emisor")
     public Uni<Response> crearNotaDebito(@Valid CrearNotaDebitoRequest request, @Context UriInfo uriInfo) {
+        validarRuc(request.getEmisor().getRuc());
         return comprobanteService.crearNotaDebito(request)
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
@@ -109,7 +128,9 @@ public class ComprobanteResource {
     @Operation(summary = "Crear una guía de remisión", description = "Traslada bienes a uno o más destinatarios — no es una venta, no lleva comprador ni valores.")
     @APIResponse(responseCode = "201", description = "Guía de remisión creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
+    @APIResponse(responseCode = "403", description = "La api-key no es del ruc del emisor")
     public Uni<Response> crearGuiaRemision(@Valid CrearGuiaRemisionRequest request, @Context UriInfo uriInfo) {
+        validarRuc(request.getEmisor().getRuc());
         return comprobanteService.crearGuiaRemision(request)
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
@@ -124,7 +145,9 @@ public class ComprobanteResource {
     @Operation(summary = "Crear un comprobante de retención", description = "Certifica la retención de IVA/renta aplicada sobre uno o más documentos sustento.")
     @APIResponse(responseCode = "201", description = "Retención creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
+    @APIResponse(responseCode = "403", description = "La api-key no es del ruc del emisor")
     public Uni<Response> crearRetencion(@Valid CrearRetencionRequest request, @Context UriInfo uriInfo) {
+        validarRuc(request.getEmisor().getRuc());
         return comprobanteService.crearRetencion(request)
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
@@ -139,8 +162,10 @@ public class ComprobanteResource {
     @Operation(summary = "Crear una liquidación de compra", description = "El propio comprador emite el comprobante en nombre del proveedor, cuando este no puede emitir el suyo.")
     @APIResponse(responseCode = "201", description = "Liquidación de compra creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
+    @APIResponse(responseCode = "403", description = "La api-key no es del ruc del emisor")
     public Uni<Response> crearLiquidacionCompra(@Valid CrearLiquidacionCompraRequest request,
             @Context UriInfo uriInfo) {
+        validarRuc(request.getEmisor().getRuc());
         return comprobanteService.crearLiquidacionCompra(request)
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())

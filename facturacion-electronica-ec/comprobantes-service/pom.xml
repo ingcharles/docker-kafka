@@ -10,6 +10,7 @@
     <properties>
         <compiler-plugin.version>3.14.1</compiler-plugin.version>
         <mapstruct.version>1.6.3</mapstruct.version>
+        <jjwt.version>0.12.6</jjwt.version>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -115,6 +116,27 @@
             <artifactId>mapstruct-processor</artifactId>
             <scope>provided</scope>
             <version>${mapstruct.version}</version>
+        </dependency>
+
+        <!-- JJWT: verificación local del JWT/api-key emitido por identidad-service
+             (HS256, secreto compartido vía IDENTIDAD_JWT_SECRET) — ver
+             infrastructure/security/JwtVerificador. -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>${jjwt.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
         </dependency>
 
         <!-- Test -->

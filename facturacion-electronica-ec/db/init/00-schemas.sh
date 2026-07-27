@@ -13,6 +13,7 @@ set -e
 : "${SRI_DB_PASSWORD:?SRI_DB_PASSWORD must be set}"
 : "${NOTIFICACION_DB_PASSWORD:?NOTIFICACION_DB_PASSWORD must be set}"
 : "${ORQUESTACION_DB_PASSWORD:?ORQUESTACION_DB_PASSWORD must be set}"
+: "${IDENTIDAD_DB_PASSWORD:?IDENTIDAD_DB_PASSWORD must be set}"
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
     create schema if not exists inventario;
@@ -21,6 +22,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     create schema if not exists sri;
     create schema if not exists notificacion;
     create schema if not exists orquestacion;
+    create schema if not exists identidad;
 
     do \$\$
     begin
@@ -42,6 +44,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
       if not exists (select from pg_roles where rolname = 'orquestacion_service') then
         create role orquestacion_service login password '${ORQUESTACION_DB_PASSWORD}';
       end if;
+      if not exists (select from pg_roles where rolname = 'identidad_service') then
+        create role identidad_service login password '${IDENTIDAD_DB_PASSWORD}';
+      end if;
     end
     \$\$;
 
@@ -51,6 +56,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     grant usage, create on schema sri to sri_service;
     grant usage, create on schema notificacion to notificacion_service;
     grant usage, create on schema orquestacion to orquestacion_service;
+    grant usage, create on schema identidad to identidad_service;
 
     -- search_path por defecto por cada rol: la URL JDBC/reactiva propia de
     -- cada servicio se conecta con este rol y nunca necesita calificar el
@@ -61,4 +67,5 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     alter role sri_service set search_path = sri;
     alter role notificacion_service set search_path = notificacion;
     alter role orquestacion_service set search_path = orquestacion;
+    alter role identidad_service set search_path = identidad;
 EOSQL

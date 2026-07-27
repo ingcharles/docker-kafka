@@ -36,6 +36,8 @@ import com.facturacion.inventario.application.dto.RegistrarEntradaKardexRequest;
 import com.facturacion.inventario.application.service.ItemService;
 import com.facturacion.inventario.application.service.KardexService;
 import com.facturacion.inventario.domain.model.enums.TipoItem;
+import com.facturacion.inventario.infrastructure.security.TokenPrincipal;
+import com.facturacion.inventario.shared.exception.SinPermisoException;
 import com.facturacion.inventario.shared.requests.PageRequest;
 import com.facturacion.inventario.shared.responses.PagedResponse;
 
@@ -52,11 +54,13 @@ public class ItemResource {
 
     private final ItemService itemService;
     private final KardexService kardexService;
+    private final TokenPrincipal tokenPrincipal;
 
     @Inject
-    public ItemResource(ItemService itemService, KardexService kardexService) {
+    public ItemResource(ItemService itemService, KardexService kardexService, TokenPrincipal tokenPrincipal) {
         this.itemService = itemService;
         this.kardexService = kardexService;
+        this.tokenPrincipal = tokenPrincipal;
     }
 
     @POST
@@ -65,7 +69,12 @@ public class ItemResource {
     @Operation(summary = "Crear un ítem (producto o servicio)",
         description = "Si es PRODUCTO y viene con cantidadInicial > 0, se registra de inmediato la primera entrada de kardex.")
     @APIResponse(responseCode = "201", description = "Ítem creado")
+    @APIResponse(responseCode = "403", description = "La api-key no es del ruc del ítem")
     public Uni<Response> crear(@Valid CrearItemRequest request, @Context UriInfo uriInfo) {
+        if (!tokenPrincipal.getRuc().equals(request.getRuc())) {
+            throw new SinPermisoException(
+                "La api-key usada es para el ruc " + tokenPrincipal.getRuc() + ", no para " + request.getRuc());
+        }
         return itemService.crear(request)
             .map(response -> {
                 URI location = uriInfo.getAbsolutePathBuilder().path(response.getId().toString()).build();

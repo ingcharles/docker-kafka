@@ -40,6 +40,8 @@ import com.facturacion.firma.application.dto.SubirCertificadoRequest;
 import com.facturacion.firma.application.service.CertificadoService;
 import com.facturacion.firma.application.service.ConfiguracionEmisorService;
 import com.facturacion.firma.application.service.EmisorService;
+import com.facturacion.firma.infrastructure.security.TokenPrincipal;
+import com.facturacion.firma.shared.exception.SinPermisoException;
 import com.facturacion.firma.shared.requests.PageRequest;
 import com.facturacion.firma.shared.responses.PagedResponse;
 
@@ -59,13 +61,15 @@ public class EmisorResource {
     private final EmisorService emisorService;
     private final CertificadoService certificadoService;
     private final ConfiguracionEmisorService configuracionService;
+    private final TokenPrincipal tokenPrincipal;
 
     @Inject
     public EmisorResource(EmisorService emisorService, CertificadoService certificadoService,
-            ConfiguracionEmisorService configuracionService) {
+            ConfiguracionEmisorService configuracionService, TokenPrincipal tokenPrincipal) {
         this.emisorService = emisorService;
         this.certificadoService = certificadoService;
         this.configuracionService = configuracionService;
+        this.tokenPrincipal = tokenPrincipal;
     }
 
     @POST
@@ -73,8 +77,13 @@ public class EmisorResource {
     @Operation(summary = "Registrar un emisor", description = "Crea el contribuyente que emitirá comprobantes; el certificado se sube después con POST /{id}/certificado.")
     @APIResponse(responseCode = "201", description = "Emisor creado")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
+    @APIResponse(responseCode = "403", description = "La api-key no es del ruc del emisor")
     @APIResponse(responseCode = "409", description = "Ya existe un emisor con ese RUC")
     public Uni<Response> crear(@Valid CrearEmisorRequest request, @Context UriInfo uriInfo) {
+        if (!tokenPrincipal.getRuc().equals(request.getRuc())) {
+            throw new SinPermisoException(
+                "La api-key usada es para el ruc " + tokenPrincipal.getRuc() + ", no para " + request.getRuc());
+        }
         return emisorService.crearEmisor(request)
             .map(response -> {
                 URI location = uriInfo.getAbsolutePathBuilder().path(response.getId().toString()).build();

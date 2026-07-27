@@ -1,14 +1,15 @@
 # Arquitectura — Facturación Electrónica SRI Ecuador (Java/Quarkus + Kafka)
 
-Este documento explica **cómo está construido** el stack: el estilo arquitectónico, cómo se relaciona cada microservicio con los demás, el flujo completo de negocio de principio a fin (incluyendo la integración real con el SRI), y el diseño detallado de Kafka que hace posible que 6 servicios independientes se coordinen sin conocerse entre sí. Sigue el mismo patrón de saga por orquestación que `ecommerce/` (ver `../ecommerce/ARQUITECTURA.md`), pero con una diferencia central: aquí **no hay simulaciones** — la firma digital, el envío al SRI y el envío de correo son integraciones reales con sistemas externos de verdad.
+Este documento explica **cómo está construido** el stack: el estilo arquitectónico, cómo se relaciona cada microservicio con los demás, el flujo completo de negocio de principio a fin (incluyendo la integración real con el SRI), el diseño detallado de Kafka que hace posible que los servicios de dominio se coordinen sin conocerse entre sí, y la capa de autenticación multi-tenant que protege todo el ecosistema. Sigue el mismo patrón de saga por orquestación que `ecommerce/` (ver `../ecommerce/ARQUITECTURA.md`), pero con una diferencia central: aquí **no hay simulaciones** — la firma digital, el envío al SRI y el envío de correo son integraciones reales con sistemas externos de verdad.
 
 ## 1. Estilo arquitectónico
 
 | Decisión | Qué significa aquí |
 |---|---|
-| **Microservicios con base de datos propia** | 6 servicios Quarkus independientes, cada uno dueño de su propio esquema de Postgres. Ninguno lee ni escribe directamente en las tablas de otro. |
+| **Microservicios con base de datos propia** | 7 servicios Quarkus independientes (6 de dominio + `identidad-service`), cada uno dueño de su propio esquema de Postgres. Ninguno lee ni escribe directamente en las tablas de otro. |
 | **Saga por orquestación** (no coreografía) | `facturacion-orchestrator-service` es el **único** que conoce el flujo completo (CREADO→FIRMADO→AUTORIZADO→NOTIFICADO). Los otros 5 no saben que forman parte de una saga — solo saben "me llegó un comando, lo ejecuto, publico si me salió bien o mal". |
-| **Comunicación casi 100% asíncrona vía Kafka** | Ningún microservicio expone ni llama un endpoint REST de otro para el flujo transaccional. La única excepción deliberada es la subida del certificado `.p12` (`POST /emisores/{id}/certificado`, multipart — no tiene sentido modelar la subida de un archivo binario como un evento de Kafka). Todo lo demás — incluida la réplica de datos de Emisor e Item entre servicios — viaja por eventos. |
+| **Comunicación casi 100% asíncrona vía Kafka** | Ningún microservicio expone ni llama un endpoint REST de otro para el flujo transaccional. La única excepción deliberada es la subida del certificado `.p12` (`POST /emisores/{id}/certificado`, multipart — no tiene sentido modelar la subida de un archivo binario como un evento de Kafka). Todo lo demás — incluida la réplica de datos de Emisor (hacia `identidad-service`) e Item (hacia `comprobantes-service`) entre servicios — viaja por eventos. `identidad-service` no participa de la saga y no publica nada a Kafka, pero sí **consume** `facturacion.emisor.eventos.v1` para saber qué rucs tienen un Emisor real (ver sección 8) — ningún otro servicio le llama de vuelta. |
+| **Todo el REST externo requiere api-key** | Los 6 servicios de dominio no tienen ninguna ruta pública — cada request necesita `Authorization: Bearer <api-key>`, un JWT emitido por `identidad-service` y verificado localmente (sin llamada de red) por cada servicio. Ver sección 8. |
 | **Arquitectura hexagonal / DDD por servicio** | Cada servicio se organiza en capas `domain` (modelo puro, sin anotaciones de framework) → `application` (casos de uso) → `infrastructure` (JPA/Panache, Kafka, REST, SOAP, XML-DSig) → `shared`. El dominio no depende de Quarkus, Kafka, ni de las librerías de firma/SOAP; es al revés. |
 | **Transactional Outbox + Inbox idempotente** | Ver sección 6. Igual que en `ecommerce/`. |
 | **Stack reactivo** | Quarkus + Java 21 + Mutiny + Hibernate Reactive Panache + SmallRye Reactive Messaging. El I/O bloqueante que no tiene alternativa reactiva (firma XML-DSig del JDK, `java.net.http.HttpClient` SOAP hacia el SRI, `quarkus-mailer`) se offloadea al worker pool y se retoma en el contexto de Vert.x correcto — ver [[feedback-quarkus-reactive-kafka-gotchas]]. |
@@ -29,6 +30,7 @@ graph TB
         end
 
         subgraph FacturacionStack["facturacion-electronica-ec/"]
+            Identidad["identidad-service<br/>:8097 — usuarios, empresas/ruc, roles, api-keys JWT"]
             Firma["firma-electronica-service<br/>:8091 — Emisor + certificado + firma XAdES-BES"]
             Inventario["inventario-service<br/>:8092 — catálogo, kardex, impuestos"]
             Comprobantes["comprobantes-service<br/>:8093 — 6 tipos de comprobante, XML, RIDE"]
@@ -39,10 +41,18 @@ graph TB
         end
     end
 
-    Cliente -->|"REST: POST /facturas, /notas-credito, etc."| Comprobantes
-    Cliente -.->|"REST: consulta de estado"| Orquestador
-    Cliente -.->|"REST: alta de Emisor + certificado"| Firma
-    Cliente -.->|"REST: catálogo"| Inventario
+    Cliente -->|"REST: login, api-keys"| Identidad
+    Cliente -->|"REST + api-key: POST /facturas, /notas-credito, etc."| Comprobantes
+    Cliente -.->|"REST + api-key: consulta de estado"| Orquestador
+    Cliente -.->|"REST + api-key: alta de Emisor + certificado"| Firma
+    Cliente -.->|"REST + api-key: catálogo"| Inventario
+
+    Identidad -.->|"mismo secreto HS256<br/>IDENTIDAD_JWT_SECRET,<br/>sin llamada de red"| Firma
+    Identidad -.-> Inventario
+    Identidad -.-> Comprobantes
+    Identidad -.-> Sri
+    Identidad -.-> Notificacion
+    Identidad -.-> Orquestador
 
     Firma <-->|Kafka| Broker
     Inventario <-->|Kafka| Broker
@@ -50,10 +60,12 @@ graph TB
     Sri <-->|Kafka| Broker
     Notificacion <-->|Kafka| Broker
     Orquestador <-->|Kafka| Broker
+    Broker -->|"Kafka, solo entrante<br/>(EmisorRegistrado/Actualizado)"| Identidad
 
     Sri <-->|"SOAP real"| SRI
     Notificacion -->|"SMTP real"| Gmail
 
+    Identidad --- DB
     Firma --- DB
     Inventario --- DB
     Comprobantes --- DB
@@ -64,12 +76,13 @@ graph TB
     KafkaUI -.->|solo lectura, observabilidad| Broker
 ```
 
-**Lectura clave del diagrama:** el cliente le habla por REST a `comprobantes-service` (para crear cualquiera de los 6 tipos de comprobante), a `firma-electronica-service` (para dar de alta un Emisor y subir su certificado) y opcionalmente a `facturacion-orchestrator-service` (para consultar el estado de la saga). `sri-conector-service` es el único servicio que sale fuera de Docker hacia una red externa real (el SRI); `notificacion-service` es el único que sale hacia un servidor SMTP real. Todos los demás servicios son invisibles para el cliente — su única puerta de entrada/salida es Kafka.
+**Lectura clave del diagrama:** el cliente primero le habla a `identidad-service` (crear cuenta, login, asociarse a un `ruc`, emitir una api-key) y luego usa esa api-key como `Authorization: Bearer` contra todo lo demás: `comprobantes-service` (para crear cualquiera de los 6 tipos de comprobante), `firma-electronica-service` (para dar de alta un Emisor y subir su certificado) y opcionalmente `facturacion-orchestrator-service` (para consultar el estado de la saga). Las flechas punteadas de `identidad-service` hacia el resto **no son llamadas de red** — representan que todos comparten el mismo secreto HS256 y verifican el JWT de forma local (ver sección 8). `sri-conector-service` es el único servicio que sale fuera de Docker hacia una red externa real (el SRI); `notificacion-service` es el único que sale hacia un servidor SMTP real. Todos los demás servicios son invisibles para el cliente — su única puerta de entrada/salida es Kafka.
 
-## 2. Los 6 microservicios y cómo se relacionan entre sí
+## 2. Los 7 microservicios y cómo se relacionan entre sí
 
 | Servicio | Bounded context | Esquema BD | Ruta REST | A quién le manda comandos (Kafka) | Quién le manda comandos a él |
 |---|---|---|---|---|---|
+| `identidad-service` | Usuarios, asociación usuario↔ruc con rol, emisión/revocación de api-keys JWT | `identidad` | `/identidad/api/v1` | *(no publica nada — solo consume `facturacion.emisor.eventos.v1` para validar rucs, ver sección 8)* | *(nadie le manda comandos — no participa de la saga)* |
 | `firma-electronica-service` | Emisor (multi-tenant) + certificado digital + firma XAdES-BES | `firma` | `/emisores/api/v1` | *(nadie, solo responde)* | `facturacion-orchestrator-service` (`FirmarComprobanteCommand`) |
 | `inventario-service` | Catálogo (productos/servicios), kardex, impuestos | `inventario` | `/inventario/api/v1` | *(nadie, es origen de eventos, no recibe comandos de la saga)* | *(nadie — no participa en la saga de emisión)* |
 | `comprobantes-service` | Los 6 tipos de comprobante SRI, XML, RIDE | `comprobantes` | `/comprobantes/api/v1` | *(nadie — es el origen de la saga)* | `facturacion-orchestrator-service` (`MARCAR_FIRMADO`/`MARCAR_AUTORIZADO`/`MARCAR_NO_AUTORIZADO`/etc.) |
@@ -80,7 +93,7 @@ graph TB
 **Por qué la relación tiene forma de estrella y no de cadena:** los servicios de dominio (firma, comprobantes, sri, notificación) **no se conocen entre sí** — ninguno le manda un mensaje directamente a otro (con la única excepción documentada abajo). Todos hablan únicamente con `facturacion-orchestrator-service`, que decide el orden de ejecución. Igual que en `ecommerce/`, si un cambio en el flujo de negocio agrega o reordena un paso, ese conocimiento vive en un solo lugar: `SagaOrchestratorService.java` del orquestador.
 
 **Las dos excepciones deliberadas a "cero REST/acoplamiento directo entre servicios":**
-1. `inventario-service` e `firma-electronica-service` no participan en la saga de comandos — son **fuentes de datos de referencia** que otros servicios necesitan tener localmente para poder validar/enriquecer un comprobante sin llamar por REST en caliente. Publican `EmisorRegistrado`/`EmisorActualizado` (sin datos del certificado) y `ItemCreado`/`ItemActualizado` en tópicos propios; `comprobantes-service` los consume y mantiene una copia de solo lectura (`emisor_local`, `item_local`) — el mismo patrón de "vista materializada vía evento" en ambos casos.
+1. `inventario-service` e `firma-electronica-service` no participan en la saga de comandos — son **fuentes de datos de referencia**. `inventario-service` publica `ItemCreado`/`ItemActualizado`, que `comprobantes-service` consume y mantiene como copia de solo lectura (`item_local`, usada para auto-derivar impuestos por `itemId`) — vista materializada vía evento. `firma-electronica-service` publica `EmisorRegistrado`/`EmisorActualizado` (sin datos del certificado); hoy el único consumidor es `identidad-service` (`emisor_local`, ver sección 8) — `comprobantes-service` **ya no** mantiene una réplica de Emisor: desde que el modelo pasó a ser scoped por `ruc` en vez de por `emisorId`, cada request de creación de comprobante trae los datos del emisor inline (ver `V6__ecosistema_separado.sql`), así que no necesita consultar nada localmente.
 2. `notificacion-service` no es comandado por el orquestador — consume directamente `ComprobanteAutorizado` desde `facturacion.comprobante.eventos.v1` (publicado por `comprobantes-service`, no por el orquestador) porque no hay ninguna decisión de negocio que tomar antes de notificar: si un comprobante quedó `AUTORIZADO` y tiene un correo, se notifica, punto. El orquestador igual observa `NotificacionExitosa`/`NotificacionFallida` para completar su propia máquina de estados, pero no es quien dispara el envío.
 
 **Independencia real, no solo de código:** los 6 proyectos Maven no comparten ni una sola librería propia — cada servicio define sus propios records de mensaje Kafka en su paquete `application/event`, aunque el *shape* del JSON coincida con el que espera el consumidor. Mismo trade-off que en `ecommerce/`: pequeña duplicación de definiciones a cambio de poder redesplegar cada servicio de forma independiente.
@@ -205,7 +218,7 @@ Esto es coherente con la resolución NAC-DGERCGC25-00000017 (vigente desde 2026-
 
 | Tópico | Productor | Consumidor (`group.id`) |
 |---|---|---|
-| `facturacion.emisor.eventos.v1` (+ `.dlq`) | firma-electronica-service | comprobantes-service (réplica local `emisor_local`) |
+| `facturacion.emisor.eventos.v1` (+ `.dlq`) | firma-electronica-service | identidad-service (réplica local `emisor_local`, ver sección 8) |
 | `facturacion.inventario.eventos.v1` (+ `.dlq`) | inventario-service | *(reservas de stock, uso interno de inventario)* |
 | `facturacion.inventario.comandos.v1` (+ `.dlq`) | *(reservado, no usado por la saga de emisión)* | inventario-service |
 | `facturacion.inventario.item.eventos.v1` (+ `.dlq`) | inventario-service | comprobantes-service (réplica local `item_local`, deriva IVA/ICE) |
@@ -257,7 +270,7 @@ graph TB
             T2["item<br/>categoria<br/>kardex_movimiento<br/>stock_reservation<br/>outbox_event"]
         end
         subgraph S3["esquema comprobantes"]
-            T3["comprobante<br/>detalle_comprobante<br/>destinatario_guia_remision<br/>emisor_local<br/>item_local<br/>outbox_event<br/>processed_message"]
+            T3["comprobante<br/>detalle_comprobante<br/>destinatario_guia_remision<br/>item_local<br/>outbox_event<br/>processed_message"]
         end
         subgraph S4["esquema sri"]
             T4["envio_sri<br/>outbox_event<br/>processed_message"]
@@ -268,6 +281,9 @@ graph TB
         subgraph S6["esquema orquestacion"]
             T6["saga_instance<br/>saga_step<br/>outbox_event<br/>processed_message"]
         end
+        subgraph S7["esquema identidad"]
+            T7["usuario<br/>usuario_empresa_rol<br/>api_key<br/>emisor_local"]
+        end
     end
     R1["rol firma_service"] --> S1
     R2["rol inventario_service"] --> S2
@@ -275,13 +291,38 @@ graph TB
     R4["rol sri_service"] --> S4
     R5["rol notificacion_service"] --> S5
     R6["rol orquestacion_service"] --> S6
+    R7["rol identidad_service"] --> S7
 ```
 
 **El aislamiento viene de los permisos de Postgres, no de bases físicas separadas** — mismo patrón que `ecommerce/` (ver [[feedback-postgres-schema-per-service]]): cada servicio se conecta con su propio rol, sin permisos fuera de su propio esquema, con `search_path` fijado del lado del servidor. El SQL de cada servicio vive versionado en `src/main/resources/db/migration/V*.sql` (Flyway, `migrate-at-start=true`).
 
 **Particularidad de este proyecto:** los nombres de tabla y columna están en español y calcados de la terminología exacta del SRI (`clave_acceso`, `comprador_razon_social`, `docSustentoNumero`, etc.) — no traducidos libremente — para que el mapeo entre el modelo de datos y la ficha técnica del SRI sea directo al depurar un rechazo.
 
-## 8. Particularidades técnicas de la integración real
+## 8. Autenticación y autorización multi-tenant (api-key JWT)
+
+`identidad-service` no participa de la saga de emisión, pero sí consume un tópico de Kafka (ver más abajo) — su razón de ser central es emitir y (junto con los otros 6) verificar las credenciales que protegen todo el ecosistema.
+
+**Modelo de datos** (`identidad`): `Usuario` (email + password con login) puede asociarse a cualquier número de `ruc` vía `POST /usuarios/me/empresas`, sin flujo de invitación/aprobación — pero el `ruc` **sí se valida contra un Emisor real**: el servicio mantiene `emisor_local`, una copia local de solo lectura alimentada consumiendo `facturacion.emisor.eventos.v1` (mismo patrón de vista materializada por eventos que `item_local` en `comprobantes-service`, ver sección 6.1), y `UsuarioService.asociarEmpresa` responde `404` si el ruc no corresponde a ningún Emisor activo. Esto **no verifica titularidad** — cualquier usuario puede asociarse a cualquier ruc que exista, no se confirma que sea realmente el dueño de esa empresa — solo que el ruc es real y no un string inventado. Cada asociación usuario↔ruc lleva un `Rol`: `ADMIN` (todo, incluida gestión de api-keys), `OPERADOR` (puede emitir comprobantes), `LECTURA` (solo consulta — hoy no hay ningún endpoint que diferencie LECTURA de OPERADOR más allá de la intención documentada).
+
+**Dos tipos de JWT, un solo secreto compartido (`IDENTIDAD_JWT_SECRET`, HS256)**:
+
+| Tipo | Emitido por | Dónde sirve | Duración |
+|---|---|---|---|
+| **Sesión** | `POST /usuarios/login` | Solo contra `identidad-service` (`/usuarios/me/*`, `/api-keys/*`) | Corta (`identidad.jwt.sesion.duracion-horas`) |
+| **Api-key** | `POST /api-keys` (requiere sesión) | Contra los 6 servicios de dominio | Configurable, default 365 días — el valor solo se muestra una vez, al crearla |
+
+El api-key **es** el JWT — no hay lookup en base de datos del lado de quien lo verifica. Lleva `ruc` y `rol` como claims; eso es lo único que cada servicio necesita para decidir si el caller puede operar sobre ese ruc.
+
+**Verificación 100% local, cero llamadas de red**: cada uno de los 6 servicios de dominio tiene su propia copia (no una librería compartida — mismo criterio de independencia real que el resto del stack, ver sección 2) de un paquete `infrastructure/security/`:
+- `ApiKeyAuthFilter` — un `ContainerRequestFilter` **global** (sin `@NameBinding`): exige `Authorization: Bearer <api-key>` en *todo* endpoint, no existen rutas públicas en ninguno de los 6 servicios.
+- `JwtVerificador` — valida la firma HS256 contra `identidad.jwt.secreto` (mismo valor que `IDENTIDAD_JWT_SECRET`) y confirma que el claim `tipo` sea `api_key` (rechaza un token de sesión si alguien lo usa por error).
+- `TokenPrincipal` — request-scoped, con `usuarioId`/`ruc`/`rol` ya verificados, disponible para inyectar en cualquier recurso.
+
+**Validación de propiedad del ruc — solo donde el body la trae directamente**: `comprobantes-service` (los 6 endpoints `crearX`, comparando `request.getEmisor().getRuc()`), `inventario-service` (`POST /items`) y `firma-electronica-service` (`POST /emisores`) comparan el `ruc` del request contra el `ruc` del token y responden `403 Forbidden` (`SinPermisoException`) si no coinciden. Los endpoints basados en `id` (actualizar, subir certificado, kardex, configuración, `/retry` de saga) **no** repiten esa validación — solo exigen una api-key válida de *cualquier* ruc, igual que las superficies puramente de observabilidad (`sri-conector-service`, `notificacion-service`, `facturacion-orchestrator-service`), que son GET-mayoritariamente y donde filtrar por ruc se dejó fuera de alcance a propósito.
+
+**Por qué HS256 con secreto compartido y no RSA/OIDC**: ningún consumidor de estos tokens es un navegador — todos son el propio backend de este ecosistema, que ya recibe sus credenciales por variable de entorno igual que el resto de secretos del stack (contraseñas de DB, clave maestra de cifrado del `.p12`). No hay necesidad de distribuir una llave pública por separado ni de correr un proveedor OIDC (ver sección 11, sigue fuera de alcance como *proveedor de identidad externo* — esto es autenticación propia del ecosistema, no reemplaza un futuro Keycloak si el cliente externo lo necesitara).
+
+## 9. Particularidades técnicas de la integración real
 
 Esta sección no tiene equivalente en `ecommerce/` porque allá todo lo externo es simulado. Acá sí importa cómo se resolvió cada integración:
 
@@ -293,7 +334,7 @@ Esta sección no tiene equivalente en `ecommerce/` porque allá todo lo externo 
 | Clave de acceso | 49 dígitos, mod-11 check digit, calculada en `comprobantes-service` | Algoritmo documentado en la ficha técnica del SRI, es el identificador único del comprobante ante el SRI y ante el propio sistema. |
 | RIDE (representación impresa) | Generado en `comprobantes-service` a partir del comprobante autorizado, antes de que exista cualquier necesidad de notificarlo | Se genera una sola vez y viaja embebido (base64) en el evento `ComprobanteAutorizado` — `notificacion-service` no tiene ni necesita lógica de renderizado propia. |
 
-## 9. Observabilidad y operación
+## 10. Observabilidad y operación
 
 | Qué | Dónde |
 |---|---|
@@ -311,13 +352,14 @@ Esta sección no tiene equivalente en `ecommerce/` porque allá todo lo externo 
 | sri-conector-service | 8094 | `/sri/api/v1` |
 | notificacion-service | 8095 | `/notificaciones/api/v1` |
 | facturacion-orchestrator-service | 8096 | `/sagas/api/v1` |
+| identidad-service | 8097 | `/identidad/api/v1` |
 | Postgres (`facturacion-db`) | 5434 | — |
 | Kafka broker (host) | 9091 (`kafka/.env` → `KAFKA_HOST_PORT`) | — |
 | Kafka UI | 8080 | — |
 
-## 10. Fuera de alcance, a propósito
+## 11. Fuera de alcance, a propósito
 
-- **Sin OIDC/Keycloak** — mismo punto de extensión identificado que en `ecommerce/`.
+- **Sin proveedor de identidad externo (OIDC/Keycloak)** — `identidad-service` es autenticación propia del ecosistema (JWT HS256 con secreto compartido, ver sección 8), no un reemplazo de un IdP externo si un cliente lo necesitara más adelante. Sin rate-limiting/lockout en `/usuarios/login` (fuerza bruta fuera de alcance) y sin flujo de reset de contraseña.
 - **Sin manifiestos de Kubernetes** — el objetivo de despliegue es Docker Compose.
 - **Sin esquema de contingencia del SRI** — solo se implementó el esquema offline (el que usa el SRI en producción); el esquema de contingencia online queda fuera de alcance.
 - **IVA e ICE calculados de forma independiente sobre la misma base imponible** — la ley ecuatoriana real calcula IVA sobre (base + ICE) para ítems con ICE; documentado como simplificación conocida en el código de `comprobantes-service`.
