@@ -49,14 +49,21 @@ public class SriRecepcionClient {
 
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
 
-    /** Offloading a worker thread — es I/O de red bloqueante (HttpClient.send, no sendAsync). */
-    public Uni<RecepcionResultado> validarComprobante(String xmlFirmado, AmbienteSri ambiente) {
-        return Uni.createFrom().item(() -> enviarBloqueante(xmlFirmado, ambiente))
+    /**
+     * Offloading a worker thread — es I/O de red bloqueante (HttpClient.send, no sendAsync).
+     *
+     * @param urlOverride ajuste opcional por empresa (clave {@code sri.recepcion.url} de
+     *                    {@code configuracion_empresa}) — {@code null} o vacío usa la URL fija
+     *                    por ambiente ({@code urlPruebas}/{@code urlProduccion}).
+     */
+    public Uni<RecepcionResultado> validarComprobante(String xmlFirmado, AmbienteSri ambiente, String urlOverride) {
+        return Uni.createFrom().item(() -> enviarBloqueante(xmlFirmado, ambiente, urlOverride))
             .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
 
-    private RecepcionResultado enviarBloqueante(String xmlFirmado, AmbienteSri ambiente) {
-        String url = ambiente == AmbienteSri.PRODUCCION ? urlProduccion : urlPruebas;
+    private RecepcionResultado enviarBloqueante(String xmlFirmado, AmbienteSri ambiente, String urlOverride) {
+        String url = urlOverride != null && !urlOverride.isBlank() ? urlOverride
+            : ambiente == AmbienteSri.PRODUCCION ? urlProduccion : urlPruebas;
         String base64Xml = Base64.getEncoder().encodeToString(xmlFirmado.getBytes(StandardCharsets.UTF_8));
         String sobre = "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" "
             + "xmlns:rec=\"http://ec.gob.sri.ws.recepcion\">"

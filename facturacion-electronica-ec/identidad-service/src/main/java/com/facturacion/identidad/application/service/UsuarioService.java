@@ -20,11 +20,11 @@ import com.facturacion.identidad.application.dto.EmpresaRolResponse;
 import com.facturacion.identidad.application.dto.LoginRequest;
 import com.facturacion.identidad.application.dto.TokenResponse;
 import com.facturacion.identidad.application.dto.UsuarioResponse;
-import com.facturacion.identidad.domain.model.entity.EmisorLocal;
+import com.facturacion.identidad.domain.model.entity.EmpresaLocal;
 import com.facturacion.identidad.domain.model.entity.Usuario;
 import com.facturacion.identidad.domain.model.entity.UsuarioEmpresaRol;
 import com.facturacion.identidad.domain.model.enums.Rol;
-import com.facturacion.identidad.domain.repository.EmisorLocalRepository;
+import com.facturacion.identidad.domain.repository.EmpresaLocalRepository;
 import com.facturacion.identidad.domain.repository.UsuarioEmpresaRolRepository;
 import com.facturacion.identidad.domain.repository.UsuarioRepository;
 import com.facturacion.identidad.infrastructure.crypto.JwtService;
@@ -46,18 +46,18 @@ public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final UsuarioEmpresaRolRepository empresaRolRepository;
-    private final EmisorLocalRepository emisorLocalRepository;
+    private final EmpresaLocalRepository empresaLocalRepository;
     private final UsuarioMapper mapper;
     private final UsuarioEmpresaRolMapper empresaRolMapper;
     private final JwtService jwtService;
 
     @Inject
     public UsuarioService(UsuarioRepository usuarioRepository, UsuarioEmpresaRolRepository empresaRolRepository,
-            EmisorLocalRepository emisorLocalRepository, UsuarioMapper mapper,
+            EmpresaLocalRepository empresaLocalRepository, UsuarioMapper mapper,
             UsuarioEmpresaRolMapper empresaRolMapper, JwtService jwtService) {
         this.usuarioRepository = usuarioRepository;
         this.empresaRolRepository = empresaRolRepository;
-        this.emisorLocalRepository = emisorLocalRepository;
+        this.empresaLocalRepository = empresaLocalRepository;
         this.mapper = mapper;
         this.empresaRolMapper = empresaRolMapper;
         this.jwtService = jwtService;
@@ -108,19 +108,19 @@ public class UsuarioService {
     /**
      * Sin flujo de invitación/aprobación — cualquier usuario autenticado
      * puede pedir asociarse a cualquier ruc con cualquier rol, siempre que
-     * ese ruc corresponda a un Emisor real y activo (ver {@link EmisorLocal}
-     * — copia local alimentada por {@code facturacion.emisor.eventos.v1}).
+     * ese ruc corresponda a un Empresa real y activo (ver {@link EmpresaLocal}
+     * — copia local alimentada por {@code facturacion.empresa.eventos.v1}).
      * No verifica *titularidad* real sobre la empresa, solo que exista.
      * Si ya existía la asociación, actualiza el rol.
      */
     @WithTransaction
     public Uni<EmpresaRolResponse> asociarEmpresa(UUID usuarioId, @Valid AsociarEmpresaRequest request) {
         Rol rol = Rol.valueOf(request.getRol());
-        return emisorLocalRepository.findByRuc(request.getRuc())
-            .onItem().transformToUni(emisor -> {
-                if (emisor == null || !emisor.isActivo()) {
+        return empresaLocalRepository.findByRuc(request.getRuc())
+            .onItem().transformToUni(empresa -> {
+                if (empresa == null || !empresa.isActivo()) {
                     return Uni.createFrom().failure(
-                        new NotFoundException("No existe un emisor activo con el ruc " + request.getRuc()));
+                        new NotFoundException("No existe una empresa activa con el ruc " + request.getRuc()));
                 }
                 return empresaRolRepository.findByUsuarioIdAndRuc(usuarioId, request.getRuc());
             })

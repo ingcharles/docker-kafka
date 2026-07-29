@@ -19,5 +19,5 @@ COPY --from=build --chown=app:app /build/target/quarkus-app/quarkus/ ./quarkus/
 USER app
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=6 \
-  CMD wget -qO- http://localhost:8080/emisores/api/v1/q/health/ready || exit 1
+  CMD wget -qO- http://localhost:8080/empresas/api/v1/q/health/ready || exit 1
 ENTRYPOINT ["java", "-jar", "quarkus-run.jar"]

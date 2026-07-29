@@ -10,6 +10,8 @@ public class ApiKeyResponse {
     private String nombre;
     private String ruc;
     private String rol;
+    private String establecimiento;
+    private String puntoEmision;
     private Instant fechaCreacion;
     private Instant fechaExpiracion;
     private boolean revocada;
@@ -44,6 +46,22 @@ public class ApiKeyResponse {
 
     public void setRol(String rol) {
         this.rol = rol;
+    }
+
+    public String getEstablecimiento() {
+        return establecimiento;
+    }
+
+    public void setEstablecimiento(String establecimiento) {
+        this.establecimiento = establecimiento;
+    }
+
+    public String getPuntoEmision() {
+        return puntoEmision;
+    }
+
+    public void setPuntoEmision(String puntoEmision) {
+        this.puntoEmision = puntoEmision;
     }
 
     public Instant getFechaCreacion() {

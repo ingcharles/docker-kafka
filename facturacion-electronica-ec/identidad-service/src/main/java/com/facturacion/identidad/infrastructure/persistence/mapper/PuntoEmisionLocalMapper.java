@@ -1,0 +1,15 @@
+package com.facturacion.identidad.infrastructure.persistence.mapper;
+
+import org.mapstruct.Mapper;
+import org.mapstruct.MappingConstants;
+
+import com.facturacion.identidad.domain.model.entity.PuntoEmisionLocal;
+import com.facturacion.identidad.infrastructure.persistence.entity.PuntoEmisionLocalEntity;
+
+@Mapper(componentModel = MappingConstants.ComponentModel.CDI)
+public interface PuntoEmisionLocalMapper {
+
+    PuntoEmisionLocalEntity toEntity(PuntoEmisionLocal domain);
+
+    PuntoEmisionLocal toDomain(PuntoEmisionLocalEntity entity);
+}

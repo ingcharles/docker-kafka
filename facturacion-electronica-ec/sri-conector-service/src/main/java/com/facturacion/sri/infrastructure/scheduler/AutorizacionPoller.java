@@ -3,7 +3,6 @@ package com.facturacion.sri.infrastructure.scheduler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 import io.quarkus.scheduler.Scheduled;
@@ -19,6 +18,10 @@ import com.facturacion.sri.application.service.SriConectorService;
  * beneficio. Contraste deliberado con el envío inicial a Recepción (ver
  * SriConectorService.procesarComando), que sí es inmediato — eso es lo que
  * exige la Resolución NAC-DGERCGC25-00000017, esto no.
+ * <p>
+ * No filtra por intentos acá — el máximo puede variar por empresa (ver
+ * {@code SriConectorService.resolverMaxIntentos}), así que esa decisión se
+ * toma fila por fila, no en esta consulta.
  */
 @ApplicationScoped
 public class AutorizacionPoller {
@@ -29,13 +32,10 @@ public class AutorizacionPoller {
     @Inject
     SriConectorService sriConectorService;
 
-    @ConfigProperty(name = "sri.autorizacion.poll.max-intentos")
-    int maxIntentos;
-
     @Scheduled(every = "{sri.autorizacion.poll.intervalo}", delayed = "10s",
         concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public Uni<Void> consultarPendientes() {
-        return sriConectorService.listarPendientesDeAutorizacion(maxIntentos, BATCH_SIZE)
+        return sriConectorService.listarPendientesDeAutorizacion(BATCH_SIZE)
             .onItem().transformToMulti(batch -> Multi.createFrom().iterable(batch))
             .onItem().transformToUniAndConcatenate(envio -> sriConectorService.consultarAutorizacion(envio)
                 .onFailure().invoke(failure -> LOG.errorf(failure,

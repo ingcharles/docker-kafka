@@ -28,18 +28,18 @@ public class Comprobante {
     private String puntoEmision;
     private String secuencial;
 
-    // Datos del emisor recibidos inline en el request de creación — este
-    // servicio ya no mantiene una copia local de Emisor (ver ARQUITECTURA.md,
-    // "Emisor sin ID"); no hay ningún emisorId de firma-electronica-service.
-    private String emisorRuc;
-    private String emisorRazonSocial;
-    private String emisorNombreComercial;
-    private String emisorDireccionMatriz;
-    private boolean emisorObligadoContabilidad;
-    private boolean emisorContribuyenteEspecial;
-    private String emisorNumeroContribuyenteEspecial;
-    private boolean emisorEsGranContribuyente;
-    private String emisorNumeroResolucionGranContribuyente;
+    // Datos de la empresa recibidos inline en el request de creación — este
+    // servicio ya no mantiene una copia local de Empresa (ver ARQUITECTURA.md,
+    // "Empresa sin ID"); no hay ningún empresaId de firma-electronica-service.
+    private String empresaRuc;
+    private String empresaRazonSocial;
+    private String empresaNombreComercial;
+    private String empresaDireccionMatriz;
+    private boolean empresaObligadoContabilidad;
+    private boolean empresaContribuyenteEspecial;
+    private String empresaNumeroContribuyenteEspecial;
+    private boolean empresaEsGranContribuyente;
+    private String empresaNumeroResolucionGranContribuyente;
 
     private Instant fechaEmision;
     private String compradorTipoIdentificacion;
@@ -157,76 +157,76 @@ public class Comprobante {
         this.secuencial = secuencial;
     }
 
-    public String getEmisorRuc() {
-        return emisorRuc;
+    public String getEmpresaRuc() {
+        return empresaRuc;
     }
 
-    public void setEmisorRuc(String emisorRuc) {
-        this.emisorRuc = emisorRuc;
+    public void setEmpresaRuc(String empresaRuc) {
+        this.empresaRuc = empresaRuc;
     }
 
-    public String getEmisorRazonSocial() {
-        return emisorRazonSocial;
+    public String getEmpresaRazonSocial() {
+        return empresaRazonSocial;
     }
 
-    public void setEmisorRazonSocial(String emisorRazonSocial) {
-        this.emisorRazonSocial = emisorRazonSocial;
+    public void setEmpresaRazonSocial(String empresaRazonSocial) {
+        this.empresaRazonSocial = empresaRazonSocial;
     }
 
-    public String getEmisorNombreComercial() {
-        return emisorNombreComercial;
+    public String getEmpresaNombreComercial() {
+        return empresaNombreComercial;
     }
 
-    public void setEmisorNombreComercial(String emisorNombreComercial) {
-        this.emisorNombreComercial = emisorNombreComercial;
+    public void setEmpresaNombreComercial(String empresaNombreComercial) {
+        this.empresaNombreComercial = empresaNombreComercial;
     }
 
-    public String getEmisorDireccionMatriz() {
-        return emisorDireccionMatriz;
+    public String getEmpresaDireccionMatriz() {
+        return empresaDireccionMatriz;
     }
 
-    public void setEmisorDireccionMatriz(String emisorDireccionMatriz) {
-        this.emisorDireccionMatriz = emisorDireccionMatriz;
+    public void setEmpresaDireccionMatriz(String empresaDireccionMatriz) {
+        this.empresaDireccionMatriz = empresaDireccionMatriz;
     }
 
-    public boolean isEmisorObligadoContabilidad() {
-        return emisorObligadoContabilidad;
+    public boolean isEmpresaObligadoContabilidad() {
+        return empresaObligadoContabilidad;
     }
 
-    public void setEmisorObligadoContabilidad(boolean emisorObligadoContabilidad) {
-        this.emisorObligadoContabilidad = emisorObligadoContabilidad;
+    public void setEmpresaObligadoContabilidad(boolean empresaObligadoContabilidad) {
+        this.empresaObligadoContabilidad = empresaObligadoContabilidad;
     }
 
-    public boolean isEmisorContribuyenteEspecial() {
-        return emisorContribuyenteEspecial;
+    public boolean isEmpresaContribuyenteEspecial() {
+        return empresaContribuyenteEspecial;
     }
 
-    public void setEmisorContribuyenteEspecial(boolean emisorContribuyenteEspecial) {
-        this.emisorContribuyenteEspecial = emisorContribuyenteEspecial;
+    public void setEmpresaContribuyenteEspecial(boolean empresaContribuyenteEspecial) {
+        this.empresaContribuyenteEspecial = empresaContribuyenteEspecial;
     }
 
-    public String getEmisorNumeroContribuyenteEspecial() {
-        return emisorNumeroContribuyenteEspecial;
+    public String getEmpresaNumeroContribuyenteEspecial() {
+        return empresaNumeroContribuyenteEspecial;
     }
 
-    public void setEmisorNumeroContribuyenteEspecial(String emisorNumeroContribuyenteEspecial) {
-        this.emisorNumeroContribuyenteEspecial = emisorNumeroContribuyenteEspecial;
+    public void setEmpresaNumeroContribuyenteEspecial(String empresaNumeroContribuyenteEspecial) {
+        this.empresaNumeroContribuyenteEspecial = empresaNumeroContribuyenteEspecial;
     }
 
-    public boolean isEmisorEsGranContribuyente() {
-        return emisorEsGranContribuyente;
+    public boolean isEmpresaEsGranContribuyente() {
+        return empresaEsGranContribuyente;
     }
 
-    public void setEmisorEsGranContribuyente(boolean emisorEsGranContribuyente) {
-        this.emisorEsGranContribuyente = emisorEsGranContribuyente;
+    public void setEmpresaEsGranContribuyente(boolean empresaEsGranContribuyente) {
+        this.empresaEsGranContribuyente = empresaEsGranContribuyente;
     }
 
-    public String getEmisorNumeroResolucionGranContribuyente() {
-        return emisorNumeroResolucionGranContribuyente;
+    public String getEmpresaNumeroResolucionGranContribuyente() {
+        return empresaNumeroResolucionGranContribuyente;
     }
 
-    public void setEmisorNumeroResolucionGranContribuyente(String emisorNumeroResolucionGranContribuyente) {
-        this.emisorNumeroResolucionGranContribuyente = emisorNumeroResolucionGranContribuyente;
+    public void setEmpresaNumeroResolucionGranContribuyente(String empresaNumeroResolucionGranContribuyente) {
+        this.empresaNumeroResolucionGranContribuyente = empresaNumeroResolucionGranContribuyente;
     }
 
     public Instant getFechaEmision() {

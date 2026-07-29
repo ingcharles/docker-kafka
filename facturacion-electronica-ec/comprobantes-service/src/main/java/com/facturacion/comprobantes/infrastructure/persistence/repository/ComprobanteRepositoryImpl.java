@@ -72,16 +72,16 @@ public class ComprobanteRepositoryImpl implements ComprobanteRepository {
     }
 
     @Override
-    public Uni<PageResult<Comprobante>> findPaged(int page, int limit, EstadoComprobante estado, String emisorRuc) {
+    public Uni<PageResult<Comprobante>> findPaged(int page, int limit, EstadoComprobante estado, String empresaRuc) {
         StringBuilder query = new StringBuilder("1 = 1");
         Map<String, Object> params = new HashMap<>();
         if (estado != null) {
             query.append(" and estado = :estado");
             params.put("estado", estado.name());
         }
-        if (emisorRuc != null) {
-            query.append(" and emisorRuc = :emisorRuc");
-            params.put("emisorRuc", emisorRuc);
+        if (empresaRuc != null) {
+            query.append(" and empresaRuc = :empresaRuc");
+            params.put("empresaRuc", empresaRuc);
         }
 
         var panacheQuery = repository.find(query.toString(), params).page(Page.of(page, limit));

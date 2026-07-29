@@ -8,7 +8,7 @@ Este documento explica **cómo está construido** el stack: el estilo arquitect�
 |---|---|
 | **Microservicios con base de datos propia** | 7 servicios Quarkus independientes (6 de dominio + `identidad-service`), cada uno dueño de su propio esquema de Postgres. Ninguno lee ni escribe directamente en las tablas de otro. |
 | **Saga por orquestación** (no coreografía) | `facturacion-orchestrator-service` es el **único** que conoce el flujo completo (CREADO→FIRMADO→AUTORIZADO→NOTIFICADO). Los otros 5 no saben que forman parte de una saga — solo saben "me llegó un comando, lo ejecuto, publico si me salió bien o mal". |
-| **Comunicación casi 100% asíncrona vía Kafka** | Ningún microservicio expone ni llama un endpoint REST de otro para el flujo transaccional. La única excepción deliberada es la subida del certificado `.p12` (`POST /emisores/{id}/certificado`, multipart — no tiene sentido modelar la subida de un archivo binario como un evento de Kafka). Todo lo demás — incluida la réplica de datos de Emisor (hacia `identidad-service`) e Item (hacia `comprobantes-service`) entre servicios — viaja por eventos. `identidad-service` no participa de la saga y no publica nada a Kafka, pero sí **consume** `facturacion.emisor.eventos.v1` para saber qué rucs tienen un Emisor real (ver sección 8) — ningún otro servicio le llama de vuelta. |
+| **Comunicación casi 100% asíncrona vía Kafka** | Ningún microservicio expone ni llama un endpoint REST de otro para el flujo transaccional. La única excepción deliberada es la subida del certificado `.p12` (`POST /empresas/{id}/certificado`, multipart — no tiene sentido modelar la subida de un archivo binario como un evento de Kafka). Todo lo demás — incluida la réplica de datos de Empresa (hacia `identidad-service`) e Item (hacia `comprobantes-service`) entre servicios — viaja por eventos. `identidad-service` no participa de la saga y no publica nada a Kafka, pero sí **consume** `facturacion.empresa.eventos.v1` para saber qué rucs tienen una Empresa real (ver sección 8) — ningún otro servicio le llama de vuelta. |
 | **Todo el REST externo requiere api-key** | Los 6 servicios de dominio no tienen ninguna ruta pública — cada request necesita `Authorization: Bearer <api-key>`, un JWT emitido por `identidad-service` y verificado localmente (sin llamada de red) por cada servicio. Ver sección 8. |
 | **Arquitectura hexagonal / DDD por servicio** | Cada servicio se organiza en capas `domain` (modelo puro, sin anotaciones de framework) → `application` (casos de uso) → `infrastructure` (JPA/Panache, Kafka, REST, SOAP, XML-DSig) → `shared`. El dominio no depende de Quarkus, Kafka, ni de las librerías de firma/SOAP; es al revés. |
 | **Transactional Outbox + Inbox idempotente** | Ver sección 6. Igual que en `ecommerce/`. |
@@ -31,7 +31,7 @@ graph TB
 
         subgraph FacturacionStack["facturacion-electronica-ec/"]
             Identidad["identidad-service<br/>:8097 — usuarios, empresas/ruc, roles, api-keys JWT"]
-            Firma["firma-electronica-service<br/>:8091 — Emisor + certificado + firma XAdES-BES"]
+            Firma["firma-electronica-service<br/>:8091 — Empresa + certificado + firma XAdES-BES"]
             Inventario["inventario-service<br/>:8092 — catálogo, kardex, impuestos"]
             Comprobantes["comprobantes-service<br/>:8093 — 6 tipos de comprobante, XML, RIDE"]
             Sri["sri-conector-service<br/>:8094 — SOAP real hacia el SRI"]
@@ -44,7 +44,7 @@ graph TB
     Cliente -->|"REST: login, api-keys"| Identidad
     Cliente -->|"REST + api-key: POST /facturas, /notas-credito, etc."| Comprobantes
     Cliente -.->|"REST + api-key: consulta de estado"| Orquestador
-    Cliente -.->|"REST + api-key: alta de Emisor + certificado"| Firma
+    Cliente -.->|"REST + api-key: alta de Empresa + certificado"| Firma
     Cliente -.->|"REST + api-key: catálogo"| Inventario
 
     Identidad -.->|"mismo secreto HS256<br/>IDENTIDAD_JWT_SECRET,<br/>sin llamada de red"| Firma
@@ -60,7 +60,7 @@ graph TB
     Sri <-->|Kafka| Broker
     Notificacion <-->|Kafka| Broker
     Orquestador <-->|Kafka| Broker
-    Broker -->|"Kafka, solo entrante<br/>(EmisorRegistrado/Actualizado)"| Identidad
+    Broker -->|"Kafka, solo entrante<br/>(EmpresaRegistrada/Actualizado)"| Identidad
 
     Sri <-->|"SOAP real"| SRI
     Notificacion -->|"SMTP real"| Gmail
@@ -76,14 +76,14 @@ graph TB
     KafkaUI -.->|solo lectura, observabilidad| Broker
 ```
 
-**Lectura clave del diagrama:** el cliente primero le habla a `identidad-service` (crear cuenta, login, asociarse a un `ruc`, emitir una api-key) y luego usa esa api-key como `Authorization: Bearer` contra todo lo demás: `comprobantes-service` (para crear cualquiera de los 6 tipos de comprobante), `firma-electronica-service` (para dar de alta un Emisor y subir su certificado) y opcionalmente `facturacion-orchestrator-service` (para consultar el estado de la saga). Las flechas punteadas de `identidad-service` hacia el resto **no son llamadas de red** — representan que todos comparten el mismo secreto HS256 y verifican el JWT de forma local (ver sección 8). `sri-conector-service` es el único servicio que sale fuera de Docker hacia una red externa real (el SRI); `notificacion-service` es el único que sale hacia un servidor SMTP real. Todos los demás servicios son invisibles para el cliente — su única puerta de entrada/salida es Kafka.
+**Lectura clave del diagrama:** el cliente primero le habla a `identidad-service` (crear cuenta, login, asociarse a un `ruc`, emitir una api-key) y luego usa esa api-key como `Authorization: Bearer` contra todo lo demás: `comprobantes-service` (para crear cualquiera de los 6 tipos de comprobante), `firma-electronica-service` (para dar de alta un Empresa y subir su certificado) y opcionalmente `facturacion-orchestrator-service` (para consultar el estado de la saga). Las flechas punteadas de `identidad-service` hacia el resto **no son llamadas de red** — representan que todos comparten el mismo secreto HS256 y verifican el JWT de forma local (ver sección 8). `sri-conector-service` es el único servicio que sale fuera de Docker hacia una red externa real (el SRI); `notificacion-service` es el único que sale hacia un servidor SMTP real. Todos los demás servicios son invisibles para el cliente — su única puerta de entrada/salida es Kafka.
 
 ## 2. Los 7 microservicios y cómo se relacionan entre sí
 
 | Servicio | Bounded context | Esquema BD | Ruta REST | A quién le manda comandos (Kafka) | Quién le manda comandos a él |
 |---|---|---|---|---|---|
-| `identidad-service` | Usuarios, asociación usuario↔ruc con rol, emisión/revocación de api-keys JWT | `identidad` | `/identidad/api/v1` | *(no publica nada — solo consume `facturacion.emisor.eventos.v1` para validar rucs, ver sección 8)* | *(nadie le manda comandos — no participa de la saga)* |
-| `firma-electronica-service` | Emisor (multi-tenant) + certificado digital + firma XAdES-BES | `firma` | `/emisores/api/v1` | *(nadie, solo responde)* | `facturacion-orchestrator-service` (`FirmarComprobanteCommand`) |
+| `identidad-service` | Usuarios, asociación usuario↔ruc con rol, emisión/revocación de api-keys JWT | `identidad` | `/identidad/api/v1` | *(no publica nada — solo consume `facturacion.empresa.eventos.v1` para validar rucs, ver sección 8)* | *(nadie le manda comandos — no participa de la saga)* |
+| `firma-electronica-service` | Empresa (multi-tenant) + certificado digital + firma XAdES-BES | `firma` | `/empresas/api/v1` | *(nadie, solo responde)* | `facturacion-orchestrator-service` (`FirmarComprobanteCommand`) |
 | `inventario-service` | Catálogo (productos/servicios), kardex, impuestos | `inventario` | `/inventario/api/v1` | *(nadie, es origen de eventos, no recibe comandos de la saga)* | *(nadie — no participa en la saga de emisión)* |
 | `comprobantes-service` | Los 6 tipos de comprobante SRI, XML, RIDE | `comprobantes` | `/comprobantes/api/v1` | *(nadie — es el origen de la saga)* | `facturacion-orchestrator-service` (`MARCAR_FIRMADO`/`MARCAR_AUTORIZADO`/`MARCAR_NO_AUTORIZADO`/etc.) |
 | `sri-conector-service` | Integración SOAP real con el SRI (Recepción + Autorización) | `sri` | `/sri/api/v1` | *(nadie, solo responde)* | `facturacion-orchestrator-service` (`EnviarComprobanteCommand`) |
@@ -93,7 +93,7 @@ graph TB
 **Por qué la relación tiene forma de estrella y no de cadena:** los servicios de dominio (firma, comprobantes, sri, notificación) **no se conocen entre sí** — ninguno le manda un mensaje directamente a otro (con la única excepción documentada abajo). Todos hablan únicamente con `facturacion-orchestrator-service`, que decide el orden de ejecución. Igual que en `ecommerce/`, si un cambio en el flujo de negocio agrega o reordena un paso, ese conocimiento vive en un solo lugar: `SagaOrchestratorService.java` del orquestador.
 
 **Las dos excepciones deliberadas a "cero REST/acoplamiento directo entre servicios":**
-1. `inventario-service` e `firma-electronica-service` no participan en la saga de comandos — son **fuentes de datos de referencia**. `inventario-service` publica `ItemCreado`/`ItemActualizado`, que `comprobantes-service` consume y mantiene como copia de solo lectura (`item_local`, usada para auto-derivar impuestos por `itemId`) — vista materializada vía evento. `firma-electronica-service` publica `EmisorRegistrado`/`EmisorActualizado` (sin datos del certificado); hoy el único consumidor es `identidad-service` (`emisor_local`, ver sección 8) — `comprobantes-service` **ya no** mantiene una réplica de Emisor: desde que el modelo pasó a ser scoped por `ruc` en vez de por `emisorId`, cada request de creación de comprobante trae los datos del emisor inline (ver `V6__ecosistema_separado.sql`), así que no necesita consultar nada localmente.
+1. `inventario-service` e `firma-electronica-service` no participan en la saga de comandos — son **fuentes de datos de referencia**. `inventario-service` publica `ItemCreado`/`ItemActualizado`, que `comprobantes-service` consume y mantiene como copia de solo lectura (`item_local`, usada para auto-derivar impuestos por `itemId`) — vista materializada vía evento. `firma-electronica-service` publica `EmpresaRegistrada`/`EmpresaActualizada` (sin datos del certificado); hoy el único consumidor es `identidad-service` (`empresa_local`, ver sección 8) — `comprobantes-service` **ya no** mantiene una réplica de Empresa: desde que el modelo pasó a ser scoped por `ruc` en vez de por `empresaId`, cada request de creación de comprobante trae los datos de la empresa inline (ver `V6__ecosistema_separado.sql`), así que no necesita consultar nada localmente.
 2. `notificacion-service` no es comandado por el orquestador — consume directamente `ComprobanteAutorizado` desde `facturacion.comprobante.eventos.v1` (publicado por `comprobantes-service`, no por el orquestador) porque no hay ninguna decisión de negocio que tomar antes de notificar: si un comprobante quedó `AUTORIZADO` y tiene un correo, se notifica, punto. El orquestador igual observa `NotificacionExitosa`/`NotificacionFallida` para completar su propia máquina de estados, pero no es quien dispara el envío.
 
 **Independencia real, no solo de código:** los 6 proyectos Maven no comparten ni una sola librería propia — cada servicio define sus propios records de mensaje Kafka en su paquete `application/event`, aunque el *shape* del JSON coincida con el que espera el consumidor. Mismo trade-off que en `ecommerce/`: pequeña duplicación de definiciones a cambio de poder redesplegar cada servicio de forma independiente.
@@ -125,7 +125,7 @@ sequenceDiagram
     deactivate OR
 
     activate FI
-    FI->>FI: firma XML con XAdES-BES usando el .p12 activo del Emisor (descifrado en memoria)
+    FI->>FI: firma XML con XAdES-BES usando el .p12 activo del Empresa (descifrado en memoria)
     FI--)OR: (Kafka) ComprobanteFirmado (xmlFirmado)
     deactivate FI
 
@@ -214,11 +214,13 @@ Esto es coherente con la resolución NAC-DGERCGC25-00000017 (vigente desde 2026-
 
 ### 6.1 Convención de tópicos
 
-`facturacion.<dominio>.<events|commands>.v1`, más un `.dlq` por cada tópico con consumidor real. 25 tópicos en total (13 pares evento/comando + su dlq, más el tópico de auditoría del orquestador), creados al arrancar el stack por `facturacion-topic-init` (reutiliza la imagen `../kafka/topic-init`, igual que en `ecommerce/`).
+`facturacion.<dominio>.<events|commands>.v1`, más un `.dlq` por cada tópico con consumidor real. 29 tópicos en total (14 pares evento/comando + su dlq, más el tópico de auditoría del orquestador, más el par de configuración), creados al arrancar el stack por `facturacion-topic-init` (reutiliza la imagen `../kafka/topic-init`, igual que en `ecommerce/`).
 
 | Tópico | Productor | Consumidor (`group.id`) |
 |---|---|---|
-| `facturacion.emisor.eventos.v1` (+ `.dlq`) | firma-electronica-service | identidad-service (réplica local `emisor_local`, ver sección 8) |
+| `facturacion.empresa.eventos.v1` (+ `.dlq`) | firma-electronica-service | identidad-service (réplica local `empresa_local`, ver sección 8) |
+| `facturacion.empresa.establecimientos.eventos.v1` (+ `.dlq`) | firma-electronica-service | comprobantes-service (réplica local `establecimiento_local`/`punto_emision_local`, valida antes de emitir — ver sección 7.1) **y** identidad-service (misma réplica, valida el alcance de una api-key nueva — ver sección 8) |
+| `facturacion.empresa.configuracion.eventos.v1` (+ `.dlq`) | firma-electronica-service | comprobantes-service, notificacion-service, sri-conector-service (cada uno con su propia réplica local `configuracion_empresa_local` — `ride.color`, `notificacion.asunto`/`notificacion.remitente_nombre`, `sri.recepcion.url`/`sri.autorizacion.url`/`sri.autorizacion.poll.max-intentos` respectivamente — ver sección 7.2) |
 | `facturacion.inventario.eventos.v1` (+ `.dlq`) | inventario-service | *(reservas de stock, uso interno de inventario)* |
 | `facturacion.inventario.comandos.v1` (+ `.dlq`) | *(reservado, no usado por la saga de emisión)* | inventario-service |
 | `facturacion.inventario.item.eventos.v1` (+ `.dlq`) | inventario-service | comprobantes-service (réplica local `item_local`, deriva IVA/ICE) |
@@ -264,25 +266,25 @@ Un solo contenedor Postgres (`facturacion-electronica-ec/db`), con **una sola ba
 graph TB
     subgraph PG["Postgres — base de datos 'facturacion'"]
         subgraph S1["esquema firma"]
-            T1["emisor<br/>certificado_digital<br/>outbox_event"]
+            T1["empresa<br/>establecimiento<br/>punto_emision<br/>certificado_digital<br/>outbox_event"]
         end
         subgraph S2["esquema inventario"]
             T2["item<br/>categoria<br/>kardex_movimiento<br/>stock_reservation<br/>outbox_event"]
         end
         subgraph S3["esquema comprobantes"]
-            T3["comprobante<br/>detalle_comprobante<br/>destinatario_guia_remision<br/>item_local<br/>outbox_event<br/>processed_message"]
+            T3["comprobante<br/>detalle_comprobante<br/>destinatario_guia_remision<br/>item_local<br/>establecimiento_local<br/>punto_emision_local<br/>configuracion_empresa_local<br/>outbox_event<br/>processed_message"]
         end
         subgraph S4["esquema sri"]
-            T4["envio_sri<br/>outbox_event<br/>processed_message"]
+            T4["envio_sri<br/>configuracion_empresa_local<br/>outbox_event<br/>processed_message"]
         end
         subgraph S5["esquema notificacion"]
-            T5["notificacion_enviada<br/>processed_message"]
+            T5["notificacion_enviada<br/>configuracion_empresa_local<br/>processed_message"]
         end
         subgraph S6["esquema orquestacion"]
             T6["saga_instance<br/>saga_step<br/>outbox_event<br/>processed_message"]
         end
         subgraph S7["esquema identidad"]
-            T7["usuario<br/>usuario_empresa_rol<br/>api_key<br/>emisor_local"]
+            T7["usuario<br/>usuario_empresa_rol<br/>api_key<br/>empresa_local<br/>establecimiento_local<br/>punto_emision_local"]
         end
     end
     R1["rol firma_service"] --> S1
@@ -298,27 +300,52 @@ graph TB
 
 **Particularidad de este proyecto:** los nombres de tabla y columna están en español y calcados de la terminología exacta del SRI (`clave_acceso`, `comprador_razon_social`, `docSustentoNumero`, etc.) — no traducidos libremente — para que el mapeo entre el modelo de datos y la ficha técnica del SRI sea directo al depurar un rechazo.
 
+### 7.1 Establecimientos y puntos de emisión
+
+`firma-electronica-service` expone un CRUD real (`EstablecimientoResource`/`PuntoEmisionResource`, ambos basados en id, sin re-chequeo de ruc — igual que `PUT actualizar`/certificado) para las tablas `establecimiento`/`punto_emision` de la sección 7 — antes de esto, `establecimiento`/`puntoEmision` eran strings sueltos en cada request de creación de comprobante, sin ningún registro real detrás. `EmpresaService.crearEmpresa` crea automáticamente, en la misma transacción, un establecimiento MATRIZ y un punto de emisión con los códigos por defecto de la empresa — ninguna empresa nueva necesita un paso manual aparte.
+
+`comprobantes-service` mantiene su propia réplica (`establecimiento_local`/`punto_emision_local`, indexadas por `(ruc, codigo)` — nunca por el id interno de firma-electronica-service, mismo principio "Empresa sin ID") vía el tópico `facturacion.empresa.establecimientos.eventos.v1` (ver 6.1), y **valida contra ella antes de reservar el secuencial** de cualquiera de los 6 tipos de comprobante (`ComprobanteService.emitir`) — un establecimiento o punto de emisión no registrado (o inactivo) devuelve 400, en vez de dejar pasar cualquier string como ocurría antes.
+
+**Nota operativa:** la empresa semilla (RUC 1722039953001, creada antes de que este CRUD existiera) ya tiene su establecimiento `001`/punto de emisión `001` reales registrados a mano — cualquier otra empresa creada antes de esta funcionalidad necesitaría el mismo paso manual una sola vez.
+
+### 7.2 `configuracion_empresa`: de infraestructura sin uso a ajustes reales
+
+La tabla `configuracion_empresa` (clave/valor genérico, sección 7) existía desde antes con CRUD completo pero **sin ningún consumidor real** — nada leía sus valores para cambiar comportamiento. `ConfiguracionEmpresaService.establecer`/`eliminar` ahora publican un evento en el outbox (tópico de la tabla de 6.1: genérico, cualquier `clave`/`valor`, un `valor` en `null` en el evento de eliminación revierte al comportamiento por defecto). Tres servicios mantienen su propia réplica `configuracion_empresa_local` (mismo principio "Empresa sin ID", indexada por `(ruc, clave)`), cada uno con sus propias claves reales:
+
+- **`comprobantes-service`** — `ride.color` (hex RGB, ej. `#1A73E8`): `ComprobanteService.aplicarComando` la consulta justo antes de generar el RIDE en `MARCAR_AUTORIZADO` y `RideGenerador` la dibuja como una barra de acento bajo el encabezado si es un hex válido; si no está configurada (o es inválida), el RIDE se ve exactamente igual que antes.
+- **`notificacion-service`** — `notificacion.asunto` (asunto del correo) y `notificacion.remitente_nombre` (nombre visible del remitente, ej. "Facturación Acme" — nunca cambia la dirección real autenticada ante el SMTP, `quarkus.mailer.from`): `NotificacionService.procesarComprobanteAutorizado` las consulta antes de llamar a `CorreoService.enviarComprobante`.
+- **`sri-conector-service`** — `sri.recepcion.url`, `sri.autorizacion.url` (sobreescriben la URL fija por ambiente) y `sri.autorizacion.poll.max-intentos` (sobreescribe el default global de `application.properties`): `SriConectorService` las consulta en `procesarComando`/`consultarAutorizacion`. Esto necesitó agregar `empresaRuc` a `EnviarComprobanteCommand` (facturacion-orchestrator-service) y a `EnvioSri` (columna nueva, nullable — los envíos de prueba anteriores a este cambio quedan sin ella, sin overrides aplicables, sin afectar su comportamiento ya fijado). El poller (`AutorizacionPoller`) dejó de filtrar por intentos a nivel de consulta SQL (ese máximo ahora varía por empresa) — la decisión de cuándo pasar a `ERROR_CONSULTA` se toma fila por fila en `SriConectorService.aplicarResultadoAutorizacion`, y una vez que una fila se agota deja de calificar por su propio cambio de `estado`, así que el filtro SQL nunca hizo falta como mecanismo de corte real.
+
+El resto de claves posibles (feature flags, etc.) siguen sin un consumidor real — el patrón queda listo para el próximo ajuste que lo necesite, mismo criterio que los tres de arriba.
+
 ## 8. Autenticación y autorización multi-tenant (api-key JWT)
 
 `identidad-service` no participa de la saga de emisión, pero sí consume un tópico de Kafka (ver más abajo) — su razón de ser central es emitir y (junto con los otros 6) verificar las credenciales que protegen todo el ecosistema.
 
-**Modelo de datos** (`identidad`): `Usuario` (email + password con login) puede asociarse a cualquier número de `ruc` vía `POST /usuarios/me/empresas`, sin flujo de invitación/aprobación — pero el `ruc` **sí se valida contra un Emisor real**: el servicio mantiene `emisor_local`, una copia local de solo lectura alimentada consumiendo `facturacion.emisor.eventos.v1` (mismo patrón de vista materializada por eventos que `item_local` en `comprobantes-service`, ver sección 6.1), y `UsuarioService.asociarEmpresa` responde `404` si el ruc no corresponde a ningún Emisor activo. Esto **no verifica titularidad** — cualquier usuario puede asociarse a cualquier ruc que exista, no se confirma que sea realmente el dueño de esa empresa — solo que el ruc es real y no un string inventado. Cada asociación usuario↔ruc lleva un `Rol`: `ADMIN` (todo, incluida gestión de api-keys), `OPERADOR` (puede emitir comprobantes), `LECTURA` (solo consulta — hoy no hay ningún endpoint que diferencie LECTURA de OPERADOR más allá de la intención documentada).
+**Modelo de datos** (`identidad`): `Usuario` (email + password con login) puede asociarse a cualquier número de `ruc` vía `POST /usuarios/me/empresas`, sin flujo de invitación/aprobación — pero el `ruc` **sí se valida contra una Empresa real**: el servicio mantiene `empresa_local`, una copia local de solo lectura alimentada consumiendo `facturacion.empresa.eventos.v1` (mismo patrón de vista materializada por eventos que `item_local` en `comprobantes-service`, ver sección 6.1), y `UsuarioService.asociarEmpresa` responde `404` si el ruc no corresponde a ninguna Empresa activa. Esto **no verifica titularidad** — cualquier usuario puede asociarse a cualquier ruc que exista, no se confirma que sea realmente el dueño de esa empresa — solo que el ruc es real y no un string inventado. Cada asociación usuario↔ruc lleva un `Rol`: `ADMIN` (todo, incluida gestión de api-keys), `OPERADOR` (puede emitir comprobantes), `LECTURA` (solo consulta — hoy no hay ningún endpoint que diferencie LECTURA de OPERADOR más allá de la intención documentada).
 
 **Dos tipos de JWT, un solo secreto compartido (`IDENTIDAD_JWT_SECRET`, HS256)**:
 
 | Tipo | Emitido por | Dónde sirve | Duración |
 |---|---|---|---|
-| **Sesión** | `POST /usuarios/login` | Solo contra `identidad-service` (`/usuarios/me/*`, `/api-keys/*`) | Corta (`identidad.jwt.sesion.duracion-horas`) |
+| **Sesión** | `POST /usuarios/login` | Solo contra `identidad-service` (`/usuarios/me/*`, `/api-keys/*`) **y, como única excepción, `POST /empresas` de firma-electronica-service** (ver más abajo) | Corta (`identidad.jwt.sesion.duracion-horas`) |
 | **Api-key** | `POST /api-keys` (requiere sesión) | Contra los 6 servicios de dominio | Configurable, default 365 días — el valor solo se muestra una vez, al crearla |
 
-El api-key **es** el JWT — no hay lookup en base de datos del lado de quien lo verifica. Lleva `ruc` y `rol` como claims; eso es lo único que cada servicio necesita para decidir si el caller puede operar sobre ese ruc.
+**Bootstrap de una empresa nueva — el ciclo que había que romper**: una api-key solo se emite para un ruc al que el usuario ya esté asociado (`POST /usuarios/me/empresas`), y esa asociación exige que el ruc ya corresponda a una Empresa real (`empresa_local`, arriba). Para una empresa genuinamente nueva eso nunca se cumple — no hay forma de conseguir una api-key para darla de alta. `PermiteSesion` (`firma-electronica-service/infrastructure/security`) es la única excepción a "todo endpoint exige una api-key": marca `EmpresaResource.crear`, que además de una api-key acepta un token de sesión — `JwtVerificador.verificarApiKeyOSesion` reconoce ambos tipos (con una sesión, `ruc`/`rol`/`establecimiento`/`puntoEmision` quedan en `null`, así que el chequeo de titularidad se salta: no hay ningún dueño previo que proteger todavía). `EmpresaService.crearEmpresa` incluye el `usuarioCreadorId` en el evento `EmpresaRegistrada`, y `identidad-service.EmpresaEventConsumer` lo usa para otorgar automáticamente el rol `ADMIN` a ese usuario para ese ruc — así, apenas se crea la empresa, el usuario ya puede pedir su primera api-key sin ningún paso manual.
+
+El api-key **es** el JWT — no hay lookup en base de datos del lado de quien lo verifica. Lleva `ruc` y `rol` como claims siempre, y **opcionalmente** `establecimiento`/`puntoEmision` — eso es lo que cada servicio necesita para decidir si el caller puede operar sobre ese ruc (y, si aplica, sobre ese establecimiento/punto de emisión específico).
 
 **Verificación 100% local, cero llamadas de red**: cada uno de los 6 servicios de dominio tiene su propia copia (no una librería compartida — mismo criterio de independencia real que el resto del stack, ver sección 2) de un paquete `infrastructure/security/`:
 - `ApiKeyAuthFilter` — un `ContainerRequestFilter` **global** (sin `@NameBinding`): exige `Authorization: Bearer <api-key>` en *todo* endpoint, no existen rutas públicas en ninguno de los 6 servicios.
 - `JwtVerificador` — valida la firma HS256 contra `identidad.jwt.secreto` (mismo valor que `IDENTIDAD_JWT_SECRET`) y confirma que el claim `tipo` sea `api_key` (rechaza un token de sesión si alguien lo usa por error).
-- `TokenPrincipal` — request-scoped, con `usuarioId`/`ruc`/`rol` ya verificados, disponible para inyectar en cualquier recurso.
+- `TokenPrincipal` — request-scoped, con `usuarioId`/`ruc`/`rol`/`establecimiento`/`puntoEmision` ya verificados, disponible para inyectar en cualquier recurso. Los dos últimos son `null` en cualquier api-key emitida antes de que existieran — sin restricción, comportamiento sin cambios (retrocompatible a propósito).
 
-**Validación de propiedad del ruc — solo donde el body la trae directamente**: `comprobantes-service` (los 6 endpoints `crearX`, comparando `request.getEmisor().getRuc()`), `inventario-service` (`POST /items`) y `firma-electronica-service` (`POST /emisores`) comparan el `ruc` del request contra el `ruc` del token y responden `403 Forbidden` (`SinPermisoException`) si no coinciden. Los endpoints basados en `id` (actualizar, subir certificado, kardex, configuración, `/retry` de saga) **no** repiten esa validación — solo exigen una api-key válida de *cualquier* ruc, igual que las superficies puramente de observabilidad (`sri-conector-service`, `notificacion-service`, `facturacion-orchestrator-service`), que son GET-mayoritariamente y donde filtrar por ruc se dejó fuera de alcance a propósito.
+**Validación de propiedad del ruc — solo donde el body la trae directamente**: `comprobantes-service` (los 6 endpoints `crearX`, comparando `request.getEmpresa().getRuc()`), `inventario-service` (`POST /items`) y `firma-electronica-service` (`POST /empresas`) comparan el `ruc` del request contra el `ruc` del token y responden `403 Forbidden` (`SinPermisoException`) si no coinciden. Los endpoints basados en `id` (actualizar, subir certificado, kardex, configuración, `/retry` de saga) **no** repiten esa validación — solo exigen una api-key válida de *cualquier* ruc, igual que las superficies puramente de observabilidad (`sri-conector-service`, `notificacion-service`, `facturacion-orchestrator-service`), que son GET-mayoritariamente y donde filtrar por ruc se dejó fuera de alcance a propósito.
+
+**Api-key acotada a establecimiento/punto de emisión (opcional)**: pensado para empresas con varias sucursales/cajas que no quieren que la key de un punto de venta pueda emitir con el de otro — sin tocar en nada el principio "Empresa sin ID" (comprobantes-service sigue sin conocer `usuarioId` ni ningún id interno, solo compara valores del propio request contra los claims del token, igual que ya hacía con `ruc`).
+- `POST /api-keys` (identidad-service) acepta `establecimiento`/`puntoEmision` opcionales — `puntoEmision` sin `establecimiento` es 400. `ApiKeyService.crear` valida que sean reales y estén activos contra su propia réplica `establecimiento_local`/`punto_emision_local` (alimentada por el mismo tópico `facturacion.empresa.establecimientos.eventos.v1` que ya consume comprobantes-service — ver 6.1) antes de emitir el JWT.
+- `ComprobanteResource.validarAlcance` (antes `validarRuc`) además del ruc, si el token trae `establecimiento`/`puntoEmision`, exige que el request de creación coincida exactamente — `403` si no. Una api-key sin esos claims (el caso normal) no se ve afectada.
+- Alcance deliberadamente acotado: solo se aplica en la creación de comprobantes (donde vive el establecimiento/punto de emisión del request) — no en el CRUD de establecimientos/puntos de emisión de firma-electronica-service (esos endpoints siguen siendo solo por `id`, mismo criterio que el resto de mutaciones basadas en `id`).
 
 **Por qué HS256 con secreto compartido y no RSA/OIDC**: ningún consumidor de estos tokens es un navegador — todos son el propio backend de este ecosistema, que ya recibe sus credenciales por variable de entorno igual que el resto de secretos del stack (contraseñas de DB, clave maestra de cifrado del `.p12`). No hay necesidad de distribuir una llave pública por separado ni de correr un proveedor OIDC (ver sección 11, sigue fuera de alcance como *proveedor de identidad externo* — esto es autenticación propia del ecosistema, no reemplaza un futuro Keycloak si el cliente externo lo necesitara).
 
@@ -346,7 +373,7 @@ Esta sección no tiene equivalente en `ecommerce/` porque allá todo lo externo 
 
 | Servicio | Puerto host | Root path |
 |---|---|---|
-| firma-electronica-service | 8091 | `/emisores/api/v1` |
+| firma-electronica-service | 8091 | `/empresas/api/v1` |
 | inventario-service | 8092 | `/inventario/api/v1` |
 | comprobantes-service | 8093 | `/comprobantes/api/v1` |
 | sri-conector-service | 8094 | `/sri/api/v1` |

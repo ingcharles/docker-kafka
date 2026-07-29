@@ -106,7 +106,7 @@ public class ItemResource {
 
     @GET
     @Path("/items")
-    @Operation(summary = "Listar ítems", description = "Paginado, con filtro opcional por tipo (PRODUCTO/SERVICIO), categoría y/o ruc del emisor dueño.")
+    @Operation(summary = "Listar ítems", description = "Paginado, con filtro opcional por tipo (PRODUCTO/SERVICIO), categoría y/o ruc de la empresa dueña.")
     @APIResponse(responseCode = "200", description = "Listado")
     public Uni<Response> listar(@Valid @BeanParam PageRequest pageRequest,
             @QueryParam("tipo") TipoItem tipo, @QueryParam("categoriaId") UUID categoriaId,

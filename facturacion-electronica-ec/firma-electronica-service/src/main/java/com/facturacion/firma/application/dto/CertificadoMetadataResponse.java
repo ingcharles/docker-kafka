@@ -10,7 +10,7 @@ import java.util.UUID;
 public class CertificadoMetadataResponse {
 
     private UUID id;
-    private UUID emisorId;
+    private UUID empresaId;
     private String alias;
     private String huellaDigital;
     private Instant fechaEmisionCertificado;
@@ -25,12 +25,12 @@ public class CertificadoMetadataResponse {
         this.id = id;
     }
 
-    public UUID getEmisorId() {
-        return emisorId;
+    public UUID getEmpresaId() {
+        return empresaId;
     }
 
-    public void setEmisorId(UUID emisorId) {
-        this.emisorId = emisorId;
+    public void setEmpresaId(UUID empresaId) {
+        this.empresaId = empresaId;
     }
 
     public String getAlias() {

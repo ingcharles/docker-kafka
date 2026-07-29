@@ -18,7 +18,7 @@ public class CrearNotaDebitoRequest {
 
     @NotNull
     @Valid
-    private EmisorRequest emisor;
+    private EmpresaRequest empresa;
 
     @NotBlank
     private String compradorTipoIdentificacion;
@@ -60,12 +60,12 @@ public class CrearNotaDebitoRequest {
     @Valid
     private List<CampoAdicionalRequest> campoAdicional = List.of();
 
-    public EmisorRequest getEmisor() {
-        return emisor;
+    public EmpresaRequest getEmpresa() {
+        return empresa;
     }
 
-    public void setEmisor(EmisorRequest emisor) {
-        this.emisor = emisor;
+    public void setEmpresa(EmpresaRequest empresa) {
+        this.empresa = empresa;
     }
 
     public String getCompradorTipoIdentificacion() {

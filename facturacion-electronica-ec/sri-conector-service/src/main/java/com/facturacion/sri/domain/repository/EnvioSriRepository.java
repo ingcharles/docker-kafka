@@ -20,6 +20,13 @@ public interface EnvioSriRepository {
 
     Uni<EnvioSri> findByClaveAcceso(String claveAcceso);
 
-    /** Para el poller de autorización: todos los envíos en estado RECIBIDO listos para volver a consultarse. */
-    Uni<List<EnvioSri>> findPendientesDeAutorizacion(EstadoEnvioSri estado, int maxIntentos, int batchSize);
+    /**
+     * Para el poller de autorización: todos los envíos en estado RECIBIDO listos
+     * para volver a consultarse. No filtra por intentos aquí — el máximo puede
+     * variar por empresa (ver {@code ConfiguracionEmpresaLocal}), así que esa
+     * decisión se toma fila por fila en {@code SriConectorService.aplicarResultadoAutorizacion},
+     * no en esta consulta; una vez que una fila se agota pasa a ERROR_CONSULTA
+     * y deja de calificar por el filtro de {@code estado}.
+     */
+    Uni<List<EnvioSri>> findPendientesDeAutorizacion(EstadoEnvioSri estado, int batchSize);
 }

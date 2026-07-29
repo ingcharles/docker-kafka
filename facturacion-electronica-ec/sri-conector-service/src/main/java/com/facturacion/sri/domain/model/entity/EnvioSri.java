@@ -17,6 +17,7 @@ public class EnvioSri {
     private UUID id;
     private UUID comprobanteId;
     private String claveAcceso;
+    private String empresaRuc;
     private AmbienteSri ambiente;
     private String xmlFirmado;
 
@@ -56,6 +57,14 @@ public class EnvioSri {
 
     public void setClaveAcceso(String claveAcceso) {
         this.claveAcceso = claveAcceso;
+    }
+
+    public String getEmpresaRuc() {
+        return empresaRuc;
+    }
+
+    public void setEmpresaRuc(String empresaRuc) {
+        this.empresaRuc = empresaRuc;
     }
 
     public AmbienteSri getAmbiente() {

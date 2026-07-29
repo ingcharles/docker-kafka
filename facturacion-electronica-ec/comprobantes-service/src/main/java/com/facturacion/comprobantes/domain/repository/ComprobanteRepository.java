@@ -19,7 +19,7 @@ public interface ComprobanteRepository {
 
     Uni<Comprobante> findByClaveAcceso(String claveAcceso);
 
-    Uni<PageResult<Comprobante>> findPaged(int page, int limit, EstadoComprobante estado, String emisorRuc);
+    Uni<PageResult<Comprobante>> findPaged(int page, int limit, EstadoComprobante estado, String empresaRuc);
 
     /**
      * Devuelve el siguiente secuencial (empezando en 1) para esa combinación

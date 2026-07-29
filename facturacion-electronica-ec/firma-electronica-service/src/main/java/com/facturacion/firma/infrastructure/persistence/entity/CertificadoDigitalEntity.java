@@ -17,8 +17,8 @@ public class CertificadoDigitalEntity extends PanacheEntityBase {
     @Id
     public UUID id;
 
-    @Column(name = "emisor_id", nullable = false)
-    public UUID emisorId;
+    @Column(name = "empresa_id", nullable = false)
+    public UUID empresaId;
 
     @Column
     public String alias;

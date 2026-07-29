@@ -63,17 +63,17 @@ public class GeneradorXmlGuiaRemision implements GeneradorXmlComprobante {
         Element info = doc.createElement("infoTributaria");
         XmlComprobanteUtil.texto(doc, info, "ambiente", c.getAmbiente().codigo());
         XmlComprobanteUtil.texto(doc, info, "tipoEmision", "1");
-        XmlComprobanteUtil.texto(doc, info, "razonSocial", c.getEmisorRazonSocial());
-        if (c.getEmisorNombreComercial() != null && !c.getEmisorNombreComercial().isBlank()) {
-            XmlComprobanteUtil.texto(doc, info, "nombreComercial", c.getEmisorNombreComercial());
+        XmlComprobanteUtil.texto(doc, info, "razonSocial", c.getEmpresaRazonSocial());
+        if (c.getEmpresaNombreComercial() != null && !c.getEmpresaNombreComercial().isBlank()) {
+            XmlComprobanteUtil.texto(doc, info, "nombreComercial", c.getEmpresaNombreComercial());
         }
-        XmlComprobanteUtil.texto(doc, info, "ruc", c.getEmisorRuc());
+        XmlComprobanteUtil.texto(doc, info, "ruc", c.getEmpresaRuc());
         XmlComprobanteUtil.texto(doc, info, "claveAcceso", c.getClaveAcceso());
         XmlComprobanteUtil.texto(doc, info, "codDoc", TipoComprobante.GUIA_REMISION.codigo());
         XmlComprobanteUtil.texto(doc, info, "estab", c.getEstablecimiento());
         XmlComprobanteUtil.texto(doc, info, "ptoEmi", c.getPuntoEmision());
         XmlComprobanteUtil.texto(doc, info, "secuencial", c.getSecuencial());
-        XmlComprobanteUtil.texto(doc, info, "dirMatriz", c.getEmisorDireccionMatriz());
+        XmlComprobanteUtil.texto(doc, info, "dirMatriz", c.getEmpresaDireccionMatriz());
         return info;
     }
 
@@ -84,9 +84,9 @@ public class GeneradorXmlGuiaRemision implements GeneradorXmlComprobante {
         XmlComprobanteUtil.texto(doc, info, "razonSocialTransportista", c.getTransportistaRazonSocial());
         XmlComprobanteUtil.texto(doc, info, "tipoIdentificacionTransportista", c.getTransportistaTipoIdentificacion());
         XmlComprobanteUtil.texto(doc, info, "rucTransportista", c.getTransportistaRuc());
-        XmlComprobanteUtil.texto(doc, info, "obligadoContabilidad", c.isEmisorObligadoContabilidad() ? "SI" : "NO");
-        if (c.isEmisorContribuyenteEspecial() && c.getEmisorNumeroContribuyenteEspecial() != null) {
-            XmlComprobanteUtil.texto(doc, info, "contribuyenteEspecial", c.getEmisorNumeroContribuyenteEspecial());
+        XmlComprobanteUtil.texto(doc, info, "obligadoContabilidad", c.isEmpresaObligadoContabilidad() ? "SI" : "NO");
+        if (c.isEmpresaContribuyenteEspecial() && c.getEmpresaNumeroContribuyenteEspecial() != null) {
+            XmlComprobanteUtil.texto(doc, info, "contribuyenteEspecial", c.getEmpresaNumeroContribuyenteEspecial());
         }
         XmlComprobanteUtil.texto(doc, info, "fechaIniTransporte",
             FORMATO_FECHA.format(c.getFechaIniTransporte().atZone(ZoneOffset.of("-05:00"))));
@@ -94,7 +94,7 @@ public class GeneradorXmlGuiaRemision implements GeneradorXmlComprobante {
             FORMATO_FECHA.format(c.getFechaFinTransporte().atZone(ZoneOffset.of("-05:00"))));
         // Obligatorio siempre en Guía de Remisión (confirmado con un
         // rechazo real de Recepción) — a diferencia de Factura, donde solo
-        // es obligatorio para emisores que venden combustibles.
+        // es obligatorio para empresas que venden combustibles.
         XmlComprobanteUtil.texto(doc, info, "placa", c.getPlaca());
         return info;
     }

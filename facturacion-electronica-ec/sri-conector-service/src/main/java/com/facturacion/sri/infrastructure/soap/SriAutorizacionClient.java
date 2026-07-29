@@ -43,13 +43,19 @@ public class SriAutorizacionClient {
 
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
 
-    public Uni<AutorizacionResultado> consultar(String claveAcceso, AmbienteSri ambiente) {
-        return Uni.createFrom().item(() -> consultarBloqueante(claveAcceso, ambiente))
+    /**
+     * @param urlOverride ajuste opcional por empresa (clave {@code sri.autorizacion.url} de
+     *                    {@code configuracion_empresa}) — {@code null} o vacío usa la URL fija
+     *                    por ambiente ({@code urlPruebas}/{@code urlProduccion}).
+     */
+    public Uni<AutorizacionResultado> consultar(String claveAcceso, AmbienteSri ambiente, String urlOverride) {
+        return Uni.createFrom().item(() -> consultarBloqueante(claveAcceso, ambiente, urlOverride))
             .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
 
-    private AutorizacionResultado consultarBloqueante(String claveAcceso, AmbienteSri ambiente) {
-        String url = ambiente == AmbienteSri.PRODUCCION ? urlProduccion : urlPruebas;
+    private AutorizacionResultado consultarBloqueante(String claveAcceso, AmbienteSri ambiente, String urlOverride) {
+        String url = urlOverride != null && !urlOverride.isBlank() ? urlOverride
+            : ambiente == AmbienteSri.PRODUCCION ? urlProduccion : urlPruebas;
         String sobre = "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" "
             + "xmlns:aut=\"http://ec.gob.sri.ws.autorizacion\">"
             + "<soap:Body><aut:autorizacionComprobante><claveAccesoComprobante>" + claveAcceso

@@ -8,7 +8,7 @@ import java.util.UUID;
  * {@code eventType} distingue {@code ComprobanteFirmado} (éxito, con
  * {@code xmlFirmado} presente) de {@code FirmaFallida} (con
  * {@code motivoError} presente en su lugar — por ejemplo, certificado
- * expirado o inexistente para ese emisor).
+ * expirado o inexistente para esa empresa).
  */
 public record ComprobanteFirmadoEventMessage(
     UUID eventId,

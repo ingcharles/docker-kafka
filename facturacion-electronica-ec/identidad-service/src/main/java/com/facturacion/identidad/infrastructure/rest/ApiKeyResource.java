@@ -19,6 +19,7 @@ import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
@@ -31,6 +32,7 @@ import com.facturacion.identidad.application.service.ApiKeyService;
 @Path("/api-keys")
 @Produces(MediaType.APPLICATION_JSON)
 @Autenticado
+@SecurityRequirement(name = "token")
 @Tag(name = "Api keys", description = "Credenciales que el resto del ecosistema usa para llamar a comprobantes-service y afines — ver ARQUITECTURA.md.")
 public class ApiKeyResource {
 

@@ -29,6 +29,8 @@ public class JwtVerificador {
     private static final String CLAIM_TIPO = "tipo";
     private static final String CLAIM_RUC = "ruc";
     private static final String CLAIM_ROL = "rol";
+    private static final String CLAIM_ESTABLECIMIENTO = "establecimiento";
+    private static final String CLAIM_PUNTO_EMISION = "puntoEmision";
     private static final String TIPO_API_KEY = "api_key";
 
     private final SecretKey key;
@@ -51,6 +53,9 @@ public class JwtVerificador {
         principal.setUsuarioId(java.util.UUID.fromString(claims.getSubject()));
         principal.setRuc(claims.get(CLAIM_RUC, String.class));
         principal.setRol(claims.get(CLAIM_ROL, String.class));
+        // null en tokens emitidos antes de que estos claims existieran — sin restricción, comportamiento sin cambios.
+        principal.setEstablecimiento(claims.get(CLAIM_ESTABLECIMIENTO, String.class));
+        principal.setPuntoEmision(claims.get(CLAIM_PUNTO_EMISION, String.class));
         return principal;
     }
 }

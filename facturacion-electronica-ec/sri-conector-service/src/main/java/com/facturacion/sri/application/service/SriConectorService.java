@@ -20,9 +20,11 @@ import io.vertx.core.Vertx;
 import com.facturacion.sri.application.dto.EnvioSriResponse;
 import com.facturacion.sri.application.event.EnviarComprobanteCommand;
 import com.facturacion.sri.application.event.SriResultadoEventMessage;
+import com.facturacion.sri.domain.model.entity.ConfiguracionEmpresaLocal;
 import com.facturacion.sri.domain.model.entity.EnvioSri;
 import com.facturacion.sri.domain.model.enums.AmbienteSri;
 import com.facturacion.sri.domain.model.enums.EstadoEnvioSri;
+import com.facturacion.sri.domain.repository.ConfiguracionEmpresaLocalRepository;
 import com.facturacion.sri.domain.repository.EnvioSriRepository;
 import com.facturacion.sri.infrastructure.outbox.OutboxEventEntity;
 import com.facturacion.sri.infrastructure.outbox.OutboxEventRepository;
@@ -51,6 +53,7 @@ public class SriConectorService {
     private final EnvioSriRepository envioSriRepository;
     private final SriRecepcionClient recepcionClient;
     private final SriAutorizacionClient autorizacionClient;
+    private final ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository;
     private final OutboxEventRepository outboxRepository;
     private final ObjectMapper objectMapper;
     private final EnvioSriMapper mapper;
@@ -60,11 +63,13 @@ public class SriConectorService {
 
     @Inject
     public SriConectorService(EnvioSriRepository envioSriRepository, SriRecepcionClient recepcionClient,
-            SriAutorizacionClient autorizacionClient, OutboxEventRepository outboxRepository,
-            ObjectMapper objectMapper, EnvioSriMapper mapper) {
+            SriAutorizacionClient autorizacionClient,
+            ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository,
+            OutboxEventRepository outboxRepository, ObjectMapper objectMapper, EnvioSriMapper mapper) {
         this.envioSriRepository = envioSriRepository;
         this.recepcionClient = recepcionClient;
         this.autorizacionClient = autorizacionClient;
+        this.configuracionEmpresaLocalRepository = configuracionEmpresaLocalRepository;
         this.outboxRepository = outboxRepository;
         this.objectMapper = objectMapper;
         this.mapper = mapper;
@@ -80,7 +85,11 @@ public class SriConectorService {
     public Uni<Void> procesarComando(EnviarComprobanteCommand command) {
         io.vertx.core.Context callingContext = Vertx.currentContext();
         AmbienteSri ambiente = AmbienteSri.valueOf(command.ambiente());
-        return recepcionClient.validarComprobante(command.xmlFirmado(), ambiente)
+        return configuracionEmpresaLocalRepository.findByRucAndClave(command.empresaRuc(), "sri.recepcion.url")
+            .onItem().transformToUni(configuracion -> {
+                String urlOverride = configuracion == null ? null : configuracion.getValor();
+                return recepcionClient.validarComprobante(command.xmlFirmado(), ambiente, urlOverride);
+            })
             .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
             .onItem().transformToUni(resultado -> guardarResultadoRecepcion(command, ambiente, resultado));
     }
@@ -92,6 +101,7 @@ public class SriConectorService {
         envio.setId(UUID.randomUUID());
         envio.setComprobanteId(command.comprobanteId());
         envio.setClaveAcceso(command.claveAcceso());
+        envio.setEmpresaRuc(command.empresaRuc());
         envio.setAmbiente(ambiente);
         envio.setXmlFirmado(command.xmlFirmado());
         envio.setEstado(resultado.recibida() ? EstadoEnvioSri.RECIBIDO : EstadoEnvioSri.RECHAZADO_RECEPCION);
@@ -114,29 +124,58 @@ public class SriConectorService {
             .replaceWithVoid();
     }
 
-    /** Llamado por el poller para un envío puntual en estado RECIBIDO. */
+    /**
+     * Llamado por el poller para un envío puntual en estado RECIBIDO. La URL y
+     * el máximo de intentos pueden venir de un ajuste por empresa
+     * ({@code configuracion_empresa} de firma-electronica-service, vía
+     * {@code ConfiguracionEmpresaLocal}) — si no hay ajuste, se usan los
+     * valores globales de {@code application.properties}.
+     */
     @WithTransaction
     public Uni<Void> consultarAutorizacion(EnvioSri envio) {
         io.vertx.core.Context callingContext = Vertx.currentContext();
-        return autorizacionClient.consultar(envio.getClaveAcceso(), envio.getAmbiente())
-            .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
-            .onItem().transformToUni(resultado -> aplicarResultadoAutorizacion(envio, resultado));
+        Uni<ConfiguracionEmpresaLocal> urlUni = configuracionEmpresaLocalRepository
+            .findByRucAndClave(envio.getEmpresaRuc(), "sri.autorizacion.url");
+        Uni<ConfiguracionEmpresaLocal> maxIntentosUni = configuracionEmpresaLocalRepository
+            .findByRucAndClave(envio.getEmpresaRuc(), "sri.autorizacion.poll.max-intentos");
+
+        return Uni.combine().all().unis(urlUni, maxIntentosUni).asTuple()
+            .onItem().transformToUni(tuple -> {
+                String urlOverride = tuple.getItem1() == null ? null : tuple.getItem1().getValor();
+                int maxIntentos = resolverMaxIntentos(tuple.getItem2());
+                return autorizacionClient.consultar(envio.getClaveAcceso(), envio.getAmbiente(), urlOverride)
+                    .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
+                    .onItem().transformToUni(resultado -> aplicarResultadoAutorizacion(envio, resultado, maxIntentos));
+            });
     }
 
-    private Uni<Void> aplicarResultadoAutorizacion(EnvioSri envio, AutorizacionResultado resultado) {
+    /** {@code null}/no numérico → el default global (documentado en la migración de configuracion_empresa_local). */
+    private int resolverMaxIntentos(ConfiguracionEmpresaLocal configuracion) {
+        if (configuracion == null || configuracion.getValor() == null) {
+            return maxIntentosAutorizacion;
+        }
+        try {
+            return Integer.parseInt(configuracion.getValor().trim());
+        } catch (NumberFormatException e) {
+            return maxIntentosAutorizacion;
+        }
+    }
+
+    private Uni<Void> aplicarResultadoAutorizacion(EnvioSri envio, AutorizacionResultado resultado,
+            int maxIntentos) {
         envio.setIntentosAutorizacion(envio.getIntentosAutorizacion() + 1);
         envio.setUltimaConsultaEn(Instant.now());
 
         if (resultado.pendiente()) {
-            if (envio.getIntentosAutorizacion() >= maxIntentosAutorizacion) {
+            if (envio.getIntentosAutorizacion() >= maxIntentos) {
                 // Se agotaron los intentos sin que el SRI diera una respuesta
                 // final — requiere intervención manual (ver EstadoEnvioSri).
                 envio.setEstado(EstadoEnvioSri.ERROR_CONSULTA);
                 LOG.warnf("Autorización SRI para %s: se agotaron los %d intentos sin respuesta final",
-                    envio.getClaveAcceso(), maxIntentosAutorizacion);
+                    envio.getClaveAcceso(), maxIntentos);
             } else {
                 LOG.infof("Autorización SRI para %s: pendiente (intento %d de %d)", envio.getClaveAcceso(),
-                    envio.getIntentosAutorizacion(), maxIntentosAutorizacion);
+                    envio.getIntentosAutorizacion(), maxIntentos);
             }
             return envioSriRepository.update(envio).replaceWithVoid();
         }
@@ -162,8 +201,8 @@ public class SriConectorService {
     }
 
     @io.quarkus.hibernate.reactive.panache.common.WithSession
-    public Uni<List<EnvioSri>> listarPendientesDeAutorizacion(int maxIntentos, int batchSize) {
-        return envioSriRepository.findPendientesDeAutorizacion(EstadoEnvioSri.RECIBIDO, maxIntentos, batchSize);
+    public Uni<List<EnvioSri>> listarPendientesDeAutorizacion(int batchSize) {
+        return envioSriRepository.findPendientesDeAutorizacion(EstadoEnvioSri.RECIBIDO, batchSize);
     }
 
     @io.quarkus.hibernate.reactive.panache.common.WithSession

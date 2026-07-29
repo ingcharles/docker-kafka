@@ -25,7 +25,7 @@ import com.facturacion.firma.infrastructure.outbox.OutboxEventRepository;
 import com.facturacion.firma.shared.constant.MessagingConstants;
 
 /**
- * Firma el XML de un comprobante con el certificado activo del emisor
+ * Firma el XML de un comprobante con el certificado activo de la empresa
  * indicado, e informa el resultado (éxito o fallo) de vuelta al orquestador
  * vía outbox. Idempotente gracias al inbox — mismo patrón que
  * {@code OrderCommandConsumer} en ecommerce/.

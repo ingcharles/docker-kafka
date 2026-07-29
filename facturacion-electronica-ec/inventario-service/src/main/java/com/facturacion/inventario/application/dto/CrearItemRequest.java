@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Pattern;
 
 public class CrearItemRequest {
 
-    /** RUC del emisor/empresa dueña de este ítem — el catálogo es multi-tenant (ver ARQUITECTURA.md). */
+    /** RUC de la empresa dueña de este ítem — el catálogo es multi-tenant (ver ARQUITECTURA.md). */
     @NotBlank
     @Pattern(regexp = "\\d{13}", message = "el RUC debe tener 13 dígitos")
     private String ruc;

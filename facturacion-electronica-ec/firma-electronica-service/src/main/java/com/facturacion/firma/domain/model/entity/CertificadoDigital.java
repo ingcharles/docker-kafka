@@ -6,15 +6,15 @@ import java.util.UUID;
 import com.facturacion.firma.domain.model.enums.EstadoCertificado;
 
 /**
- * Certificado de firma electrónica (.p12) de un emisor. El contenido y la
+ * Certificado de firma electrónica (.p12) de una empresa. El contenido y la
  * contraseña viajan siempre cifrados — ver {@code infrastructure.crypto.CifradoService}.
- * Un emisor puede acumular varios certificados en el tiempo (renovaciones),
+ * Una empresa puede acumular varios certificados en el tiempo (renovaciones),
  * pero solo uno puede estar {@link EstadoCertificado#ACTIVO} a la vez.
  */
 public class CertificadoDigital {
 
     private UUID id;
-    private UUID emisorId;
+    private UUID empresaId;
     private String alias;
     private String huellaDigital;
     private byte[] contenidoCifrado;
@@ -27,11 +27,11 @@ public class CertificadoDigital {
     public CertificadoDigital() {
     }
 
-    public CertificadoDigital(UUID id, UUID emisorId, String alias, String huellaDigital, byte[] contenidoCifrado,
+    public CertificadoDigital(UUID id, UUID empresaId, String alias, String huellaDigital, byte[] contenidoCifrado,
             byte[] contrasenaCifrada, Instant fechaEmisionCertificado, Instant fechaExpiracionCertificado,
             EstadoCertificado estado, Instant creadoEn) {
         this.id = id;
-        this.emisorId = emisorId;
+        this.empresaId = empresaId;
         this.alias = alias;
         this.huellaDigital = huellaDigital;
         this.contenidoCifrado = contenidoCifrado;
@@ -50,12 +50,12 @@ public class CertificadoDigital {
         this.id = id;
     }
 
-    public UUID getEmisorId() {
-        return emisorId;
+    public UUID getEmpresaId() {
+        return empresaId;
     }
 
-    public void setEmisorId(UUID emisorId) {
-        this.emisorId = emisorId;
+    public void setEmpresaId(UUID empresaId) {
+        this.empresaId = empresaId;
     }
 
     public String getAlias() {

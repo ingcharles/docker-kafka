@@ -20,8 +20,8 @@ public class SagaInstanceEntity extends PanacheEntityBase {
     @Column(nullable = false)
     public String state;
 
-    @Column(name = "emisor_ruc", nullable = false)
-    public String emisorRuc;
+    @Column(name = "empresa_ruc", nullable = false)
+    public String empresaRuc;
 
     @Column(name = "clave_acceso", nullable = false)
     public String claveAcceso;

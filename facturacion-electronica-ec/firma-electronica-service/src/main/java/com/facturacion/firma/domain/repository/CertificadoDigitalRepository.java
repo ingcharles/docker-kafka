@@ -10,10 +10,10 @@ public interface CertificadoDigitalRepository {
 
     Uni<CertificadoDigital> persist(CertificadoDigital certificado);
 
-    /** Marca como REVOCADO cualquier certificado ACTIVO existente del emisor — solo puede haber uno vigente a la vez. */
-    Uni<Integer> revocarActivosDelEmisor(UUID emisorId);
+    /** Marca como REVOCADO cualquier certificado ACTIVO existente de la empresa — solo puede haber uno vigente a la vez. */
+    Uni<Integer> revocarActivosDelEmpresa(UUID empresaId);
 
-    Uni<CertificadoDigital> findActivoByEmisorId(UUID emisorId);
+    Uni<CertificadoDigital> findActivoByEmpresaId(UUID empresaId);
 
     Uni<CertificadoDigital> findById(UUID id);
 }

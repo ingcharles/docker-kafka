@@ -73,10 +73,10 @@ public class SagaOrchestratorService {
             return Uni.createFrom().voidItem();
         }
         return ifNotProcessed(event.eventId(), () -> {
-            SagaInstance saga = SagaInstance.start(event.comprobanteId(), event.emisorRuc(), event.claveAcceso(),
+            SagaInstance saga = SagaInstance.start(event.comprobanteId(), event.empresaRuc(), event.claveAcceso(),
                 event.ambiente());
             FirmarComprobanteCommand command = new FirmarComprobanteCommand(UUID.randomUUID(), event.comprobanteId(),
-                event.emisorRuc(), event.xmlGenerado(), Instant.now());
+                event.empresaRuc(), event.xmlGenerado(), Instant.now());
 
             return sagaInstanceRepository.persist(saga)
                 .chain(() -> logReceived(event.comprobanteId(), MessagingConstants.EVENT_TYPE_COMPROBANTE_CREADO))
@@ -159,8 +159,8 @@ public class SagaOrchestratorService {
                     event.comprobanteId(), MessagingConstants.COMANDO_MARCAR_FIRMADO, event.xmlFirmado(), null, null,
                     null, null, Instant.now());
                 EnviarComprobanteCommand enviarSri = new EnviarComprobanteCommand(UUID.randomUUID(),
-                    event.comprobanteId(), saga.getClaveAcceso(), saga.getAmbiente(), event.xmlFirmado(),
-                    Instant.now());
+                    event.comprobanteId(), saga.getClaveAcceso(), saga.getEmpresaRuc(), saga.getAmbiente(),
+                    event.xmlFirmado(), Instant.now());
                 return emit(event.comprobanteId(), MessagingConstants.COMANDO_MARCAR_FIRMADO,
                         MessagingConstants.COMPROBANTE_COMMANDS_TOPIC, marcarFirmado)
                     .chain(() -> emit(event.comprobanteId(), "EnviarComprobante",

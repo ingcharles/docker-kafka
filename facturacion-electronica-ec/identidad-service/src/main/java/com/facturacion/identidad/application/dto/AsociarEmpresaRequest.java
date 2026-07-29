@@ -8,10 +8,10 @@ import jakarta.validation.constraints.Pattern;
  * Asocia al usuario autenticado con un ruc — sin flujo de invitación ni
  * verificación de *titularidad* real (cualquier usuario puede pedir
  * asociarse a cualquier ruc con cualquier rol), pero el servicio sí exige
- * que el ruc corresponda a un Emisor real y activo en
+ * que el ruc corresponda a un Empresa real y activo en
  * firma-electronica-service (ver {@code UsuarioService.asociarEmpresa} y
- * {@code EmisorLocal}) — un 404 significa que ese ruc todavía no tiene
- * Emisor dado de alta.
+ * {@code EmpresaLocal}) — un 404 significa que ese ruc todavía no tiene
+ * Empresa dado de alta.
  */
 public class AsociarEmpresaRequest {
 

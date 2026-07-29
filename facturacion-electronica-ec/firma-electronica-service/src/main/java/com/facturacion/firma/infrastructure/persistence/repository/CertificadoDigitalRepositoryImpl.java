@@ -31,14 +31,14 @@ public class CertificadoDigitalRepositoryImpl implements CertificadoDigitalRepos
     }
 
     @Override
-    public Uni<Integer> revocarActivosDelEmisor(UUID emisorId) {
-        return repository.update("estado = ?1 where emisorId = ?2 and estado = ?3",
-            EstadoCertificado.REVOCADO.name(), emisorId, EstadoCertificado.ACTIVO.name());
+    public Uni<Integer> revocarActivosDelEmpresa(UUID empresaId) {
+        return repository.update("estado = ?1 where empresaId = ?2 and estado = ?3",
+            EstadoCertificado.REVOCADO.name(), empresaId, EstadoCertificado.ACTIVO.name());
     }
 
     @Override
-    public Uni<CertificadoDigital> findActivoByEmisorId(UUID emisorId) {
-        return repository.find("emisorId = ?1 and estado = ?2", emisorId, EstadoCertificado.ACTIVO.name())
+    public Uni<CertificadoDigital> findActivoByEmpresaId(UUID empresaId) {
+        return repository.find("empresaId = ?1 and estado = ?2", empresaId, EstadoCertificado.ACTIVO.name())
             .firstResult()
             .map(entity -> entity == null ? null : mapper.toDomain(entity));
     }

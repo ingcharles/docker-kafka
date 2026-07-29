@@ -11,30 +11,30 @@ import io.vertx.core.Vertx;
 
 import com.facturacion.firma.domain.model.entity.CertificadoDigital;
 import com.facturacion.firma.domain.repository.CertificadoDigitalRepository;
-import com.facturacion.firma.domain.repository.EmisorRepository;
+import com.facturacion.firma.domain.repository.EmpresaRepository;
 import com.facturacion.firma.infrastructure.crypto.CifradoService;
 import com.facturacion.firma.infrastructure.crypto.XadesBesFirmador;
 import com.facturacion.firma.shared.exception.CertificadoInvalidoException;
 
 /**
  * Firma un comprobante ya generado (sin firmar) usando el certificado
- * activo del emisor dueño de ese comprobante, identificado por
+ * activo de la empresa dueña de ese comprobante, identificado por
  * {@code ruc} (no por el {@code id} interno de este servicio — el resto del
- * ecosistema ya no conoce ese UUID, ver ARQUITECTURA.md "Emisor sin ID"). Es
+ * ecosistema ya no conoce ese UUID, ver ARQUITECTURA.md "Empresa sin ID"). Es
  * lo que invoca {@code FirmarComprobanteConsumer} al recibir un comando
  * {@code FirmarComprobante} desde {@code facturacion-orchestrator-service}.
  */
 @ApplicationScoped
 public class FirmaXadesService {
 
-    private final EmisorRepository emisorRepository;
+    private final EmpresaRepository empresaRepository;
     private final CertificadoDigitalRepository certificadoRepository;
     private final CifradoService cifradoService;
 
     @Inject
-    public FirmaXadesService(EmisorRepository emisorRepository, CertificadoDigitalRepository certificadoRepository,
+    public FirmaXadesService(EmpresaRepository empresaRepository, CertificadoDigitalRepository certificadoRepository,
             CifradoService cifradoService) {
-        this.emisorRepository = emisorRepository;
+        this.empresaRepository = empresaRepository;
         this.certificadoRepository = certificadoRepository;
         this.cifradoService = cifradoService;
     }
@@ -50,12 +50,12 @@ public class FirmaXadesService {
         // el control en el mismo contexto de Vert.x en el que fuimos
         // invocados, no en el worker thread donde corrió la firma.
         io.vertx.core.Context callingContext = Vertx.currentContext();
-        return emisorRepository.findByRuc(ruc)
+        return empresaRepository.findByRuc(ruc)
             .onItem().ifNull().failWith(() ->
-                new CertificadoInvalidoException("No hay ningún emisor registrado con ruc " + ruc))
-            .onItem().transformToUni(emisor -> certificadoRepository.findActivoByEmisorId(emisor.getId())
+                new CertificadoInvalidoException("No hay ninguna empresa registrada con ruc " + ruc))
+            .onItem().transformToUni(empresa -> certificadoRepository.findActivoByEmpresaId(empresa.getId())
                 .onItem().ifNull().failWith(() ->
-                    new CertificadoInvalidoException("El emisor con ruc " + ruc + " no tiene un certificado activo")))
+                    new CertificadoInvalidoException("La empresa con ruc " + ruc + " no tiene un certificado activo")))
             .onItem().transformToUni(certificado -> firmarEnWorkerPool(certificado, xmlSinFirmar)
                 .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run())));
     }

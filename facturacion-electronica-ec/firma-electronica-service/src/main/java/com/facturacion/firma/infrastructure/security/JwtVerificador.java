@@ -1,6 +1,7 @@
 package com.facturacion.firma.infrastructure.security;
 
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 import javax.crypto.SecretKey;
 
@@ -29,7 +30,10 @@ public class JwtVerificador {
     private static final String CLAIM_TIPO = "tipo";
     private static final String CLAIM_RUC = "ruc";
     private static final String CLAIM_ROL = "rol";
+    private static final String CLAIM_ESTABLECIMIENTO = "establecimiento";
+    private static final String CLAIM_PUNTO_EMISION = "puntoEmision";
     private static final String TIPO_API_KEY = "api_key";
+    private static final String TIPO_SESION = "sesion";
 
     private final SecretKey key;
 
@@ -38,19 +42,50 @@ public class JwtVerificador {
     }
 
     public TokenPrincipal verificar(String token) {
-        Claims claims;
-        try {
-            claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
-        } catch (JwtException | IllegalArgumentException e) {
-            throw new TokenInvalidoException("Token inválido o expirado: " + e.getMessage());
-        }
+        Claims claims = parsear(token);
         if (!TIPO_API_KEY.equals(claims.get(CLAIM_TIPO, String.class))) {
             throw new TokenInvalidoException("El token no es una api-key");
         }
+        return principalDeApiKey(claims);
+    }
+
+    /**
+     * Solo para {@link PermiteSesion} — acepta también un token de sesión de
+     * identidad-service, con {@code ruc}/{@code rol}/{@code establecimiento}/
+     * {@code puntoEmision} en {@code null} (una sesión no los lleva; el único
+     * caller de este método, {@code EmpresaResource.crear}, no los necesita
+     * para el caso de creación — ver {@link PermiteSesion}).
+     */
+    public TokenPrincipal verificarApiKeyOSesion(String token) {
+        Claims claims = parsear(token);
+        String tipo = claims.get(CLAIM_TIPO, String.class);
+        if (TIPO_API_KEY.equals(tipo)) {
+            return principalDeApiKey(claims);
+        }
+        if (TIPO_SESION.equals(tipo)) {
+            TokenPrincipal principal = new TokenPrincipal();
+            principal.setUsuarioId(UUID.fromString(claims.getSubject()));
+            return principal;
+        }
+        throw new TokenInvalidoException("El token no es una api-key ni un token de sesión válido");
+    }
+
+    private TokenPrincipal principalDeApiKey(Claims claims) {
         TokenPrincipal principal = new TokenPrincipal();
-        principal.setUsuarioId(java.util.UUID.fromString(claims.getSubject()));
+        principal.setUsuarioId(UUID.fromString(claims.getSubject()));
         principal.setRuc(claims.get(CLAIM_RUC, String.class));
         principal.setRol(claims.get(CLAIM_ROL, String.class));
+        // null en tokens emitidos antes de que estos claims existieran — sin restricción, comportamiento sin cambios.
+        principal.setEstablecimiento(claims.get(CLAIM_ESTABLECIMIENTO, String.class));
+        principal.setPuntoEmision(claims.get(CLAIM_PUNTO_EMISION, String.class));
         return principal;
+    }
+
+    private Claims parsear(String token) {
+        try {
+            return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+        } catch (JwtException | IllegalArgumentException e) {
+            throw new TokenInvalidoException("Token inválido o expirado: " + e.getMessage());
+        }
     }
 }

@@ -45,6 +45,8 @@ public class JwtService {
     private static final String CLAIM_EMAIL = "email";
     private static final String CLAIM_RUC = "ruc";
     private static final String CLAIM_ROL = "rol";
+    private static final String CLAIM_ESTABLECIMIENTO = "establecimiento";
+    private static final String CLAIM_PUNTO_EMISION = "puntoEmision";
     private static final String TIPO_SESION = "sesion";
     private static final String TIPO_API_KEY = "api_key";
 
@@ -78,7 +80,13 @@ public class JwtService {
         return UUID.fromString(claims.getSubject());
     }
 
-    public String generarApiKey(UUID usuarioId, String ruc, Rol rol, String jti, Instant expiracion) {
+    /**
+     * @param establecimiento opcional — acota la key a un establecimiento (ver
+     *                        {@code ApiKeyService.crear}); {@code null} = sin restricción.
+     * @param puntoEmision    opcional — solo tiene sentido junto con {@code establecimiento}.
+     */
+    public String generarApiKey(UUID usuarioId, String ruc, Rol rol, String establecimiento, String puntoEmision,
+            String jti, Instant expiracion) {
         var builder = Jwts.builder()
             .id(jti)
             .subject(usuarioId.toString())
@@ -87,6 +95,12 @@ public class JwtService {
             .claim(CLAIM_ROL, rol.name())
             .issuedAt(Date.from(Instant.now()))
             .signWith(key);
+        if (establecimiento != null) {
+            builder.claim(CLAIM_ESTABLECIMIENTO, establecimiento);
+        }
+        if (puntoEmision != null) {
+            builder.claim(CLAIM_PUNTO_EMISION, puntoEmision);
+        }
         if (expiracion != null) {
             builder.expiration(Date.from(expiracion));
         }

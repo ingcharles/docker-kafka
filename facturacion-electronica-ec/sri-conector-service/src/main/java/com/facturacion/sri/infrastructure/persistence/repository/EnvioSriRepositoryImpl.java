@@ -9,7 +9,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import io.quarkus.panache.common.Page;
-import io.quarkus.panache.common.Parameters;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.sri.domain.model.entity.EnvioSri;
@@ -72,9 +71,8 @@ public class EnvioSriRepositoryImpl implements EnvioSriRepository {
     }
 
     @Override
-    public Uni<List<EnvioSri>> findPendientesDeAutorizacion(EstadoEnvioSri estado, int maxIntentos, int batchSize) {
-        return repository.find("estado = :estado and intentosAutorizacion < :maxIntentos",
-                Parameters.with("estado", mapper.map(estado)).and("maxIntentos", maxIntentos))
+    public Uni<List<EnvioSri>> findPendientesDeAutorizacion(EstadoEnvioSri estado, int batchSize) {
+        return repository.find("estado", mapper.map(estado))
             .page(Page.ofSize(batchSize))
             .list()
             .map(entities -> entities.stream().map(mapper::toDomain).collect(Collectors.toList()));

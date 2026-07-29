@@ -42,32 +42,32 @@ public class ComprobanteEntity extends PanacheEntityBase {
     @Column(nullable = false)
     public String secuencial;
 
-    @Column(name = "emisor_ruc", nullable = false)
-    public String emisorRuc;
+    @Column(name = "empresa_ruc", nullable = false)
+    public String empresaRuc;
 
-    @Column(name = "emisor_razon_social", nullable = false)
-    public String emisorRazonSocial;
+    @Column(name = "empresa_razon_social", nullable = false)
+    public String empresaRazonSocial;
 
-    @Column(name = "emisor_nombre_comercial")
-    public String emisorNombreComercial;
+    @Column(name = "empresa_nombre_comercial")
+    public String empresaNombreComercial;
 
-    @Column(name = "emisor_direccion_matriz", nullable = false)
-    public String emisorDireccionMatriz;
+    @Column(name = "empresa_direccion_matriz", nullable = false)
+    public String empresaDireccionMatriz;
 
-    @Column(name = "emisor_obligado_contabilidad", nullable = false)
-    public boolean emisorObligadoContabilidad;
+    @Column(name = "empresa_obligado_contabilidad", nullable = false)
+    public boolean empresaObligadoContabilidad;
 
-    @Column(name = "emisor_contribuyente_especial", nullable = false)
-    public boolean emisorContribuyenteEspecial;
+    @Column(name = "empresa_contribuyente_especial", nullable = false)
+    public boolean empresaContribuyenteEspecial;
 
-    @Column(name = "emisor_numero_contribuyente_especial")
-    public String emisorNumeroContribuyenteEspecial;
+    @Column(name = "empresa_numero_contribuyente_especial")
+    public String empresaNumeroContribuyenteEspecial;
 
-    @Column(name = "emisor_es_gran_contribuyente", nullable = false)
-    public boolean emisorEsGranContribuyente;
+    @Column(name = "empresa_es_gran_contribuyente", nullable = false)
+    public boolean empresaEsGranContribuyente;
 
-    @Column(name = "emisor_numero_resolucion_gran_contribuyente")
-    public String emisorNumeroResolucionGranContribuyente;
+    @Column(name = "empresa_numero_resolucion_gran_contribuyente")
+    public String empresaNumeroResolucionGranContribuyente;
 
     @Column(name = "fecha_emision", nullable = false)
     public Instant fechaEmision;

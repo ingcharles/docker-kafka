@@ -13,6 +13,7 @@ public record EnviarComprobanteCommand(
     UUID eventId,
     UUID comprobanteId,
     String claveAcceso,
+    String empresaRuc,
     String ambiente,
     String xmlFirmado,
     Instant occurredAt) {

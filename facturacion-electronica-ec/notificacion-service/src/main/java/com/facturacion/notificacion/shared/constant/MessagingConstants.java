@@ -3,6 +3,7 @@ package com.facturacion.notificacion.shared.constant;
 public final class MessagingConstants {
 
     public static final String NOTIFICACION_EVENTS_TOPIC = "facturacion.notificacion.eventos.v1";
+    public static final String CONFIGURACION_EMPRESA_EVENTS_TOPIC = "facturacion.empresa.configuracion.eventos.v1";
 
     // El único eventType de facturacion.comprobante.eventos.v1 que a este
     // servicio le importa — el resto (hoy: ComprobanteCreado) se ignora,

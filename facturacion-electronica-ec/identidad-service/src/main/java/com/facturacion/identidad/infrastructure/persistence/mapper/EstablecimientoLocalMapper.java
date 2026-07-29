@@ -1,0 +1,15 @@
+package com.facturacion.identidad.infrastructure.persistence.mapper;
+
+import org.mapstruct.Mapper;
+import org.mapstruct.MappingConstants;
+
+import com.facturacion.identidad.domain.model.entity.EstablecimientoLocal;
+import com.facturacion.identidad.infrastructure.persistence.entity.EstablecimientoLocalEntity;
+
+@Mapper(componentModel = MappingConstants.ComponentModel.CDI)
+public interface EstablecimientoLocalMapper {
+
+    EstablecimientoLocalEntity toEntity(EstablecimientoLocal domain);
+
+    EstablecimientoLocal toDomain(EstablecimientoLocalEntity entity);
+}

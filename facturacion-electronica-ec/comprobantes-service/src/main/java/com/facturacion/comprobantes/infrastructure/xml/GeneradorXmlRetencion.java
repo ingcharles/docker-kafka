@@ -60,17 +60,17 @@ public class GeneradorXmlRetencion implements GeneradorXmlComprobante {
         Element info = doc.createElement("infoTributaria");
         XmlComprobanteUtil.texto(doc, info, "ambiente", c.getAmbiente().codigo());
         XmlComprobanteUtil.texto(doc, info, "tipoEmision", "1");
-        XmlComprobanteUtil.texto(doc, info, "razonSocial", c.getEmisorRazonSocial());
-        if (c.getEmisorNombreComercial() != null && !c.getEmisorNombreComercial().isBlank()) {
-            XmlComprobanteUtil.texto(doc, info, "nombreComercial", c.getEmisorNombreComercial());
+        XmlComprobanteUtil.texto(doc, info, "razonSocial", c.getEmpresaRazonSocial());
+        if (c.getEmpresaNombreComercial() != null && !c.getEmpresaNombreComercial().isBlank()) {
+            XmlComprobanteUtil.texto(doc, info, "nombreComercial", c.getEmpresaNombreComercial());
         }
-        XmlComprobanteUtil.texto(doc, info, "ruc", c.getEmisorRuc());
+        XmlComprobanteUtil.texto(doc, info, "ruc", c.getEmpresaRuc());
         XmlComprobanteUtil.texto(doc, info, "claveAcceso", c.getClaveAcceso());
         XmlComprobanteUtil.texto(doc, info, "codDoc", TipoComprobante.RETENCION.codigo());
         XmlComprobanteUtil.texto(doc, info, "estab", c.getEstablecimiento());
         XmlComprobanteUtil.texto(doc, info, "ptoEmi", c.getPuntoEmision());
         XmlComprobanteUtil.texto(doc, info, "secuencial", c.getSecuencial());
-        XmlComprobanteUtil.texto(doc, info, "dirMatriz", c.getEmisorDireccionMatriz());
+        XmlComprobanteUtil.texto(doc, info, "dirMatriz", c.getEmpresaDireccionMatriz());
         return info;
     }
 
@@ -79,10 +79,10 @@ public class GeneradorXmlRetencion implements GeneradorXmlComprobante {
         XmlComprobanteUtil.texto(doc, info, "fechaEmision",
             FORMATO_FECHA.format(c.getFechaEmision().atZone(ZoneOffset.of("-05:00"))));
         XmlComprobanteUtil.texto(doc, info, "dirEstablecimiento", XmlComprobanteUtil.direccionEstablecimiento(c));
-        if (c.isEmisorContribuyenteEspecial() && c.getEmisorNumeroContribuyenteEspecial() != null) {
-            XmlComprobanteUtil.texto(doc, info, "contribuyenteEspecial", c.getEmisorNumeroContribuyenteEspecial());
+        if (c.isEmpresaContribuyenteEspecial() && c.getEmpresaNumeroContribuyenteEspecial() != null) {
+            XmlComprobanteUtil.texto(doc, info, "contribuyenteEspecial", c.getEmpresaNumeroContribuyenteEspecial());
         }
-        XmlComprobanteUtil.texto(doc, info, "obligadoContabilidad", c.isEmisorObligadoContabilidad() ? "SI" : "NO");
+        XmlComprobanteUtil.texto(doc, info, "obligadoContabilidad", c.isEmpresaObligadoContabilidad() ? "SI" : "NO");
         XmlComprobanteUtil.texto(doc, info, "tipoIdentificacionSujetoRetenido", c.getCompradorTipoIdentificacion());
         XmlComprobanteUtil.texto(doc, info, "razonSocialSujetoRetenido", c.getCompradorRazonSocial());
         XmlComprobanteUtil.texto(doc, info, "identificacionSujetoRetenido", c.getCompradorIdentificacion());

@@ -23,6 +23,9 @@ public class EnvioSriEntity extends PanacheEntityBase {
     @Column(name = "clave_acceso", nullable = false, unique = true)
     public String claveAcceso;
 
+    @Column(name = "empresa_ruc")
+    public String empresaRuc;
+
     @Column(nullable = false)
     public String ambiente;
 

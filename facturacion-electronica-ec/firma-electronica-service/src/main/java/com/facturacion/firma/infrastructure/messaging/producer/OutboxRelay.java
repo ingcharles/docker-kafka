@@ -28,7 +28,7 @@ import com.facturacion.firma.shared.constant.MessagingConstants;
 /**
  * A diferencia del relay de outbox de un solo tópico fijo (como en la
  * mayoría de los servicios de ecommerce/), este servicio produce hacia
- * <b>dos</b> tópicos: eventos de emisor ({@code EmisorService}) y eventos
+ * <b>dos</b> tópicos: eventos de empresa ({@code EmpresaService}) y eventos
  * de firma ({@code FirmarComprobanteConsumer}) — así que enruta cada fila
  * según {@code outbox_event.topic}, mismo patrón que {@code SagaCommandRelay}
  * en saga-orchestrator-service. Corre cada segundo; es la pieza que
@@ -45,20 +45,30 @@ public class OutboxRelay {
     OutboxEventRepository outboxRepository;
 
     @Inject
-    @Channel("emisor-events-out")
-    Emitter<String> emisorEventsEmitter;
+    @Channel("empresa-events-out")
+    Emitter<String> empresaEventsEmitter;
 
     @Inject
     @Channel("firma-events-out")
     Emitter<String> firmaEventsEmitter;
+
+    @Inject
+    @Channel("establecimiento-events-out")
+    Emitter<String> establecimientoEventsEmitter;
+
+    @Inject
+    @Channel("configuracion-events-out")
+    Emitter<String> configuracionEventsEmitter;
 
     private Map<String, Emitter<String>> emittersByTopic;
 
     @jakarta.annotation.PostConstruct
     void init() {
         emittersByTopic = Map.of(
-            MessagingConstants.EMISOR_EVENTS_TOPIC, emisorEventsEmitter,
-            MessagingConstants.FIRMA_EVENTS_TOPIC, firmaEventsEmitter);
+            MessagingConstants.EMPRESA_EVENTS_TOPIC, empresaEventsEmitter,
+            MessagingConstants.FIRMA_EVENTS_TOPIC, firmaEventsEmitter,
+            MessagingConstants.ESTABLECIMIENTO_PUNTO_EMISION_EVENTS_TOPIC, establecimientoEventsEmitter,
+            MessagingConstants.CONFIGURACION_EMPRESA_EVENTS_TOPIC, configuracionEventsEmitter);
     }
 
     // "delayed" evita una carrera de arranque real: el primer tick del

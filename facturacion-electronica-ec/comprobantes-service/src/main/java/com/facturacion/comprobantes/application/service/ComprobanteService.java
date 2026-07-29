@@ -36,7 +36,7 @@ import com.facturacion.comprobantes.application.dto.CrearRetencionRequest;
 import com.facturacion.comprobantes.application.dto.DestinatarioGuiaRemisionRequest;
 import com.facturacion.comprobantes.application.dto.DetalleComprobanteRequest;
 import com.facturacion.comprobantes.application.dto.DetalleGuiaRemisionRequest;
-import com.facturacion.comprobantes.application.dto.EmisorRequest;
+import com.facturacion.comprobantes.application.dto.EmpresaRequest;
 import com.facturacion.comprobantes.application.dto.MotivoNotaDebitoRequest;
 import com.facturacion.comprobantes.application.dto.PagoRequest;
 import com.facturacion.comprobantes.application.dto.RetencionLineaRequest;
@@ -55,7 +55,10 @@ import com.facturacion.comprobantes.domain.model.vo.Impuesto;
 import com.facturacion.comprobantes.domain.model.vo.Pago;
 import com.facturacion.comprobantes.domain.model.vo.PageResult;
 import com.facturacion.comprobantes.domain.repository.ComprobanteRepository;
+import com.facturacion.comprobantes.domain.repository.ConfiguracionEmpresaLocalRepository;
+import com.facturacion.comprobantes.domain.repository.EstablecimientoLocalRepository;
 import com.facturacion.comprobantes.domain.repository.ItemLocalRepository;
+import com.facturacion.comprobantes.domain.repository.PuntoEmisionLocalRepository;
 import com.facturacion.comprobantes.domain.service.ClaveAccesoGenerador;
 import com.facturacion.comprobantes.infrastructure.outbox.OutboxEventEntity;
 import com.facturacion.comprobantes.infrastructure.outbox.OutboxEventRepository;
@@ -76,13 +79,13 @@ import com.facturacion.comprobantes.shared.responses.PagedResponse;
  * número/fecha de autorización real). Ver {@code EstadoComprobante} para qué
  * campo se llena en cada paso.
  * <p>
- * Este servicio ya no mantiene ninguna copia local del Emisor de
+ * Este servicio ya no mantiene ninguna copia local del Empresa de
  * firma-electronica-service — cada request de creación trae inline los
- * datos del emisor (identificado por {@code ruc}, no por un {@code emisorId}
+ * datos de la empresa (identificado por {@code ruc}, no por un {@code empresaId}
  * interno de otro servicio). Sí sigue manteniendo la réplica local del
  * catálogo de inventario-service ({@code item_local}, ahora scoped por
- * {@code ruc} — un ítem solo deriva impuesto para el emisor dueño de ese
- * ítem). Ver ARQUITECTURA.md, "Emisor sin ID".
+ * {@code ruc} — un ítem solo deriva impuesto para la empresa dueña de ese
+ * ítem). Ver ARQUITECTURA.md, "Empresa sin ID".
  */
 @ApplicationScoped
 public class ComprobanteService {
@@ -91,6 +94,9 @@ public class ComprobanteService {
 
     private final ComprobanteRepository comprobanteRepository;
     private final ItemLocalRepository itemLocalRepository;
+    private final EstablecimientoLocalRepository establecimientoLocalRepository;
+    private final PuntoEmisionLocalRepository puntoEmisionLocalRepository;
+    private final ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository;
     private final GeneradorXmlComprobanteResolver xmlResolver;
     private final RideGenerador rideGenerador;
     private final ComprobanteMapper mapper;
@@ -99,10 +105,16 @@ public class ComprobanteService {
 
     @Inject
     public ComprobanteService(ComprobanteRepository comprobanteRepository, ItemLocalRepository itemLocalRepository,
+            EstablecimientoLocalRepository establecimientoLocalRepository,
+            PuntoEmisionLocalRepository puntoEmisionLocalRepository,
+            ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository,
             GeneradorXmlComprobanteResolver xmlResolver, RideGenerador rideGenerador, ComprobanteMapper mapper,
             OutboxEventRepository outboxRepository, ObjectMapper objectMapper) {
         this.comprobanteRepository = comprobanteRepository;
         this.itemLocalRepository = itemLocalRepository;
+        this.establecimientoLocalRepository = establecimientoLocalRepository;
+        this.puntoEmisionLocalRepository = puntoEmisionLocalRepository;
+        this.configuracionEmpresaLocalRepository = configuracionEmpresaLocalRepository;
         this.xmlResolver = xmlResolver;
         this.rideGenerador = rideGenerador;
         this.mapper = mapper;
@@ -112,51 +124,54 @@ public class ComprobanteService {
 
     @WithTransaction
     public Uni<ComprobanteResponse> crearFactura(@Valid CrearFacturaRequest request) {
-        return emitir(request.getEmisor(), TipoComprobante.FACTURA,
+        return emitir(request.getEmpresa(), TipoComprobante.FACTURA,
             secuencial -> construirFactura(request, secuencial));
     }
 
     @WithTransaction
     public Uni<ComprobanteResponse> crearNotaCredito(@Valid CrearNotaCreditoRequest request) {
-        return emitir(request.getEmisor(), TipoComprobante.NOTA_CREDITO,
+        return emitir(request.getEmpresa(), TipoComprobante.NOTA_CREDITO,
             secuencial -> construirNotaCredito(request, secuencial));
     }
 
     @WithTransaction
     public Uni<ComprobanteResponse> crearNotaDebito(@Valid CrearNotaDebitoRequest request) {
-        return emitir(request.getEmisor(), TipoComprobante.NOTA_DEBITO,
+        return emitir(request.getEmpresa(), TipoComprobante.NOTA_DEBITO,
             secuencial -> construirNotaDebito(request, secuencial));
     }
 
     @WithTransaction
     public Uni<ComprobanteResponse> crearGuiaRemision(@Valid CrearGuiaRemisionRequest request) {
-        return emitir(request.getEmisor(), TipoComprobante.GUIA_REMISION,
+        return emitir(request.getEmpresa(), TipoComprobante.GUIA_REMISION,
             secuencial -> construirGuiaRemision(request, secuencial));
     }
 
     @WithTransaction
     public Uni<ComprobanteResponse> crearRetencion(@Valid CrearRetencionRequest request) {
-        return emitir(request.getEmisor(), TipoComprobante.RETENCION,
+        return emitir(request.getEmpresa(), TipoComprobante.RETENCION,
             secuencial -> construirRetencion(request, secuencial));
     }
 
     @WithTransaction
     public Uni<ComprobanteResponse> crearLiquidacionCompra(@Valid CrearLiquidacionCompraRequest request) {
-        return emitir(request.getEmisor(), TipoComprobante.LIQUIDACION_COMPRA,
+        return emitir(request.getEmpresa(), TipoComprobante.LIQUIDACION_COMPRA,
             secuencial -> construirLiquidacionCompra(request, secuencial));
     }
 
     /**
-     * Flujo común a los 6 tipos: reserva el siguiente secuencial de forma
-     * atómica para esa combinación ruc+tipo+establecimiento+puntoEmision,
-     * arma el agregado (delegado a {@code constructor}), genera el XML sin
-     * firmar y lo persiste junto con el evento {@code ComprobanteCreado} en
-     * el outbox.
+     * Flujo común a los 6 tipos: valida que el establecimiento y el punto de
+     * emisión estén realmente registrados y activos para este ruc (ver
+     * {@code EstablecimientoLocal}/{@code PuntoEmisionLocal} — antes de esto
+     * cualquier string llegaba tal cual, sin gobernanza), reserva el
+     * siguiente secuencial de forma atómica, arma el agregado (delegado a
+     * {@code constructor}), genera el XML sin firmar y lo persiste junto con
+     * el evento {@code ComprobanteCreado} en el outbox.
      */
-    private Uni<ComprobanteResponse> emitir(EmisorRequest emisor, TipoComprobante tipo,
+    private Uni<ComprobanteResponse> emitir(EmpresaRequest empresa, TipoComprobante tipo,
             java.util.function.Function<Long, Uni<Comprobante>> constructor) {
-        return comprobanteRepository
-            .siguienteSecuencial(emisor.getRuc(), tipo, emisor.getEstablecimiento(), emisor.getPuntoEmision())
+        return validarEstablecimientoYPuntoEmision(empresa)
+            .onItem().transformToUni(ignorado -> comprobanteRepository
+                .siguienteSecuencial(empresa.getRuc(), tipo, empresa.getEstablecimiento(), empresa.getPuntoEmision()))
             .onItem().transformToUni(secuencial -> constructor.apply(secuencial)
                 .onItem().transformToUni(comprobante -> {
                     // El XML se genera ya con la clave de acceso, los totales y el detalle
@@ -170,34 +185,66 @@ public class ComprobanteService {
                 }));
     }
 
-    /** Encabezado común a los 6 tipos (clave de acceso, snapshot del emisor inline, estado inicial). */
-    private Comprobante construirEncabezado(EmisorRequest emisor, TipoComprobante tipo, long secuencial,
+    /**
+     * Antes de reservar un secuencial, confirma que el establecimiento esté
+     * registrado y activo para este ruc, y luego que el punto de emisión lo
+     * esté para ese establecimiento — en ese orden, para que el mensaje de
+     * error sea el más específico posible. Falla con {@link IllegalArgumentException}
+     * (→ 400 vía el mapper existente), mismo contrato que el itemId no
+     * encontrado en {@link #construirDetalle}.
+     */
+    private Uni<Void> validarEstablecimientoYPuntoEmision(EmpresaRequest empresa) {
+        return establecimientoLocalRepository.findByRucAndCodigo(empresa.getRuc(), empresa.getEstablecimiento())
+            .onItem().transformToUni(establecimientoLocal -> {
+                if (establecimientoLocal == null || !establecimientoLocal.isActivo()) {
+                    return Uni.createFrom().failure(new IllegalArgumentException(
+                        "El establecimiento '" + empresa.getEstablecimiento() + "' no está registrado (o no está "
+                            + "activo) para el ruc " + empresa.getRuc() + " — puede que el evento "
+                            + "EstablecimientoRegistrado no haya llegado aún, que el establecimiento no exista, o "
+                            + "que pertenezca a otra empresa."));
+                }
+                return puntoEmisionLocalRepository.findByRucAndEstablecimientoCodigoAndCodigo(empresa.getRuc(),
+                    empresa.getEstablecimiento(), empresa.getPuntoEmision());
+            })
+            .onItem().transformToUni(puntoEmisionLocal -> {
+                if (puntoEmisionLocal == null || !puntoEmisionLocal.isActivo()) {
+                    return Uni.createFrom().failure(new IllegalArgumentException(
+                        "El punto de emisión '" + empresa.getPuntoEmision() + "' no está registrado (o no está "
+                            + "activo) para el establecimiento '" + empresa.getEstablecimiento() + "' del ruc "
+                            + empresa.getRuc() + "."));
+                }
+                return Uni.createFrom().voidItem();
+            });
+    }
+
+    /** Encabezado común a los 6 tipos (clave de acceso, snapshot de la empresa inline, estado inicial). */
+    private Comprobante construirEncabezado(EmpresaRequest empresa, TipoComprobante tipo, long secuencial,
             Instant ahora) {
-        AmbienteSri ambiente = parseAmbiente(emisor.getAmbiente());
-        String claveAcceso = ClaveAccesoGenerador.generar(ClaveAccesoGenerador.hoyEnEcuador(), tipo, emisor.getRuc(),
-            ambiente, emisor.getEstablecimiento(), emisor.getPuntoEmision(), secuencial);
+        AmbienteSri ambiente = parseAmbiente(empresa.getAmbiente());
+        String claveAcceso = ClaveAccesoGenerador.generar(ClaveAccesoGenerador.hoyEnEcuador(), tipo, empresa.getRuc(),
+            ambiente, empresa.getEstablecimiento(), empresa.getPuntoEmision(), secuencial);
 
         Comprobante comprobante = new Comprobante();
         comprobante.setId(UUID.randomUUID());
         comprobante.setTipoComprobante(tipo);
         comprobante.setClaveAcceso(claveAcceso);
         comprobante.setAmbiente(ambiente);
-        comprobante.setEstablecimiento(emisor.getEstablecimiento());
-        comprobante.setPuntoEmision(emisor.getPuntoEmision());
+        comprobante.setEstablecimiento(empresa.getEstablecimiento());
+        comprobante.setPuntoEmision(empresa.getPuntoEmision());
         comprobante.setSecuencial(String.format("%09d", secuencial));
-        comprobante.setEmisorRuc(emisor.getRuc());
-        comprobante.setEmisorRazonSocial(emisor.getRazonSocial());
-        comprobante.setEmisorNombreComercial(emisor.getNombreComercial());
-        comprobante.setEmisorDireccionMatriz(emisor.getDireccionMatriz());
+        comprobante.setEmpresaRuc(empresa.getRuc());
+        comprobante.setEmpresaRazonSocial(empresa.getRazonSocial());
+        comprobante.setEmpresaNombreComercial(empresa.getNombreComercial());
+        comprobante.setEmpresaDireccionMatriz(empresa.getDireccionMatriz());
         comprobante.setDireccionEstablecimiento(
-            emisor.getDireccionEstablecimiento() != null && !emisor.getDireccionEstablecimiento().isBlank()
-                ? emisor.getDireccionEstablecimiento()
-                : emisor.getDireccionMatriz());
-        comprobante.setEmisorObligadoContabilidad(emisor.isObligadoContabilidad());
-        comprobante.setEmisorContribuyenteEspecial(emisor.isContribuyenteEspecial());
-        comprobante.setEmisorNumeroContribuyenteEspecial(emisor.getNumeroContribuyenteEspecial());
-        comprobante.setEmisorEsGranContribuyente(emisor.isEsGranContribuyente());
-        comprobante.setEmisorNumeroResolucionGranContribuyente(emisor.getNumeroResolucionGranContribuyente());
+            empresa.getDireccionEstablecimiento() != null && !empresa.getDireccionEstablecimiento().isBlank()
+                ? empresa.getDireccionEstablecimiento()
+                : empresa.getDireccionMatriz());
+        comprobante.setEmpresaObligadoContabilidad(empresa.isObligadoContabilidad());
+        comprobante.setEmpresaContribuyenteEspecial(empresa.isContribuyenteEspecial());
+        comprobante.setEmpresaNumeroContribuyenteEspecial(empresa.getNumeroContribuyenteEspecial());
+        comprobante.setEmpresaEsGranContribuyente(empresa.isEsGranContribuyente());
+        comprobante.setEmpresaNumeroResolucionGranContribuyente(empresa.getNumeroResolucionGranContribuyente());
         comprobante.setFechaEmision(ahora);
         comprobante.setEstado(EstadoComprobante.BORRADOR);
         comprobante.setCreadoEn(ahora);
@@ -207,10 +254,10 @@ public class ComprobanteService {
 
     private Uni<Comprobante> construirFactura(CrearFacturaRequest request, long secuencial) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = construirEncabezado(request.getEmisor(), TipoComprobante.FACTURA, secuencial,
+        Comprobante comprobante = construirEncabezado(request.getEmpresa(), TipoComprobante.FACTURA, secuencial,
             ahora);
 
-        return cargarItemsParaAutoImpuestos(request.getDetalles(), request.getEmisor().getRuc())
+        return cargarItemsParaAutoImpuestos(request.getDetalles(), request.getEmpresa().getRuc())
             .map(itemsPorId -> {
                 List<DetalleComprobante> detalles = request.getDetalles().stream()
                     .map(det -> construirDetalle(det, itemsPorId))
@@ -232,10 +279,10 @@ public class ComprobanteService {
 
     private Uni<Comprobante> construirNotaCredito(CrearNotaCreditoRequest request, long secuencial) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = construirEncabezado(request.getEmisor(), TipoComprobante.NOTA_CREDITO, secuencial,
+        Comprobante comprobante = construirEncabezado(request.getEmpresa(), TipoComprobante.NOTA_CREDITO, secuencial,
             ahora);
 
-        return cargarItemsParaAutoImpuestos(request.getDetalles(), request.getEmisor().getRuc())
+        return cargarItemsParaAutoImpuestos(request.getDetalles(), request.getEmpresa().getRuc())
             .map(itemsPorId -> {
                 List<DetalleComprobante> detalles = request.getDetalles().stream()
                     .map(det -> construirDetalle(det, itemsPorId))
@@ -260,7 +307,7 @@ public class ComprobanteService {
 
     private Uni<Comprobante> construirNotaDebito(CrearNotaDebitoRequest request, long secuencial) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = construirEncabezado(request.getEmisor(), TipoComprobante.NOTA_DEBITO, secuencial,
+        Comprobante comprobante = construirEncabezado(request.getEmpresa(), TipoComprobante.NOTA_DEBITO, secuencial,
             ahora);
 
         BigDecimal totalMotivos = request.getMotivos().stream()
@@ -317,7 +364,7 @@ public class ComprobanteService {
 
     private Uni<Comprobante> construirGuiaRemision(CrearGuiaRemisionRequest request, long secuencial) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = construirEncabezado(request.getEmisor(), TipoComprobante.GUIA_REMISION, secuencial,
+        Comprobante comprobante = construirEncabezado(request.getEmpresa(), TipoComprobante.GUIA_REMISION, secuencial,
             ahora);
 
         List<DestinatarioGuiaRemision> destinatarios = new ArrayList<>();
@@ -372,7 +419,7 @@ public class ComprobanteService {
 
     private Uni<Comprobante> construirRetencion(CrearRetencionRequest request, long secuencial) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = construirEncabezado(request.getEmisor(), TipoComprobante.RETENCION, secuencial,
+        Comprobante comprobante = construirEncabezado(request.getEmpresa(), TipoComprobante.RETENCION, secuencial,
             ahora);
 
         List<DetalleComprobante> detalles = new ArrayList<>();
@@ -422,10 +469,10 @@ public class ComprobanteService {
 
     private Uni<Comprobante> construirLiquidacionCompra(CrearLiquidacionCompraRequest request, long secuencial) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = construirEncabezado(request.getEmisor(), TipoComprobante.LIQUIDACION_COMPRA,
+        Comprobante comprobante = construirEncabezado(request.getEmpresa(), TipoComprobante.LIQUIDACION_COMPRA,
             secuencial, ahora);
 
-        return cargarItemsParaAutoImpuestos(request.getDetalles(), request.getEmisor().getRuc())
+        return cargarItemsParaAutoImpuestos(request.getDetalles(), request.getEmpresa().getRuc())
             .map(itemsPorId -> {
                 List<DetalleComprobante> detalles = request.getDetalles().stream()
                     .map(det -> construirDetalle(det, itemsPorId))
@@ -510,28 +557,37 @@ public class ComprobanteService {
                         comprobante.setEstado(EstadoComprobante.FIRMA_FALLIDA);
                         comprobante.setMotivoRechazo(command.motivoRechazo());
                     }
-                    case MessagingConstants.COMANDO_MARCAR_AUTORIZADO -> {
-                        comprobante.setEstado(EstadoComprobante.AUTORIZADO);
-                        comprobante.setXmlAutorizado(command.xmlAutorizado());
-                        comprobante.setNumeroAutorizacion(command.numeroAutorizacion());
-                        comprobante.setFechaAutorizacion(command.fechaAutorizacion());
-                        // El RIDE se genera acá, no antes: recién ahora existen
-                        // numeroAutorizacion/fechaAutorizacion reales para mostrar.
-                        comprobante.setRidePdf(rideGenerador.generar(comprobante));
-                    }
                     case MessagingConstants.COMANDO_MARCAR_NO_AUTORIZADO -> {
                         comprobante.setEstado(EstadoComprobante.NO_AUTORIZADO);
                         comprobante.setMotivoRechazo(command.motivoRechazo());
                     }
                     case MessagingConstants.COMANDO_MARCAR_NOTIFICADO ->
                         comprobante.setEstado(EstadoComprobante.NOTIFICADO);
+                    case MessagingConstants.COMANDO_MARCAR_AUTORIZADO -> {
+                        // Manejado abajo (necesita una consulta async al colorRide antes de generar el RIDE).
+                    }
                     default -> throw new IllegalArgumentException(
                         "Tipo de comando de comprobante desconocido: " + command.tipoComando());
                 }
-                return comprobanteRepository.update(comprobante)
-                    .chain(guardado -> MessagingConstants.COMANDO_MARCAR_AUTORIZADO.equals(command.tipoComando())
-                        ? publicarComprobanteAutorizadoSiHayCorreo(guardado)
-                        : Uni.createFrom().voidItem());
+                if (!MessagingConstants.COMANDO_MARCAR_AUTORIZADO.equals(command.tipoComando())) {
+                    return comprobanteRepository.update(comprobante).replaceWithVoid();
+                }
+                comprobante.setEstado(EstadoComprobante.AUTORIZADO);
+                comprobante.setXmlAutorizado(command.xmlAutorizado());
+                comprobante.setNumeroAutorizacion(command.numeroAutorizacion());
+                comprobante.setFechaAutorizacion(command.fechaAutorizacion());
+                // El RIDE se genera acá, no antes: recién ahora existen
+                // numeroAutorizacion/fechaAutorizacion reales para mostrar. El
+                // colorRide es un ajuste opcional por empresa (configuracion_empresa
+                // en firma-electronica-service, ver ConfiguracionEmpresaLocal) — si
+                // no está configurado, RideGenerador usa su estilo por defecto.
+                return configuracionEmpresaLocalRepository.findByRucAndClave(comprobante.getEmpresaRuc(), "ride.color")
+                    .onItem().transformToUni(configuracion -> {
+                        String colorRide = configuracion == null ? null : configuracion.getValor();
+                        comprobante.setRidePdf(rideGenerador.generar(comprobante, colorRide));
+                        return comprobanteRepository.update(comprobante)
+                            .chain(this::publicarComprobanteAutorizadoSiHayCorreo);
+                    });
             })
             .replaceWithVoid();
     }
@@ -552,6 +608,7 @@ public class ComprobanteService {
             UUID.randomUUID(),
             comprobante.getId(),
             MessagingConstants.EVENT_TYPE_COMPROBANTE_AUTORIZADO,
+            comprobante.getEmpresaRuc(),
             comprobante.getClaveAcceso(),
             comprobante.getTipoComprobante().name(),
             comprobante.getCompradorCorreo(),
@@ -580,8 +637,8 @@ public class ComprobanteService {
 
     @WithSession
     public Uni<PagedResponse<ComprobanteResponse>> listarPaginado(int page, int limit, EstadoComprobante estado,
-            String emisorRuc) {
-        return comprobanteRepository.findPaged(page, limit, estado, emisorRuc)
+            String empresaRuc) {
+        return comprobanteRepository.findPaged(page, limit, estado, empresaRuc)
             .map((PageResult<Comprobante> pageResult) -> {
                 List<ComprobanteResponse> items = pageResult.items().stream()
                     .map(mapper::toResponse)
@@ -595,8 +652,8 @@ public class ComprobanteService {
      * necesitarán derivar su impuesto automáticamente — es decir, las
      * líneas que no traen {@code impuestos} explícitos pero sí un
      * {@code itemId}. El catálogo es multi-tenant: solo se consideran
-     * ítems que pertenezcan al {@code ruc} del emisor que está emitiendo
-     * este comprobante — el ítem de otro emisor nunca hace match, aunque el
+     * ítems que pertenezcan al {@code ruc} de la empresa que está emitiendo
+     * este comprobante — el ítem de otra empresa nunca hace match, aunque el
      * UUID exista.
      */
     private Uni<Map<UUID, ItemLocal>> cargarItemsParaAutoImpuestos(List<DetalleComprobanteRequest> detalles,
@@ -638,8 +695,8 @@ public class ComprobanteService {
                     + (request.getItemId() == null
                         ? "tampoco un itemId del que derivarlos."
                         : "el itemId " + request.getItemId() + " no está (todavía) en el catálogo local de "
-                            + "inventario-service para este emisor — puede que el evento ItemCreado no haya "
-                            + "llegado aún, que el ítem no exista, o que pertenezca a otro emisor."));
+                            + "inventario-service para este empresa — puede que el evento ItemCreado no haya "
+                            + "llegado aún, que el ítem no exista, o que pertenezca a otra empresa."));
             }
             impuestos = construirImpuestosDesdeItem(item, baseImponible);
         }
@@ -677,7 +734,7 @@ public class ComprobanteService {
             UUID.randomUUID(),
             comprobante.getId(),
             MessagingConstants.EVENT_TYPE_COMPROBANTE_CREADO,
-            comprobante.getEmisorRuc(),
+            comprobante.getEmpresaRuc(),
             comprobante.getClaveAcceso(),
             comprobante.getAmbiente().name(),
             comprobante.getXmlGenerado(),
@@ -699,7 +756,7 @@ public class ComprobanteService {
         try {
             return AmbienteSri.valueOf(texto);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("emisor.ambiente debe ser PRUEBAS o PRODUCCION, se recibió: " + texto);
+            throw new IllegalArgumentException("empresa.ambiente debe ser PRUEBAS o PRODUCCION, se recibió: " + texto);
         }
     }
 }

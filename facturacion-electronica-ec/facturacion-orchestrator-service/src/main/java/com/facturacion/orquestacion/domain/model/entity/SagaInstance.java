@@ -10,16 +10,16 @@ import com.facturacion.orquestacion.domain.model.enums.SagaState;
  * directamente el {@code comprobanteId} (el id de correlación de toda la
  * saga). Guarda solo lo que hace falta para construir cualquier comando de
  * aquí en adelante sin volver a preguntarle nada a comprobantes-service —
- * {@code emisorRuc} lo necesita {@code FirmarComprobanteCommand} (el emisor
+ * {@code empresaRuc} lo necesita {@code FirmarComprobanteCommand} (la empresa
  * ya no se identifica por un id interno de firma-electronica-service, ver
- * ARQUITECTURA.md "Emisor sin ID"), {@code claveAcceso}+{@code ambiente} los
+ * ARQUITECTURA.md "Empresa sin ID"), {@code claveAcceso}+{@code ambiente} los
  * necesita {@code EnviarComprobanteCommand}.
  */
 public class SagaInstance {
 
     private UUID id;
     private SagaState state;
-    private String emisorRuc;
+    private String empresaRuc;
     private String claveAcceso;
     private String ambiente;
     private String failureReason;
@@ -29,11 +29,11 @@ public class SagaInstance {
     public SagaInstance() {
     }
 
-    public static SagaInstance start(UUID comprobanteId, String emisorRuc, String claveAcceso, String ambiente) {
+    public static SagaInstance start(UUID comprobanteId, String empresaRuc, String claveAcceso, String ambiente) {
         SagaInstance instance = new SagaInstance();
         instance.id = comprobanteId;
         instance.state = SagaState.CREADO;
-        instance.emisorRuc = emisorRuc;
+        instance.empresaRuc = empresaRuc;
         instance.claveAcceso = claveAcceso;
         instance.ambiente = ambiente;
         Instant now = Instant.now();
@@ -58,12 +58,12 @@ public class SagaInstance {
         this.state = state;
     }
 
-    public String getEmisorRuc() {
-        return emisorRuc;
+    public String getEmpresaRuc() {
+        return empresaRuc;
     }
 
-    public void setEmisorRuc(String emisorRuc) {
-        this.emisorRuc = emisorRuc;
+    public void setEmpresaRuc(String empresaRuc) {
+        this.empresaRuc = empresaRuc;
     }
 
     public String getClaveAcceso() {

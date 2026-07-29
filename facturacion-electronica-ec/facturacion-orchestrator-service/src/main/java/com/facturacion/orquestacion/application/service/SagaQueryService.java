@@ -56,7 +56,7 @@ public class SagaQueryService {
         SagaResponse response = new SagaResponse();
         response.setComprobanteId(saga.getId());
         response.setState(saga.getState().name());
-        response.setEmisorRuc(saga.getEmisorRuc());
+        response.setEmpresaRuc(saga.getEmpresaRuc());
         response.setClaveAcceso(saga.getClaveAcceso());
         response.setAmbiente(saga.getAmbiente());
         response.setFailureReason(saga.getFailureReason());

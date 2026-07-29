@@ -14,8 +14,8 @@ public class ComprobanteResponse {
     private String establecimiento;
     private String puntoEmision;
     private String secuencial;
-    private String emisorRuc;
-    private String emisorRazonSocial;
+    private String empresaRuc;
+    private String empresaRazonSocial;
     private Instant fechaEmision;
     private String compradorTipoIdentificacion;
     private String compradorIdentificacion;
@@ -108,20 +108,20 @@ public class ComprobanteResponse {
         this.secuencial = secuencial;
     }
 
-    public String getEmisorRuc() {
-        return emisorRuc;
+    public String getEmpresaRuc() {
+        return empresaRuc;
     }
 
-    public void setEmisorRuc(String emisorRuc) {
-        this.emisorRuc = emisorRuc;
+    public void setEmpresaRuc(String empresaRuc) {
+        this.empresaRuc = empresaRuc;
     }
 
-    public String getEmisorRazonSocial() {
-        return emisorRazonSocial;
+    public String getEmpresaRazonSocial() {
+        return empresaRazonSocial;
     }
 
-    public void setEmisorRazonSocial(String emisorRazonSocial) {
-        this.emisorRazonSocial = emisorRazonSocial;
+    public void setEmpresaRazonSocial(String empresaRazonSocial) {
+        this.empresaRazonSocial = empresaRazonSocial;
     }
 
     public Instant getFechaEmision() {

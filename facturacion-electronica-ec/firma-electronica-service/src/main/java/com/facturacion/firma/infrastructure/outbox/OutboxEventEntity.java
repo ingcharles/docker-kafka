@@ -13,7 +13,7 @@ import io.quarkus.hibernate.reactive.panache.PanacheEntityBase;
 /**
  * Fila del patrón Outbox Transaccional. Se escribe dentro de la misma
  * transacción de base de datos que el cambio de negocio que anuncia (ver
- * {@code EmisorService.crearEmisor}/{@code actualizarEmisor}), y luego un
+ * {@code EmpresaService.crearEmpresa}/{@code actualizarEmpresa}), y luego un
  * proceso aparte ({@code OutboxRelay}) la publica en Kafka de forma
  * asíncrona.
  */

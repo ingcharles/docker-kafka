@@ -20,6 +20,7 @@ public record ComprobanteAutorizadoEventMessage(
     UUID eventId,
     UUID comprobanteId,
     String eventType,
+    String empresaRuc,
     String claveAcceso,
     String tipoComprobante,
     String compradorCorreo,

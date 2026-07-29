@@ -16,7 +16,7 @@ public interface ItemLocalRepository {
     /**
      * Trae varios de una vez, para no hacer N consultas al armar los
      * detalles de un comprobante — solo devuelve ítems que pertenezcan al
-     * {@code ruc} indicado (el catálogo es multi-tenant, un emisor nunca
+     * {@code ruc} indicado (el catálogo es multi-tenant, una empresa nunca
      * puede facturar con el ítem de otro).
      */
     Uni<Map<UUID, ItemLocal>> findByIdsAndRuc(Set<UUID> ids, String ruc);

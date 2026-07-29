@@ -18,6 +18,7 @@ import jakarta.ws.rs.core.UriInfo;
 
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
@@ -69,6 +70,7 @@ public class UsuarioResource {
     @GET
     @Path("/me")
     @Autenticado
+    @SecurityRequirement(name = "token")
     @Operation(summary = "Datos del usuario autenticado")
     public Uni<UsuarioResponse> obtenerMe() {
         return usuarioService.obtenerPorId(sesionActual.getUsuarioId());
@@ -77,6 +79,7 @@ public class UsuarioResource {
     @POST
     @Path("/me/empresas")
     @Autenticado
+    @SecurityRequirement(name = "token")
     @Consumes(MediaType.APPLICATION_JSON)
     @Operation(summary = "Asociarse a una empresa (ruc)",
         description = "Sin flujo de invitación/aprobación en esta versión — ver ARQUITECTURA.md.")
@@ -87,6 +90,7 @@ public class UsuarioResource {
     @GET
     @Path("/me/empresas")
     @Autenticado
+    @SecurityRequirement(name = "token")
     @Operation(summary = "Listar las empresas (ruc) a las que está asociado el usuario autenticado")
     public Uni<List<EmpresaRolResponse>> listarEmpresas() {
         return usuarioService.listarEmpresas(sesionActual.getUsuarioId());

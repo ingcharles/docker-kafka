@@ -3,6 +3,8 @@ package com.facturacion.notificacion.infrastructure.mail;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
@@ -27,20 +29,34 @@ public class CorreoService {
     private final ReactiveMailer mailer;
     private final MailRateLimiter rateLimiter;
 
+    @ConfigProperty(name = "quarkus.mailer.from")
+    String remitenteDefecto;
+
     @Inject
     public CorreoService(ReactiveMailer mailer, MailRateLimiter rateLimiter) {
         this.mailer = mailer;
         this.rateLimiter = rateLimiter;
     }
 
+    /**
+     * @param asunto           override opcional (clave {@code notificacion.asunto} de
+     *                         {@code configuracion_empresa}) — {@code null} usa el asunto por defecto.
+     * @param remitenteNombre  override opcional (clave {@code notificacion.remitente_nombre}) — solo
+     *                         cambia el nombre mostrado, nunca la dirección real de envío
+     *                         ({@code quarkus.mailer.from}, la única autenticada ante el SMTP).
+     */
     public Uni<Void> enviarComprobante(String destinatario, String claveAcceso, String tipoComprobante,
-            byte[] ridePdf, String xmlAutorizado) {
-        Mail correo = Mail.withText(destinatario,
-                "Comprobante electrónico autorizado — " + tipoComprobante,
+            byte[] ridePdf, String xmlAutorizado, String asunto, String remitenteNombre) {
+        String asuntoFinal = asunto != null && !asunto.isBlank() ? asunto
+            : "Comprobante electrónico autorizado — " + tipoComprobante;
+        Mail correo = Mail.withText(destinatario, asuntoFinal,
                 "Adjunto encontrará el comprobante electrónico autorizado por el SRI (RIDE en PDF y XML autorizado).\n\n"
                     + "Clave de acceso: " + claveAcceso + "\n")
             .addAttachment(claveAcceso + ".pdf", ridePdf, "application/pdf")
             .addAttachment(claveAcceso + ".xml", xmlAutorizado.getBytes(UTF8), "application/xml");
+        if (remitenteNombre != null && !remitenteNombre.isBlank()) {
+            correo.setFrom(remitenteNombre + " <" + remitenteDefecto + ">");
+        }
         return rateLimiter.esperarTurno().chain(() -> mailer.send(correo));
     }
 }

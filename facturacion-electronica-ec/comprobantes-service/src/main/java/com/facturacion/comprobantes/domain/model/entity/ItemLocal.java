@@ -13,7 +13,7 @@ import java.util.UUID;
 public class ItemLocal {
 
     private UUID id;
-    /** RUC del emisor/empresa dueño de este ítem — el catálogo de inventario-service es multi-tenant, scoped por ruc (ver ARQUITECTURA.md). */
+    /** RUC de la empresa dueña de este ítem — el catálogo de inventario-service es multi-tenant, scoped por ruc (ver ARQUITECTURA.md). */
     private String ruc;
     private String codigoPrincipal;
     private String descripcion;

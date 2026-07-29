@@ -14,7 +14,7 @@ import com.facturacion.comprobantes.domain.repository.ItemLocalRepository;
 
 /**
  * Mantiene al día la vista materializada {@code item_local} — mismo
- * criterio que {@code EmisorEventConsumer}: sin inbox de idempotencia
+ * criterio que {@code EmpresaEventConsumer}: sin inbox de idempotencia
  * porque un upsert por id ya es naturalmente idempotente.
  */
 @ApplicationScoped

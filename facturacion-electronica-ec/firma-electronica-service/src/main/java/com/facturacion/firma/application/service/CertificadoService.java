@@ -21,50 +21,50 @@ import com.facturacion.firma.application.dto.CertificadoMetadataResponse;
 import com.facturacion.firma.domain.model.entity.CertificadoDigital;
 import com.facturacion.firma.domain.model.enums.EstadoCertificado;
 import com.facturacion.firma.domain.repository.CertificadoDigitalRepository;
-import com.facturacion.firma.domain.repository.EmisorRepository;
+import com.facturacion.firma.domain.repository.EmpresaRepository;
 import com.facturacion.firma.infrastructure.crypto.CifradoService;
 import com.facturacion.firma.infrastructure.persistence.mapper.CertificadoDigitalMapper;
 import com.facturacion.firma.shared.exception.CertificadoInvalidoException;
 import com.facturacion.firma.shared.exception.NotFoundException;
 
 /**
- * Carga y custodia del certificado {@code .p12} de un emisor. Nunca guarda
+ * Carga y custodia del certificado {@code .p12} de una empresa. Nunca guarda
  * ni devuelve el contenido o la contraseña en claro — ver {@link CifradoService}.
  */
 @ApplicationScoped
 public class CertificadoService {
 
-    private final EmisorRepository emisorRepository;
+    private final EmpresaRepository empresaRepository;
     private final CertificadoDigitalRepository certificadoRepository;
     private final CertificadoDigitalMapper mapper;
     private final CifradoService cifradoService;
 
     @Inject
-    public CertificadoService(EmisorRepository emisorRepository, CertificadoDigitalRepository certificadoRepository,
+    public CertificadoService(EmpresaRepository empresaRepository, CertificadoDigitalRepository certificadoRepository,
             CertificadoDigitalMapper mapper, CifradoService cifradoService) {
-        this.emisorRepository = emisorRepository;
+        this.empresaRepository = empresaRepository;
         this.certificadoRepository = certificadoRepository;
         this.mapper = mapper;
         this.cifradoService = cifradoService;
     }
 
     @WithTransaction
-    public Uni<CertificadoMetadataResponse> subirCertificado(UUID emisorId, byte[] contenidoP12, String contrasena) {
+    public Uni<CertificadoMetadataResponse> subirCertificado(UUID empresaId, byte[] contenidoP12, String contrasena) {
         // validarYExtraerMetadata corre en el worker pool de Mutiny (ver su
         // Javadoc); hay que volver explícitamente al contexto de Vert.x
         // antes de tocar cualquier repositorio de Hibernate Reactive, o
         // revienta con HR000068/69 — mismo problema y misma solución que el
         // salto de contexto de OutboxRelay tras el ack asíncrono de Kafka.
         io.vertx.core.Context callingContext = Vertx.currentContext();
-        return emisorRepository.findById(emisorId)
-            .onItem().ifNull().failWith(() -> new NotFoundException("Emisor no encontrado: " + emisorId))
-            .onItem().transformToUni(emisor -> validarYExtraerMetadata(contenidoP12, contrasena)
+        return empresaRepository.findById(empresaId)
+            .onItem().ifNull().failWith(() -> new NotFoundException("Empresa no encontrada: " + empresaId))
+            .onItem().transformToUni(empresa -> validarYExtraerMetadata(contenidoP12, contrasena)
                 .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
-                .onItem().transformToUni(metadata -> certificadoRepository.revocarActivosDelEmisor(emisorId)
+                .onItem().transformToUni(metadata -> certificadoRepository.revocarActivosDelEmpresa(empresaId)
                     .chain(ignorado -> {
                         CertificadoDigital certificado = new CertificadoDigital(
                             UUID.randomUUID(),
-                            emisorId,
+                            empresaId,
                             metadata.alias(),
                             metadata.huellaDigital(),
                             cifradoService.cifrar(contenidoP12),
@@ -79,10 +79,10 @@ public class CertificadoService {
     }
 
     @WithSession
-    public Uni<CertificadoMetadataResponse> obtenerActivoPorEmisor(UUID emisorId) {
-        return certificadoRepository.findActivoByEmisorId(emisorId)
+    public Uni<CertificadoMetadataResponse> obtenerActivoPorEmpresa(UUID empresaId) {
+        return certificadoRepository.findActivoByEmpresaId(empresaId)
             .onItem().ifNull().failWith(() ->
-                new NotFoundException("El emisor " + emisorId + " no tiene un certificado activo"))
+                new NotFoundException("La empresa " + empresaId + " no tiene un certificado activo"))
             .map(mapper::toResponse);
     }
 

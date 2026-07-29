@@ -12,7 +12,7 @@ import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
  * Clave de acceso de 49 dígitos (Tabla 1 de la ficha técnica del SRI) y su
  * dígito verificador por módulo 11. En el método offline (el que implementa
  * todo este proyecto) esta clave <b>es</b> el número de autorización del
- * comprobante — el emisor la genera, no el SRI.
+ * comprobante — la empresa la genera, no el SRI.
  * <p>
  * Lógica de dominio pura, sin I/O, para poder razonar sobre ella y probarla
  * de forma aislada — mismo criterio que {@code KardexCalculador} en

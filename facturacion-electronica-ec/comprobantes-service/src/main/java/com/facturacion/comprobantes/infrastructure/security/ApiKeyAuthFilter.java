@@ -47,6 +47,8 @@ public class ApiKeyAuthFilter implements ContainerRequestFilter {
             tokenPrincipal.setUsuarioId(verificado.getUsuarioId());
             tokenPrincipal.setRuc(verificado.getRuc());
             tokenPrincipal.setRol(verificado.getRol());
+            tokenPrincipal.setEstablecimiento(verificado.getEstablecimiento());
+            tokenPrincipal.setPuntoEmision(verificado.getPuntoEmision());
         } catch (TokenInvalidoException e) {
             requestContext.abortWith(Response.status(Response.Status.UNAUTHORIZED).entity(e.getMessage()).build());
         }

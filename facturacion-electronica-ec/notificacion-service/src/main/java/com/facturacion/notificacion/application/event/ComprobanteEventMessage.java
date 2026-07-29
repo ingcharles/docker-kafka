@@ -18,6 +18,7 @@ public record ComprobanteEventMessage(
     UUID comprobanteId,
     String claveAcceso,
     String eventType,
+    String empresaRuc,
     String tipoComprobante,
     String compradorCorreo,
     String compradorRazonSocial,

@@ -16,7 +16,7 @@ public class CrearGuiaRemisionRequest {
 
     @NotNull
     @Valid
-    private EmisorRequest emisor;
+    private EmpresaRequest empresa;
 
     @NotBlank
     private String dirPartida;
@@ -42,7 +42,7 @@ public class CrearGuiaRemisionRequest {
      * Obligatorio en toda Guía de Remisión según el XSD real del SRI
      * (confirmado con un rechazo real de Recepción — la ficha técnica en
      * texto solo dejaba claro que es obligatorio en Factura cuando el
-     * emisor vende combustibles, Tabla 29; en Guía de Remisión lo exige
+     * empresa vende combustibles, Tabla 29; en Guía de Remisión lo exige
      * siempre el propio esquema). Si de verdad no hay vehículo, usar el
      * código {@code ZZZ9999} documentado en esa misma tabla.
      */
@@ -56,12 +56,12 @@ public class CrearGuiaRemisionRequest {
     @Valid
     private List<CampoAdicionalRequest> campoAdicional = List.of();
 
-    public EmisorRequest getEmisor() {
-        return emisor;
+    public EmpresaRequest getEmpresa() {
+        return empresa;
     }
 
-    public void setEmisor(EmisorRequest emisor) {
-        this.emisor = emisor;
+    public void setEmpresa(EmpresaRequest empresa) {
+        this.empresa = empresa;
     }
 
     public String getDirPartida() {

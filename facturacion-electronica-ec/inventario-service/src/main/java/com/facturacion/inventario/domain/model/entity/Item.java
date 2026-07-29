@@ -16,7 +16,7 @@ import com.facturacion.inventario.domain.model.enums.TipoItem;
 public class Item {
 
     private UUID id;
-    /** RUC del emisor/empresa dueña de este ítem — el catálogo es multi-tenant, cada ítem pertenece a un solo emisor. */
+    /** RUC de la empresa dueña de este ítem — el catálogo es multi-tenant, cada ítem pertenece a una sola empresa. */
     private String ruc;
     private TipoItem tipo;
     private UUID categoriaId;

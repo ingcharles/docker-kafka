@@ -17,7 +17,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 /**
  * Cifrado en reposo (AES-256-GCM) para el contenido del .p12 y su
  * contraseña antes de guardarlos en {@code certificado_digital} — nada de
- * material criptográfico del emisor se persiste jamás en claro.
+ * material criptográfico de la empresa se persiste jamás en claro.
  * <p>
  * La clave maestra configurada ({@code firma.cifrado.clave-maestra}) puede
  * tener cualquier longitud (se generó con {@code openssl rand -base64 24}

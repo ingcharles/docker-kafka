@@ -78,9 +78,9 @@
             <artifactId>quarkus-smallrye-health</artifactId>
         </dependency>
 
-        <!-- Kafka (SmallRye Reactive Messaging) — consume facturacion.emisor.eventos.v1
-             para validar que un ruc corresponda a un Emisor real antes de dejar que un
-             usuario se asocie a él (ver EmisorEventConsumer). Payloads en Jackson, no
+        <!-- Kafka (SmallRye Reactive Messaging) — consume facturacion.empresa.eventos.v1
+             para validar que un ruc corresponda a un Empresa real antes de dejar que un
+             usuario se asocie a él (ver EmpresaEventConsumer). Payloads en Jackson, no
              JSON-B, mismo criterio que el resto del stack. -->
         <dependency>
             <groupId>io.quarkus</groupId>

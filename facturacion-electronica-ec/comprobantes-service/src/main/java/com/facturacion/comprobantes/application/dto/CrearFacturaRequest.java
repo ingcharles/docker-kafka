@@ -12,14 +12,14 @@ import jakarta.validation.constraints.NotNull;
  * productos o servicios (el SRI tampoco lo hace a este nivel) — cualquier
  * sistema externo (ecommerce, POS, un ERP) puede llamar esto con solo los
  * datos de la venta, sin conocer nada de inventario-service ni de
- * firma-electronica-service (ambos datos, emisor y detalle/impuestos,
+ * firma-electronica-service (ambos datos, empresa y detalle/impuestos,
  * viajan inline en este mismo request — ver ARQUITECTURA.md).
  */
 public class CrearFacturaRequest {
 
     @NotNull
     @Valid
-    private EmisorRequest emisor;
+    private EmpresaRequest empresa;
 
     @NotBlank
     private String compradorTipoIdentificacion;
@@ -48,12 +48,12 @@ public class CrearFacturaRequest {
     @Valid
     private List<CampoAdicionalRequest> campoAdicional = List.of();
 
-    public EmisorRequest getEmisor() {
-        return emisor;
+    public EmpresaRequest getEmpresa() {
+        return empresa;
     }
 
-    public void setEmisor(EmisorRequest emisor) {
-        this.emisor = emisor;
+    public void setEmpresa(EmpresaRequest empresa) {
+        this.empresa = empresa;
     }
 
     public String getCompradorTipoIdentificacion() {

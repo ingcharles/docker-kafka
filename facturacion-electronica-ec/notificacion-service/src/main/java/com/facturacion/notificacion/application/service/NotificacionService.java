@@ -20,8 +20,10 @@ import io.vertx.core.Vertx;
 import com.facturacion.notificacion.application.dto.NotificacionEnviadaResponse;
 import com.facturacion.notificacion.application.event.ComprobanteEventMessage;
 import com.facturacion.notificacion.application.event.NotificacionResultadoEventMessage;
+import com.facturacion.notificacion.domain.model.entity.ConfiguracionEmpresaLocal;
 import com.facturacion.notificacion.domain.model.entity.NotificacionEnviada;
 import com.facturacion.notificacion.domain.model.enums.EstadoNotificacion;
+import com.facturacion.notificacion.domain.repository.ConfiguracionEmpresaLocalRepository;
 import com.facturacion.notificacion.domain.repository.NotificacionEnviadaRepository;
 import com.facturacion.notificacion.infrastructure.mail.CorreoService;
 import com.facturacion.notificacion.infrastructure.outbox.OutboxEventEntity;
@@ -43,15 +45,18 @@ public class NotificacionService {
 
     private final NotificacionEnviadaRepository notificacionRepository;
     private final CorreoService correoService;
+    private final ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository;
     private final OutboxEventRepository outboxRepository;
     private final ObjectMapper objectMapper;
     private final NotificacionEnviadaMapper mapper;
 
     @Inject
     public NotificacionService(NotificacionEnviadaRepository notificacionRepository, CorreoService correoService,
+            ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository,
             OutboxEventRepository outboxRepository, ObjectMapper objectMapper, NotificacionEnviadaMapper mapper) {
         this.notificacionRepository = notificacionRepository;
         this.correoService = correoService;
+        this.configuracionEmpresaLocalRepository = configuracionEmpresaLocalRepository;
         this.outboxRepository = outboxRepository;
         this.objectMapper = objectMapper;
         this.mapper = mapper;
@@ -68,13 +73,27 @@ public class NotificacionService {
         io.vertx.core.Context callingContext = Vertx.currentContext();
         byte[] ridePdf = Base64.getDecoder().decode(evento.ridePdfBase64());
 
-        return correoService.enviarComprobante(evento.compradorCorreo(), evento.claveAcceso(),
-                evento.tipoComprobante(), ridePdf, evento.xmlAutorizado())
-            .onItem().transform(ignorado -> (String) null)
-            .onFailure().recoverWithItem(falla -> {
-                LOG.errorf(falla, "No se pudo enviar el correo del comprobante %s a %s", evento.claveAcceso(),
-                    evento.compradorCorreo());
-                return falla.getMessage();
+        // Ajustes opcionales por empresa (configuracion_empresa en
+        // firma-electronica-service, vía ConfiguracionEmpresaLocal) — null si
+        // nunca se configuraron, CorreoService usa su comportamiento por
+        // defecto en ese caso.
+        Uni<ConfiguracionEmpresaLocal> asuntoUni =
+            configuracionEmpresaLocalRepository.findByRucAndClave(evento.empresaRuc(), "notificacion.asunto");
+        Uni<ConfiguracionEmpresaLocal> remitenteUni = configuracionEmpresaLocalRepository
+            .findByRucAndClave(evento.empresaRuc(), "notificacion.remitente_nombre");
+
+        return Uni.combine().all().unis(asuntoUni, remitenteUni).asTuple()
+            .onItem().transformToUni(tuple -> {
+                String asunto = tuple.getItem1() == null ? null : tuple.getItem1().getValor();
+                String remitenteNombre = tuple.getItem2() == null ? null : tuple.getItem2().getValor();
+                return correoService.enviarComprobante(evento.compradorCorreo(), evento.claveAcceso(),
+                        evento.tipoComprobante(), ridePdf, evento.xmlAutorizado(), asunto, remitenteNombre)
+                    .onItem().transform(ignorado -> (String) null)
+                    .onFailure().recoverWithItem(falla -> {
+                        LOG.errorf(falla, "No se pudo enviar el correo del comprobante %s a %s", evento.claveAcceso(),
+                            evento.compradorCorreo());
+                        return falla.getMessage();
+                    });
             })
             .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
             .onItem().transformToUni(motivoError -> guardarResultado(evento, motivoError));

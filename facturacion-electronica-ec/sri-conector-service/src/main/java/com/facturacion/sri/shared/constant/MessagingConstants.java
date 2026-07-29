@@ -3,6 +3,7 @@ package com.facturacion.sri.shared.constant;
 public final class MessagingConstants {
 
     public static final String SRI_EVENTS_TOPIC = "facturacion.sri.eventos.v1";
+    public static final String CONFIGURACION_EMPRESA_EVENTS_TOPIC = "facturacion.empresa.configuracion.eventos.v1";
 
     public static final String EVENT_TYPE_SRI_RECIBIDO = "SriRecibido";
     public static final String EVENT_TYPE_SRI_RECHAZADO_RECEPCION = "SriRechazadoRecepcion";

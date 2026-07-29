@@ -3,7 +3,7 @@ package com.facturacion.comprobantes.domain.model.enums;
 /**
  * BORRADOR: creado, {@code xml_generado} guardado, sin firmar todavía.
  * FIRMADO: {@code xml_firmado} guardado (respuesta de firma-electronica-service).
- * FIRMA_FALLIDA: el emisor no tiene certificado activo, o algo falló al firmar — estado terminal de error, corregible reintentando.
+ * FIRMA_FALLIDA: la empresa no tiene certificado activo, o algo falló al firmar — estado terminal de error, corregible reintentando.
  * AUTORIZADO: {@code xml_autorizado} + número/fecha de autorización + el RIDE en PDF guardados — el SRI aceptó el comprobante.
  * <p>
  * IMPORTANTE para sri-conector-service (quien manda el comando {@code MARCAR_AUTORIZADO}):

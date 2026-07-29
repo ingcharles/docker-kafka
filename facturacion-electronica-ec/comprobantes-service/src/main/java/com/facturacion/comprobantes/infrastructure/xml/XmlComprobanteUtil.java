@@ -68,7 +68,7 @@ final class XmlComprobanteUtil {
     static String direccionEstablecimiento(Comprobante c) {
         return c.getDireccionEstablecimiento() != null && !c.getDireccionEstablecimiento().isBlank()
             ? c.getDireccionEstablecimiento()
-            : c.getEmisorDireccionMatriz();
+            : c.getEmpresaDireccionMatriz();
     }
 
     /** {@code <detalle>} completo (código, descripción, cantidad, precio, descuento, impuestos) — Factura/Nota de Crédito/Liquidación de Compra comparten esta forma. */
@@ -107,14 +107,14 @@ final class XmlComprobanteUtil {
 
     /**
      * {@code <infoAdicional>} completo: el campo "granContribuyente" (Anexo
-     * 24, solo cuando el emisor es Gran Contribuyente — calculado por el
+     * 24, solo cuando la empresa es Gran Contribuyente — calculado por el
      * sistema, no algo que el llamador mande) seguido de cada
      * {@code campoAdicional} que haya venido en el request. Devuelve
      * {@code null} si no hay nada que agregar (el tag completo es opcional
      * en el XSD del SRI).
      */
     static Element construirInfoAdicional(Document doc, Comprobante c) {
-        boolean hayGranContribuyente = c.isEmisorEsGranContribuyente();
+        boolean hayGranContribuyente = c.isEmpresaEsGranContribuyente();
         boolean hayCamposAdicionales = c.getCamposAdicionales() != null && !c.getCamposAdicionales().isEmpty();
         if (!hayGranContribuyente && !hayCamposAdicionales) {
             return null;
@@ -123,7 +123,7 @@ final class XmlComprobanteUtil {
         if (hayGranContribuyente) {
             Element campo = doc.createElement("campoAdicional");
             campo.setAttribute("nombre", "granContribuyente");
-            campo.setTextContent("Gran Contribuyente " + c.getEmisorNumeroResolucionGranContribuyente());
+            campo.setTextContent("Gran Contribuyente " + c.getEmpresaNumeroResolucionGranContribuyente());
             infoAdicional.appendChild(campo);
         }
         if (hayCamposAdicionales) {

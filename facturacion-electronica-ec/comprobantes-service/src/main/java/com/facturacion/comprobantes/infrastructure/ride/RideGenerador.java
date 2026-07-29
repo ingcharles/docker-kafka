@@ -13,6 +13,8 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.graphics.color.PDColor;
+import org.apache.pdfbox.pdmodel.graphics.color.PDDeviceRGB;
 
 import jakarta.enterprise.context.ApplicationScoped;
 
@@ -28,18 +30,27 @@ import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
  * <p>
  * Layout deliberadamente simple (sin logo, sin código de barras de la clave
  * de acceso) — cubre los campos obligatorios del Anexo 2 (identificación
- * del emisor y el comprador, detalle, totales, clave de acceso como texto),
- * dejando la personalización visual (logo, colores) como un punto de
- * extensión vía {@code configuracion_emisor} en firma-electronica-service.
+ * de la empresa y el comprador, detalle, totales, clave de acceso como texto).
+ * La única personalización visual real hoy es {@code colorRide} (barra de
+ * acento bajo el encabezado), un ajuste opcional por empresa que viaja desde
+ * {@code configuracion_empresa} de firma-electronica-service vía
+ * {@code ConfiguracionEmpresaLocal} — ver {@code ComprobanteService.aplicarComando}.
  */
 @ApplicationScoped
 public class RideGenerador {
 
     private static final float MARGEN = 40f;
+    private static final float ALTURA_BARRA_ACENTO = 6f;
     private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter FORMATO_FECHA_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
 
-    public byte[] generar(Comprobante c) {
+    /**
+     * @param colorRide hex RGB opcional (ej. "#1A73E8", con o sin '#') tomado de
+     *                  {@code configuracion_empresa} (clave {@code ride.color}) — si es
+     *                  {@code null} o no tiene un formato hex válido, no se dibuja ninguna
+     *                  barra de acento (comportamiento por defecto, sin cambios).
+     */
+    public byte[] generar(Comprobante c, String colorRide) {
         try (PDDocument documento = new PDDocument()) {
             PDPage pagina = new PDPage(PDRectangle.A4);
             documento.addPage(pagina);
@@ -49,21 +60,29 @@ public class RideGenerador {
             try (PDPageContentStream cs = new PDPageContentStream(documento, pagina)) {
                 float y = pagina.getMediaBox().getHeight() - MARGEN;
 
-                y = escribir(cs, fuenteNegrita, 14, MARGEN, y, c.getEmisorRazonSocial());
-                if (c.getEmisorNombreComercial() != null && !c.getEmisorNombreComercial().isBlank()) {
-                    y = escribir(cs, fuenteNormal, 10, MARGEN, y - 4, c.getEmisorNombreComercial());
+                PDColor color = parsearColor(colorRide);
+                if (color != null) {
+                    cs.setNonStrokingColor(color);
+                    cs.addRect(0, y + 10, pagina.getMediaBox().getWidth(), ALTURA_BARRA_ACENTO);
+                    cs.fill();
+                    cs.setNonStrokingColor(0f, 0f, 0f);
                 }
-                y = escribir(cs, fuenteNormal, 10, MARGEN, y - 4, "RUC: " + c.getEmisorRuc());
-                y = escribir(cs, fuenteNormal, 10, MARGEN, y - 2, "Dirección matriz: " + c.getEmisorDireccionMatriz());
+
+                y = escribir(cs, fuenteNegrita, 14, MARGEN, y, c.getEmpresaRazonSocial());
+                if (c.getEmpresaNombreComercial() != null && !c.getEmpresaNombreComercial().isBlank()) {
+                    y = escribir(cs, fuenteNormal, 10, MARGEN, y - 4, c.getEmpresaNombreComercial());
+                }
+                y = escribir(cs, fuenteNormal, 10, MARGEN, y - 4, "RUC: " + c.getEmpresaRuc());
+                y = escribir(cs, fuenteNormal, 10, MARGEN, y - 2, "Dirección matriz: " + c.getEmpresaDireccionMatriz());
                 y = escribir(cs, fuenteNormal, 10, MARGEN, y - 2,
-                    "Obligado a llevar contabilidad: " + (c.isEmisorObligadoContabilidad() ? "SI" : "NO"));
-                if (c.isEmisorContribuyenteEspecial() && c.getEmisorNumeroContribuyenteEspecial() != null) {
+                    "Obligado a llevar contabilidad: " + (c.isEmpresaObligadoContabilidad() ? "SI" : "NO"));
+                if (c.isEmpresaContribuyenteEspecial() && c.getEmpresaNumeroContribuyenteEspecial() != null) {
                     y = escribir(cs, fuenteNormal, 10, MARGEN, y - 2,
-                        "Contribuyente especial No. " + c.getEmisorNumeroContribuyenteEspecial());
+                        "Contribuyente especial No. " + c.getEmpresaNumeroContribuyenteEspecial());
                 }
-                if (c.isEmisorEsGranContribuyente()) {
+                if (c.isEmpresaEsGranContribuyente()) {
                     y = escribir(cs, fuenteNormal, 10, MARGEN, y - 2,
-                        "Gran Contribuyente Res. " + c.getEmisorNumeroResolucionGranContribuyente());
+                        "Gran Contribuyente Res. " + c.getEmpresaNumeroResolucionGranContribuyente());
                 }
 
                 y -= 16;
@@ -172,5 +191,20 @@ public class RideGenerador {
 
     private String moneda(java.math.BigDecimal valor) {
         return valor.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
+    }
+
+    /** {@code null} si {@code hex} no es un color RGB válido de 6 dígitos (con o sin '#') — no es un dato validado en origen, ver {@code ConfiguracionEmpresaService}. */
+    private PDColor parsearColor(String hex) {
+        if (hex == null) {
+            return null;
+        }
+        String limpio = hex.startsWith("#") ? hex.substring(1) : hex;
+        if (limpio.length() != 6 || !limpio.matches("[0-9a-fA-F]{6}")) {
+            return null;
+        }
+        float r = Integer.parseInt(limpio.substring(0, 2), 16) / 255f;
+        float g = Integer.parseInt(limpio.substring(2, 4), 16) / 255f;
+        float b = Integer.parseInt(limpio.substring(4, 6), 16) / 255f;
+        return new PDColor(new float[] {r, g, b}, PDDeviceRGB.INSTANCE);
     }
 }

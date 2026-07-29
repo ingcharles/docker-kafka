@@ -29,6 +29,11 @@ public class ApiKeyEntity extends PanacheEntityBase {
     @Column(nullable = false)
     public String rol;
 
+    public String establecimiento;
+
+    @Column(name = "punto_emision")
+    public String puntoEmision;
+
     @Column(nullable = false, unique = true)
     public String jti;
 
