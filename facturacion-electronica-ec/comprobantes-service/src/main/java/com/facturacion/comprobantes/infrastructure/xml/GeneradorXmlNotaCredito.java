@@ -15,11 +15,11 @@ import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.Impuesto;
 import com.facturacion.comprobantes.domain.service.GeneradorXmlComprobante;
 
-/** Genera el XML de Nota de Crédito conforme al Anexo de la ficha técnica del SRI (versión 1.0.0). */
+/** Genera el XML de Nota de Crédito conforme al Anexo de la ficha técnica del SRI (versión 1.1.0, la última disponible — ver {@code xsd/NotaCredito_V1.1.0.xsd}). */
 @ApplicationScoped
 public class GeneradorXmlNotaCredito implements GeneradorXmlComprobante {
 
-    private static final String VERSION_XSD = "1.0.0";
+    private static final String VERSION_XSD = "1.1.0";
     private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     @Override

@@ -16,16 +16,18 @@ import com.facturacion.comprobantes.domain.model.vo.Impuesto;
 import com.facturacion.comprobantes.domain.service.GeneradorXmlComprobante;
 
 /**
- * Genera el XML de Factura conforme al Anexo 1 de la ficha técnica del SRI
- * (versión 1.0.0 — es la variante cuyo detalle campo por campo se verificó
- * directamente contra el manual; la 1.1.0/2.x añaden campos opcionales para
- * casos especiales — reembolso, rubros de terceros, subsidios — que quedan
- * fuera de esta versión de referencia, ver ARQUITECTURA.md).
+ * Genera el XML de Factura conforme al Anexo 1/3 de la ficha técnica del SRI
+ * (declarado como versión 2.1.0, la última disponible — ver
+ * {@code xsd/factura_V2.1.0.xsd} y {@code XsdValidador}). Los campos nuevos
+ * de 1.1.0/2.x (reembolso, rubros de terceros, subsidios, comercio exterior)
+ * son todos opcionales en el XSD; esta versión de referencia solo implementa
+ * el subconjunto obligatorio + los ya wireados (ver ARQUITECTURA.md) —
+ * omitirlos no invalida el XML contra el esquema 2.1.0.
  */
 @ApplicationScoped
 public class GeneradorXmlFactura implements GeneradorXmlComprobante {
 
-    private static final String VERSION_XSD = "1.0.0";
+    private static final String VERSION_XSD = "2.1.0";
     private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     @Override

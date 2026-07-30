@@ -34,6 +34,18 @@ public class CategoriaRepositoryImpl implements CategoriaRepository {
     }
 
     @Override
+    public Uni<Categoria> update(Categoria domain) {
+        return repository.<CategoriaEntity>findById(domain.getId())
+            .onItem().ifNotNull().transformToUni(entity -> {
+                entity.nombre = domain.getNombre();
+                entity.tipo = domain.getTipo().name();
+                entity.descripcion = domain.getDescripcion();
+                entity.activa = domain.isActiva();
+                return Uni.createFrom().item(mapper.toDomain(entity));
+            });
+    }
+
+    @Override
     public Uni<Categoria> findById(UUID id) {
         return repository.<CategoriaEntity>findById(id)
             .map(entity -> entity == null ? null : mapper.toDomain(entity));

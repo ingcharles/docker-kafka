@@ -10,6 +10,7 @@ import jakarta.inject.Inject;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.identidad.domain.model.entity.UsuarioEmpresaRol;
+import com.facturacion.identidad.domain.model.enums.Rol;
 import com.facturacion.identidad.domain.repository.UsuarioEmpresaRolRepository;
 import com.facturacion.identidad.infrastructure.persistence.entity.UsuarioEmpresaRolEntity;
 import com.facturacion.identidad.infrastructure.persistence.mapper.UsuarioEmpresaRolMapper;
@@ -52,5 +53,21 @@ public class UsuarioEmpresaRolRepositoryImpl implements UsuarioEmpresaRolReposit
     public Uni<List<UsuarioEmpresaRol>> findByUsuarioId(UUID usuarioId) {
         return repository.<UsuarioEmpresaRolEntity>find("usuarioId", usuarioId).list()
             .map(entities -> entities.stream().map(mapper::toDomain).collect(Collectors.toList()));
+    }
+
+    @Override
+    public Uni<List<UsuarioEmpresaRol>> findByRuc(String ruc) {
+        return repository.<UsuarioEmpresaRolEntity>find("ruc", ruc).list()
+            .map(entities -> entities.stream().map(mapper::toDomain).collect(Collectors.toList()));
+    }
+
+    @Override
+    public Uni<Long> contarPorRucYRol(String ruc, Rol rol) {
+        return repository.count("ruc = ?1 and rol = ?2", ruc, rol.name());
+    }
+
+    @Override
+    public Uni<Void> delete(UsuarioEmpresaRol asociacion) {
+        return repository.deleteById(asociacion.getId()).replaceWithVoid();
     }
 }

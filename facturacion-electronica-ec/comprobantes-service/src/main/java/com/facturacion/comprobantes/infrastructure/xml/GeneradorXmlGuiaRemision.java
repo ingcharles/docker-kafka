@@ -19,7 +19,8 @@ import com.facturacion.comprobantes.domain.service.GeneradorXmlComprobante;
 
 /**
  * Genera el XML de Guía de Remisión conforme a la ficha técnica del SRI
- * (versión 1.0.0). No es una venta (no lleva comprador ni valores
+ * (versión 1.1.0, la última disponible — ver {@code xsd/GuiaRemision_V1.1.0.xsd}).
+ * No es una venta (no lleva comprador ni valores
  * monetarios) — traslada bienes de un punto a otro, con uno o más
  * destinatarios, cada uno con su propia lista de ítems trasladados (ver
  * {@link DetalleComprobante#getDestinatarioId()}).
@@ -27,7 +28,7 @@ import com.facturacion.comprobantes.domain.service.GeneradorXmlComprobante;
 @ApplicationScoped
 public class GeneradorXmlGuiaRemision implements GeneradorXmlComprobante {
 
-    private static final String VERSION_XSD = "1.0.0";
+    private static final String VERSION_XSD = "1.1.0";
     private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     @Override

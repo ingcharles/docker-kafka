@@ -120,6 +120,9 @@ public class RideGenerador {
                     y = escribirFilaDetalle(cs, fuenteNormal, y, d);
                 }
 
+                y = escribirInfoAdicional(cs, fuenteNegrita, fuenteNormal, y, c);
+                y = escribirFormasPago(cs, fuenteNegrita, fuenteNormal, y, c);
+
                 y -= 16;
                 y = escribir(cs, fuenteNormal, 10, 350, y, "Subtotal sin impuestos: " + moneda(c.getSubtotalSinImpuestos()));
                 y = escribir(cs, fuenteNormal, 10, 350, y - 2, "Descuento: " + moneda(c.getTotalDescuento()));
@@ -148,6 +151,68 @@ public class RideGenerador {
             case GUIA_REMISION -> "GUIA DE REMISION";
             case RETENCION -> "COMPROBANTE DE RETENCION";
             case LIQUIDACION_COMPRA -> "LIQUIDACION DE COMPRA";
+        };
+    }
+
+    /**
+     * "Información Adicional" — cada {@code campoAdicional} que haya mandado
+     * el llamador, seguido de "RUC Proveedor" (Anexo 26, Res.
+     * NAC-DGERCGC26-00000027) al final, si está configurada — mismo orden
+     * relativo que el Ejemplo 2 del Anexo 26 de la ficha técnica (Teléfono,
+     * Email, RUC Proveedor). No dibuja nada si no hay ni lo uno ni lo otro.
+     */
+    private float escribirInfoAdicional(PDPageContentStream cs, PDFont fuenteNegrita, PDFont fuenteNormal, float y,
+            Comprobante c) throws IOException {
+        boolean hayCamposAdicionales = c.getCamposAdicionales() != null && !c.getCamposAdicionales().isEmpty();
+        boolean hayProveedorRuc = c.getProveedorRuc() != null && !c.getProveedorRuc().isBlank();
+        if (!hayCamposAdicionales && !hayProveedorRuc) {
+            return y;
+        }
+        y -= 16;
+        y = escribir(cs, fuenteNegrita, 10, MARGEN, y, "Información Adicional");
+        if (hayCamposAdicionales) {
+            for (var campo : c.getCamposAdicionales()) {
+                y = escribir(cs, fuenteNormal, 9, MARGEN, y - 2, campo.nombre() + ": " + campo.valor());
+            }
+        }
+        if (hayProveedorRuc) {
+            y = escribir(cs, fuenteNormal, 9, MARGEN, y - 2, "RUC Proveedor: " + c.getProveedorRuc());
+        }
+        return y;
+    }
+
+    /**
+     * "Forma de pago" — Tabla 24 de la ficha técnica, solo Factura/Nota de
+     * Débito/Liquidación de Compra la llevan (ver {@link com.facturacion.comprobantes.domain.model.vo.Pago}).
+     * No dibuja nada si el comprobante no tiene pagos (Nota de Crédito, Guía
+     * de Remisión, Retención).
+     */
+    private float escribirFormasPago(PDPageContentStream cs, PDFont fuenteNegrita, PDFont fuenteNormal, float y,
+            Comprobante c) throws IOException {
+        if (c.getPagos() == null || c.getPagos().isEmpty()) {
+            return y;
+        }
+        y -= 16;
+        y = escribir(cs, fuenteNegrita, 10, MARGEN, y, "Forma de pago");
+        for (var pago : c.getPagos()) {
+            y = escribir(cs, fuenteNormal, 9, MARGEN, y - 2,
+                pago.formaPago() + " - " + descripcionFormaPago(pago.formaPago()) + ": " + moneda(pago.total()));
+        }
+        return y;
+    }
+
+    /** Tabla 24 de la ficha técnica (catálogo de formas de pago del Anexo Transaccional Simplificado). */
+    private String descripcionFormaPago(String codigo) {
+        return switch (codigo) {
+            case "01" -> "SIN UTILIZACION DEL SISTEMA FINANCIERO";
+            case "15" -> "COMPENSACION DE DEUDAS";
+            case "16" -> "TARJETA DE DEBITO";
+            case "17" -> "DINERO ELECTRONICO";
+            case "18" -> "TARJETA PREPAGO";
+            case "19" -> "TARJETA DE CREDITO";
+            case "20" -> "OTROS CON UTILIZACION DEL SISTEMA FINANCIERO";
+            case "21" -> "ENDOSO DE TITULOS";
+            default -> "FORMA DE PAGO " + codigo;
         };
     }
 

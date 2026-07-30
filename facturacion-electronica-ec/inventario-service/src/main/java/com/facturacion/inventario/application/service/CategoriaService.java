@@ -13,6 +13,7 @@ import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.inventario.application.dto.ActualizarCategoriaRequest;
 import com.facturacion.inventario.application.dto.CategoriaResponse;
 import com.facturacion.inventario.application.dto.CrearCategoriaRequest;
 import com.facturacion.inventario.domain.model.entity.Categoria;
@@ -40,6 +41,15 @@ public class CategoriaService {
         Categoria categoria = new Categoria(UUID.randomUUID(), request.getNombre(),
             TipoCategoria.valueOf(request.getTipo()), request.getDescripcion(), true, Instant.now());
         return repository.persist(categoria).map(mapper::toResponse);
+    }
+
+    @WithTransaction
+    public Uni<CategoriaResponse> actualizar(UUID id, @Valid ActualizarCategoriaRequest request) {
+        Categoria categoria = new Categoria(id, request.getNombre(), TipoCategoria.valueOf(request.getTipo()),
+            request.getDescripcion(), request.isActiva(), null);
+        return repository.update(categoria)
+            .onItem().ifNull().failWith(() -> new NotFoundException("Categoría no encontrada: " + id))
+            .map(mapper::toResponse);
     }
 
     @WithSession

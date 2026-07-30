@@ -134,19 +134,23 @@ public class SriConectorService {
     @WithTransaction
     public Uni<Void> consultarAutorizacion(EnvioSri envio) {
         io.vertx.core.Context callingContext = Vertx.currentContext();
-        Uni<ConfiguracionEmpresaLocal> urlUni = configuracionEmpresaLocalRepository
-            .findByRucAndClave(envio.getEmpresaRuc(), "sri.autorizacion.url");
-        Uni<ConfiguracionEmpresaLocal> maxIntentosUni = configuracionEmpresaLocalRepository
-            .findByRucAndClave(envio.getEmpresaRuc(), "sri.autorizacion.poll.max-intentos");
-
-        return Uni.combine().all().unis(urlUni, maxIntentosUni).asTuple()
-            .onItem().transformToUni(tuple -> {
-                String urlOverride = tuple.getItem1() == null ? null : tuple.getItem1().getValor();
-                int maxIntentos = resolverMaxIntentos(tuple.getItem2());
-                return autorizacionClient.consultar(envio.getClaveAcceso(), envio.getAmbiente(), urlOverride)
-                    .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
-                    .onItem().transformToUni(resultado -> aplicarResultadoAutorizacion(envio, resultado, maxIntentos));
-            });
+        // Secuencial a propósito (no Uni.combine): dos consultas Hibernate
+        // Reactive concurrentes sobre la misma sesión reactiva rompen el
+        // procesamiento del result set ("Illegal pop() with non-matching
+        // JdbcValuesSourceProcessingState") — hay que encadenarlas, no
+        // correrlas en paralelo, aunque sean independientes entre sí (mismo
+        // bug ya encontrado y arreglado en ComprobanteService.emitir).
+        return configuracionEmpresaLocalRepository.findByRucAndClave(envio.getEmpresaRuc(), "sri.autorizacion.url")
+            .onItem().transformToUni(configuracionUrl -> configuracionEmpresaLocalRepository
+                .findByRucAndClave(envio.getEmpresaRuc(), "sri.autorizacion.poll.max-intentos")
+                .onItem().transformToUni(configuracionMaxIntentos -> {
+                    String urlOverride = configuracionUrl == null ? null : configuracionUrl.getValor();
+                    int maxIntentos = resolverMaxIntentos(configuracionMaxIntentos);
+                    return autorizacionClient.consultar(envio.getClaveAcceso(), envio.getAmbiente(), urlOverride)
+                        .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
+                        .onItem()
+                        .transformToUni(resultado -> aplicarResultadoAutorizacion(envio, resultado, maxIntentos));
+                }));
     }
 
     /** {@code null}/no numérico → el default global (documentado en la migración de configuracion_empresa_local). */

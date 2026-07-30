@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ExternalStorageConfigurationManager" enabled="true" />
+  <component name="MavenProjectsManager">
+    <option name="originalFiles">
+      <list>
+        <option value="$PROJECT_DIR$/ecommerce/order-service/pom.xml" />
+        <option value="$PROJECT_DIR$/ecommerce/payment-service/pom.xml" />
+        <option value="$PROJECT_DIR$/ecommerce/shipping-service/pom.xml" />
+        <option value="$PROJECT_DIR$/ecommerce/inventory-service/pom.xml" />
+        <option value="$PROJECT_DIR$/ecommerce/notification-service/pom.xml" />
+        <option value="$PROJECT_DIR$/ecommerce/saga-orchestrator-service/pom.xml" />
+        <option value="$PROJECT_DIR$/facturacion-electronica-ec/identidad-service/pom.xml" />
+        <option value="$PROJECT_DIR$/facturacion-electronica-ec/inventario-service/pom.xml" />
+        <option value="$PROJECT_DIR$/facturacion-electronica-ec/comprobantes-service/pom.xml" />
+        <option value="$PROJECT_DIR$/facturacion-electronica-ec/notificacion-service/pom.xml" />
+        <option value="$PROJECT_DIR$/facturacion-electronica-ec/sri-conector-service/pom.xml" />
+        <option value="$PROJECT_DIR$/facturacion-electronica-ec/firma-electronica-service/pom.xml" />
+        <option value="$PROJECT_DIR$/facturacion-electronica-ec/facturacion-orchestrator-service/pom.xml" />
+      </list>
+    </option>
+  </component>
+  <component name="ProjectRootManager" version="2" project-jdk-name="21" project-jdk-type="JavaSDK">
+    <output url="file://$PROJECT_DIR$/out" />
+  </component>
+</project>

@@ -76,25 +76,26 @@ public class NotificacionService {
         // Ajustes opcionales por empresa (configuracion_empresa en
         // firma-electronica-service, vía ConfiguracionEmpresaLocal) — null si
         // nunca se configuraron, CorreoService usa su comportamiento por
-        // defecto en ese caso.
-        Uni<ConfiguracionEmpresaLocal> asuntoUni =
-            configuracionEmpresaLocalRepository.findByRucAndClave(evento.empresaRuc(), "notificacion.asunto");
-        Uni<ConfiguracionEmpresaLocal> remitenteUni = configuracionEmpresaLocalRepository
-            .findByRucAndClave(evento.empresaRuc(), "notificacion.remitente_nombre");
-
-        return Uni.combine().all().unis(asuntoUni, remitenteUni).asTuple()
-            .onItem().transformToUni(tuple -> {
-                String asunto = tuple.getItem1() == null ? null : tuple.getItem1().getValor();
-                String remitenteNombre = tuple.getItem2() == null ? null : tuple.getItem2().getValor();
-                return correoService.enviarComprobante(evento.compradorCorreo(), evento.claveAcceso(),
-                        evento.tipoComprobante(), ridePdf, evento.xmlAutorizado(), asunto, remitenteNombre)
-                    .onItem().transform(ignorado -> (String) null)
-                    .onFailure().recoverWithItem(falla -> {
-                        LOG.errorf(falla, "No se pudo enviar el correo del comprobante %s a %s", evento.claveAcceso(),
-                            evento.compradorCorreo());
-                        return falla.getMessage();
-                    });
-            })
+        // defecto en ese caso. Secuencial a propósito (no Uni.combine): dos
+        // consultas Hibernate Reactive concurrentes sobre la misma sesión
+        // reactiva rompen el procesamiento del result set ("Illegal pop()
+        // with non-matching JdbcValuesSourceProcessingState") — mismo bug ya
+        // encontrado y arreglado en ComprobanteService.emitir/SriConectorService.consultarAutorizacion.
+        return configuracionEmpresaLocalRepository.findByRucAndClave(evento.empresaRuc(), "notificacion.asunto")
+            .onItem().transformToUni(configuracionAsunto -> configuracionEmpresaLocalRepository
+                .findByRucAndClave(evento.empresaRuc(), "notificacion.remitente_nombre")
+                .onItem().transformToUni(configuracionRemitente -> {
+                    String asunto = configuracionAsunto == null ? null : configuracionAsunto.getValor();
+                    String remitenteNombre = configuracionRemitente == null ? null : configuracionRemitente.getValor();
+                    return correoService.enviarComprobante(evento.compradorCorreo(), evento.claveAcceso(),
+                            evento.tipoComprobante(), ridePdf, evento.xmlAutorizado(), asunto, remitenteNombre)
+                        .onItem().transform(ignorado -> (String) null)
+                        .onFailure().recoverWithItem(falla -> {
+                            LOG.errorf(falla, "No se pudo enviar el correo del comprobante %s a %s",
+                                evento.claveAcceso(), evento.compradorCorreo());
+                            return falla.getMessage();
+                        });
+                }))
             .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
             .onItem().transformToUni(motivoError -> guardarResultado(evento, motivoError));
     }

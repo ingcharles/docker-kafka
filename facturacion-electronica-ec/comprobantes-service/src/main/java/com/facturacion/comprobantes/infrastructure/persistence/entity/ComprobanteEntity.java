@@ -69,6 +69,9 @@ public class ComprobanteEntity extends PanacheEntityBase {
     @Column(name = "empresa_numero_resolucion_gran_contribuyente")
     public String empresaNumeroResolucionGranContribuyente;
 
+    @Column(name = "empresa_proveedor_ruc")
+    public String proveedorRuc;
+
     @Column(name = "fecha_emision", nullable = false)
     public Instant fechaEmision;
 

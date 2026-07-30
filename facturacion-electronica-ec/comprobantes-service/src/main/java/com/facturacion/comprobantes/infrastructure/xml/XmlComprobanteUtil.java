@@ -107,16 +107,20 @@ final class XmlComprobanteUtil {
 
     /**
      * {@code <infoAdicional>} completo: el campo "granContribuyente" (Anexo
-     * 24, solo cuando la empresa es Gran Contribuyente — calculado por el
-     * sistema, no algo que el llamador mande) seguido de cada
+     * 24, solo cuando la empresa es Gran Contribuyente), luego "RUC Proveedor"
+     * (Anexo 26, Res. NAC-DGERCGC26-00000027 — solo cuando la empresa
+     * configuró {@code sri.proveedor.ruc} en {@code configuracion_empresa},
+     * ver {@code ComprobanteService.emitir}) — ambos calculados por el
+     * sistema, no algo que el llamador mande — seguidos de cada
      * {@code campoAdicional} que haya venido en el request. Devuelve
      * {@code null} si no hay nada que agregar (el tag completo es opcional
      * en el XSD del SRI).
      */
     static Element construirInfoAdicional(Document doc, Comprobante c) {
         boolean hayGranContribuyente = c.isEmpresaEsGranContribuyente();
+        boolean hayProveedorRuc = c.getProveedorRuc() != null && !c.getProveedorRuc().isBlank();
         boolean hayCamposAdicionales = c.getCamposAdicionales() != null && !c.getCamposAdicionales().isEmpty();
-        if (!hayGranContribuyente && !hayCamposAdicionales) {
+        if (!hayGranContribuyente && !hayProveedorRuc && !hayCamposAdicionales) {
             return null;
         }
         Element infoAdicional = doc.createElement("infoAdicional");
@@ -124,6 +128,12 @@ final class XmlComprobanteUtil {
             Element campo = doc.createElement("campoAdicional");
             campo.setAttribute("nombre", "granContribuyente");
             campo.setTextContent("Gran Contribuyente " + c.getEmpresaNumeroResolucionGranContribuyente());
+            infoAdicional.appendChild(campo);
+        }
+        if (hayProveedorRuc) {
+            Element campo = doc.createElement("campoAdicional");
+            campo.setAttribute("nombre", "RUC Proveedor");
+            campo.setTextContent(c.getProveedorRuc());
             infoAdicional.appendChild(campo);
         }
         if (hayCamposAdicionales) {

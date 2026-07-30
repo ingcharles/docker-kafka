@@ -6,9 +6,12 @@ import java.util.List;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 
 import jakarta.ws.rs.core.Context;
@@ -17,13 +20,16 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
 
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.identidad.application.dto.ActualizarPerfilRequest;
 import com.facturacion.identidad.application.dto.AsociarEmpresaRequest;
+import com.facturacion.identidad.application.dto.CambiarPasswordRequest;
 import com.facturacion.identidad.application.dto.CrearUsuarioRequest;
 import com.facturacion.identidad.application.dto.EmpresaRolResponse;
 import com.facturacion.identidad.application.dto.LoginRequest;
@@ -74,6 +80,43 @@ public class UsuarioResource {
     @Operation(summary = "Datos del usuario autenticado")
     public Uni<UsuarioResponse> obtenerMe() {
         return usuarioService.obtenerPorId(sesionActual.getUsuarioId());
+    }
+
+    @PATCH
+    @Path("/me")
+    @Autenticado
+    @SecurityRequirement(name = "token")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Actualizar el perfil del usuario autenticado", description = "Solo nombres/apellidos — el email de login no se cambia por aquí. PATCH porque solo toca una parte del recurso Usuario, no lo reemplaza entero.")
+    public Uni<UsuarioResponse> actualizarPerfil(@Valid ActualizarPerfilRequest request) {
+        return usuarioService.actualizarPerfil(sesionActual.getUsuarioId(), request);
+    }
+
+    @PATCH
+    @Path("/me/password")
+    @Autenticado
+    @SecurityRequirement(name = "token")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Cambiar la contraseña del usuario autenticado", description = "Exige la contraseña actual.")
+    @APIResponse(responseCode = "204", description = "Contraseña cambiada")
+    @APIResponse(responseCode = "401", description = "La contraseña actual no es correcta")
+    public Uni<Response> cambiarPassword(@Valid CambiarPasswordRequest request) {
+        return usuarioService.cambiarPassword(sesionActual.getUsuarioId(), request)
+            .map(ignorado -> Response.noContent().build());
+    }
+
+    @DELETE
+    @Path("/me/empresas/{ruc}")
+    @Autenticado
+    @SecurityRequirement(name = "token")
+    @Operation(summary = "Abandonar una empresa (ruc)", description = "No se permite si eres el único ADMIN que le queda.")
+    @APIResponse(responseCode = "204", description = "Ya no estás asociado a ese ruc")
+    @APIResponse(responseCode = "404", description = "No estabas asociado a ese ruc")
+    @APIResponse(responseCode = "409", description = "Dejarías al ruc sin ningún ADMIN")
+    public Uni<Response> salirDeEmpresa(
+            @Parameter(description = "RUC de la empresa", required = true) @PathParam("ruc") String ruc) {
+        return usuarioService.salirDeEmpresa(sesionActual.getUsuarioId(), ruc)
+            .map(ignorado -> Response.noContent().build());
     }
 
     @POST

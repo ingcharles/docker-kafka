@@ -17,6 +17,7 @@ import io.smallrye.mutiny.Uni;
 
 import com.facturacion.firma.application.dto.ConfiguracionEmpresaResponse;
 import com.facturacion.firma.application.event.ConfiguracionEmpresaEventMessage;
+import com.facturacion.firma.domain.model.entity.ConfiguracionEmpresa;
 import com.facturacion.firma.domain.model.entity.Empresa;
 import com.facturacion.firma.domain.repository.ConfiguracionEmpresaRepository;
 import com.facturacion.firma.domain.repository.EmpresaRepository;
@@ -24,6 +25,7 @@ import com.facturacion.firma.infrastructure.outbox.OutboxEventEntity;
 import com.facturacion.firma.infrastructure.outbox.OutboxEventRepository;
 import com.facturacion.firma.infrastructure.persistence.mapper.ConfiguracionEmpresaMapper;
 import com.facturacion.firma.shared.constant.MessagingConstants;
+import com.facturacion.firma.shared.exception.CodigoDuplicadoException;
 import com.facturacion.firma.shared.exception.NotFoundException;
 
 /**
@@ -55,16 +57,40 @@ public class ConfiguracionEmpresaService {
         this.objectMapper = objectMapper;
     }
 
+    /** POST — crea la clave por primera vez; 409 si ya existía para esta empresa (ver {@link #actualizar} para cambiarla). */
     @WithTransaction
-    public Uni<ConfiguracionEmpresaResponse> establecer(UUID empresaId, String clave, String valor) {
+    public Uni<ConfiguracionEmpresaResponse> crear(UUID empresaId, String clave, String valor) {
         return empresaRepository.findById(empresaId)
             .onItem().ifNull().failWith(() -> new NotFoundException("Empresa no encontrada: " + empresaId))
-            .onItem().transformToUni(empresa -> configuracionRepository.upsert(empresaId, clave, valor)
-                .chain(guardado -> outboxRepository
-                    .persist(construirEventoOutbox(empresa, clave, valor,
-                        MessagingConstants.EVENT_TYPE_CONFIGURACION_EMPRESA_ESTABLECIDA))
-                    .replaceWith(guardado)))
+            .onItem().transformToUni(empresa -> configuracionRepository.findByEmpresaIdAndClave(empresaId, clave)
+                .onItem().transformToUni(existente -> {
+                    if (existente != null) {
+                        return Uni.createFrom().failure(new CodigoDuplicadoException(
+                            "Ya existe la configuración '" + clave + "' para la empresa " + empresaId));
+                    }
+                    return guardarYPublicar(empresa, clave, valor);
+                }))
             .map(mapper::toResponse);
+    }
+
+    /** PATCH — cambia el valor de una clave que ya existe; 404 si todavía no se había creado (ver {@link #crear}). */
+    @WithTransaction
+    public Uni<ConfiguracionEmpresaResponse> actualizar(UUID empresaId, String clave, String valor) {
+        return empresaRepository.findById(empresaId)
+            .onItem().ifNull().failWith(() -> new NotFoundException("Empresa no encontrada: " + empresaId))
+            .onItem().transformToUni(empresa -> configuracionRepository.findByEmpresaIdAndClave(empresaId, clave)
+                .onItem().ifNull().failWith(() -> new NotFoundException(
+                    "No existe la configuración '" + clave + "' para la empresa " + empresaId))
+                .onItem().transformToUni(existente -> guardarYPublicar(empresa, clave, valor)))
+            .map(mapper::toResponse);
+    }
+
+    private Uni<ConfiguracionEmpresa> guardarYPublicar(Empresa empresa, String clave, String valor) {
+        return configuracionRepository.upsert(empresa.getId(), clave, valor)
+            .chain(guardado -> outboxRepository
+                .persist(construirEventoOutbox(empresa, clave, valor,
+                    MessagingConstants.EVENT_TYPE_CONFIGURACION_EMPRESA_ESTABLECIDA))
+                .replaceWith(guardado));
     }
 
     @WithSession

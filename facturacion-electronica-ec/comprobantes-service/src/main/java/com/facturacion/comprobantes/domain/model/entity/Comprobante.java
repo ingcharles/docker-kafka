@@ -9,6 +9,7 @@ import com.facturacion.comprobantes.domain.model.enums.AmbienteSri;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.CampoAdicional;
+import com.facturacion.comprobantes.domain.model.vo.DocumentoSustento;
 import com.facturacion.comprobantes.domain.model.vo.Pago;
 
 /**
@@ -40,6 +41,8 @@ public class Comprobante {
     private String empresaNumeroContribuyenteEspecial;
     private boolean empresaEsGranContribuyente;
     private String empresaNumeroResolucionGranContribuyente;
+    /** RUC del proveedor de software/servicio de facturación electrónica (Anexo 26, Res. NAC-DGERCGC26-00000027) — {@code configuracion_empresa}, clave {@code sri.proveedor.ruc}; {@code null} si la empresa no la configuró. */
+    private String proveedorRuc;
 
     private Instant fechaEmision;
     private String compradorTipoIdentificacion;
@@ -80,6 +83,15 @@ public class Comprobante {
 
     // Retención.
     private String periodoFiscal;
+    /** "SI"|"NO" — si el sujeto retenido es parte relacionada (XSD v2.0.0, {@code infoCompRetencion.parteRel}); null en los otros 5 tipos. */
+    private String parteRelacionada;
+    /**
+     * Un {@code docSustento} por documento retenido (XSD v2.0.0), cada uno
+     * con su propio impuesto y forma de pago — transitorio: solo se usa
+     * para generar el XML dentro de {@code ComprobanteService.construirRetencion},
+     * no se persiste (ver {@code ComprobanteMapper}); vacío en los otros 5 tipos.
+     */
+    private List<DocumentoSustento> documentosSustento = List.of();
 
     // Guía de Remisión.
     private String transportistaRazonSocial;
@@ -227,6 +239,14 @@ public class Comprobante {
 
     public void setEmpresaNumeroResolucionGranContribuyente(String empresaNumeroResolucionGranContribuyente) {
         this.empresaNumeroResolucionGranContribuyente = empresaNumeroResolucionGranContribuyente;
+    }
+
+    public String getProveedorRuc() {
+        return proveedorRuc;
+    }
+
+    public void setProveedorRuc(String proveedorRuc) {
+        this.proveedorRuc = proveedorRuc;
     }
 
     public Instant getFechaEmision() {
@@ -419,6 +439,22 @@ public class Comprobante {
 
     public void setPeriodoFiscal(String periodoFiscal) {
         this.periodoFiscal = periodoFiscal;
+    }
+
+    public String getParteRelacionada() {
+        return parteRelacionada;
+    }
+
+    public void setParteRelacionada(String parteRelacionada) {
+        this.parteRelacionada = parteRelacionada;
+    }
+
+    public List<DocumentoSustento> getDocumentosSustento() {
+        return documentosSustento;
+    }
+
+    public void setDocumentosSustento(List<DocumentoSustento> documentosSustento) {
+        this.documentosSustento = documentosSustento;
     }
 
     public String getTransportistaRazonSocial() {

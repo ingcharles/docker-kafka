@@ -17,7 +17,8 @@ import com.facturacion.comprobantes.domain.service.GeneradorXmlComprobante;
 
 /**
  * Genera el XML de Liquidación de Compra conforme a la ficha técnica del
- * SRI (versión 1.0.0). Mismo shape que Factura (detalle/impuestos/totales)
+ * SRI (versión 1.1.0, la última disponible — ver {@code xsd/LiquidacionCompra_V1.1.0.xsd}).
+ * Mismo shape que Factura (detalle/impuestos/totales)
  * — la única diferencia real es que la contraparte es un "proveedor", no un
  * "comprador" (quien emite es el comprador, ante la imposibilidad del
  * proveedor de emitir su propio comprobante de venta). No incluye el
@@ -27,7 +28,7 @@ import com.facturacion.comprobantes.domain.service.GeneradorXmlComprobante;
 @ApplicationScoped
 public class GeneradorXmlLiquidacionCompra implements GeneradorXmlComprobante {
 
-    private static final String VERSION_XSD = "1.0.0";
+    private static final String VERSION_XSD = "1.1.0";
     private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     @Override

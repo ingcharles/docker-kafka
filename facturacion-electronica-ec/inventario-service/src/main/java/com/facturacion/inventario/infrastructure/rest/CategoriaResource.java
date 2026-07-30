@@ -9,6 +9,7 @@ import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
@@ -25,6 +26,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.inventario.application.dto.ActualizarCategoriaRequest;
 import com.facturacion.inventario.application.dto.CategoriaResponse;
 import com.facturacion.inventario.application.dto.CrearCategoriaRequest;
 import com.facturacion.inventario.application.service.CategoriaService;
@@ -54,6 +56,18 @@ public class CategoriaResource {
                 URI location = uriInfo.getAbsolutePathBuilder().path(response.getId().toString()).build();
                 return Response.created(location).entity(response).build();
             });
+    }
+
+    @PUT
+    @Path("/categorias/{id}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Actualizar una categoría")
+    @APIResponse(responseCode = "200", description = "Actualizada")
+    @APIResponse(responseCode = "404", description = "Categoría no encontrada")
+    public Uni<Response> actualizar(
+            @Parameter(description = "Id de la categoría", required = true) @PathParam("id") UUID id,
+            @Valid ActualizarCategoriaRequest request) {
+        return categoriaService.actualizar(id, request).map(response -> Response.ok(response).build());
     }
 
     @GET

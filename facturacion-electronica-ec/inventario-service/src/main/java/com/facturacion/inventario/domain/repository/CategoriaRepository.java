@@ -11,6 +11,8 @@ public interface CategoriaRepository {
 
     Uni<Categoria> persist(Categoria categoria);
 
+    Uni<Categoria> update(Categoria categoria);
+
     Uni<Categoria> findById(UUID id);
 
     Uni<PageResult<Categoria>> findPaged(int page, int limit);

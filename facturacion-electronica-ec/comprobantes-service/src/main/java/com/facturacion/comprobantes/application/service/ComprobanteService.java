@@ -24,6 +24,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
+import io.vertx.core.Vertx;
 
 import com.facturacion.comprobantes.application.dto.CampoAdicionalRequest;
 import com.facturacion.comprobantes.application.dto.ComprobanteResponse;
@@ -36,6 +38,7 @@ import com.facturacion.comprobantes.application.dto.CrearRetencionRequest;
 import com.facturacion.comprobantes.application.dto.DestinatarioGuiaRemisionRequest;
 import com.facturacion.comprobantes.application.dto.DetalleComprobanteRequest;
 import com.facturacion.comprobantes.application.dto.DetalleGuiaRemisionRequest;
+import com.facturacion.comprobantes.application.dto.DocumentoSustentoRequest;
 import com.facturacion.comprobantes.application.dto.EmpresaRequest;
 import com.facturacion.comprobantes.application.dto.MotivoNotaDebitoRequest;
 import com.facturacion.comprobantes.application.dto.PagoRequest;
@@ -51,7 +54,9 @@ import com.facturacion.comprobantes.domain.model.enums.AmbienteSri;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.CampoAdicional;
+import com.facturacion.comprobantes.domain.model.vo.DocumentoSustento;
 import com.facturacion.comprobantes.domain.model.vo.Impuesto;
+import com.facturacion.comprobantes.domain.model.vo.ImpuestoDocSustento;
 import com.facturacion.comprobantes.domain.model.vo.Pago;
 import com.facturacion.comprobantes.domain.model.vo.PageResult;
 import com.facturacion.comprobantes.domain.repository.ComprobanteRepository;
@@ -65,6 +70,7 @@ import com.facturacion.comprobantes.infrastructure.outbox.OutboxEventRepository;
 import com.facturacion.comprobantes.infrastructure.persistence.mapper.ComprobanteMapper;
 import com.facturacion.comprobantes.infrastructure.ride.RideGenerador;
 import com.facturacion.comprobantes.infrastructure.xml.GeneradorXmlComprobanteResolver;
+import com.facturacion.comprobantes.infrastructure.xml.XsdValidador;
 import com.facturacion.comprobantes.shared.constant.MessagingConstants;
 import com.facturacion.comprobantes.shared.exception.NotFoundException;
 import com.facturacion.comprobantes.shared.responses.PagedResponse;
@@ -98,6 +104,7 @@ public class ComprobanteService {
     private final PuntoEmisionLocalRepository puntoEmisionLocalRepository;
     private final ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository;
     private final GeneradorXmlComprobanteResolver xmlResolver;
+    private final XsdValidador xsdValidador;
     private final RideGenerador rideGenerador;
     private final ComprobanteMapper mapper;
     private final OutboxEventRepository outboxRepository;
@@ -108,14 +115,15 @@ public class ComprobanteService {
             EstablecimientoLocalRepository establecimientoLocalRepository,
             PuntoEmisionLocalRepository puntoEmisionLocalRepository,
             ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository,
-            GeneradorXmlComprobanteResolver xmlResolver, RideGenerador rideGenerador, ComprobanteMapper mapper,
-            OutboxEventRepository outboxRepository, ObjectMapper objectMapper) {
+            GeneradorXmlComprobanteResolver xmlResolver, XsdValidador xsdValidador, RideGenerador rideGenerador,
+            ComprobanteMapper mapper, OutboxEventRepository outboxRepository, ObjectMapper objectMapper) {
         this.comprobanteRepository = comprobanteRepository;
         this.itemLocalRepository = itemLocalRepository;
         this.establecimientoLocalRepository = establecimientoLocalRepository;
         this.puntoEmisionLocalRepository = puntoEmisionLocalRepository;
         this.configuracionEmpresaLocalRepository = configuracionEmpresaLocalRepository;
         this.xmlResolver = xmlResolver;
+        this.xsdValidador = xsdValidador;
         this.rideGenerador = rideGenerador;
         this.mapper = mapper;
         this.outboxRepository = outboxRepository;
@@ -169,20 +177,45 @@ public class ComprobanteService {
      */
     private Uni<ComprobanteResponse> emitir(EmpresaRequest empresa, TipoComprobante tipo,
             java.util.function.Function<Long, Uni<Comprobante>> constructor) {
+        io.vertx.core.Context callingContext = Vertx.currentContext();
         return validarEstablecimientoYPuntoEmision(empresa)
             .onItem().transformToUni(ignorado -> comprobanteRepository
                 .siguienteSecuencial(empresa.getRuc(), tipo, empresa.getEstablecimiento(), empresa.getPuntoEmision()))
             .onItem().transformToUni(secuencial -> constructor.apply(secuencial)
-                .onItem().transformToUni(comprobante -> {
-                    // El XML se genera ya con la clave de acceso, los totales y el detalle
-                    // completos — es este texto el que queda guardado en xml_generado y el
-                    // que viaja, sin cambios, hasta firma-electronica-service.
-                    comprobante.setXmlGenerado(xmlResolver.generar(comprobante));
-                    return comprobanteRepository.persist(comprobante)
-                        .chain(guardado -> outboxRepository.persist(construirEventoCreado(guardado))
-                            .replaceWith(guardado))
-                        .map(mapper::toResponse);
-                }));
+                // Secuencial a propósito (no Uni.combine): dos consultas Hibernate
+                // Reactive concurrentes sobre la misma sesión reactiva rompen el
+                // procesamiento del result set ("Illegal pop() with non-matching
+                // JdbcValuesSourceProcessingState") — hay que encadenarlas, no
+                // correrlas en paralelo, aunque sean independientes entre sí.
+                .onItem().transformToUni(comprobante ->
+                    configuracionEmpresaLocalRepository.findByRucAndClave(empresa.getRuc(), "sri.proveedor.ruc")
+                        .onItem().transformToUni(configuracionProveedor -> {
+                            // Anexo 26 (Res. NAC-DGERCGC26-00000027) — RUC del proveedor de
+                            // software/servicio de facturación electrónica, white-label por
+                            // empresa; null si no está configurada, sin afectar el XML.
+                            comprobante.setProveedorRuc(
+                                configuracionProveedor == null ? null : configuracionProveedor.getValor());
+                            // El XML se genera ya con la clave de acceso, los totales y el detalle
+                            // completos — es este texto el que queda guardado en xml_generado y el
+                            // que viaja, sin cambios, hasta firma-electronica-service.
+                            comprobante.setXmlGenerado(xmlResolver.generar(comprobante));
+                            // Validar contra el XSD real del SRI (última versión, ver
+                            // XsdValidador) es CPU-bound/bloqueante — se corre en el
+                            // worker pool y se vuelve al contexto de Vert.x antes de
+                            // tocar el repositorio, mismo patrón que
+                            // CertificadoService.validarYExtraerMetadata. Un XML mal
+                            // formado nunca debe llegar a firma-electronica-service.
+                            return Uni.createFrom().item(() -> {
+                                    xsdValidador.validar(tipo, comprobante.getXmlGenerado());
+                                    return comprobante;
+                                })
+                                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                                .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
+                                .onItem().transformToUni(validado -> comprobanteRepository.persist(validado)
+                                    .chain(guardado -> outboxRepository.persist(construirEventoCreado(guardado))
+                                        .replaceWith(guardado))
+                                    .map(mapper::toResponse));
+                        })));
     }
 
     /**
@@ -417,40 +450,72 @@ public class ComprobanteService {
         return Uni.createFrom().item(comprobante);
     }
 
+    /**
+     * XSD v2.0.0 (estilo ATS): cada {@link DocumentoSustentoRequest} se
+     * traduce en un {@code docSustento} con su propio impuesto y forma de
+     * pago (ver {@code GeneradorXmlRetencion}). {@code detalles} se sigue
+     * llenando igual que en la v1.0.0 (una fila por línea de retención) solo
+     * para que el RIDE y el listado de comprobantes no necesiten cambios —
+     * {@code documentosSustento} es lo que realmente usa el generador XML.
+     */
     private Uni<Comprobante> construirRetencion(CrearRetencionRequest request, long secuencial) {
         Instant ahora = Instant.now();
         Comprobante comprobante = construirEncabezado(request.getEmpresa(), TipoComprobante.RETENCION, secuencial,
             ahora);
 
         List<DetalleComprobante> detalles = new ArrayList<>();
+        List<DocumentoSustento> documentosSustento = new ArrayList<>();
         BigDecimal totalBaseImponible = BigDecimal.ZERO;
         BigDecimal totalRetenido = BigDecimal.ZERO;
-        for (int i = 0; i < request.getRetenciones().size(); i++) {
-            RetencionLineaRequest lineaRequest = request.getRetenciones().get(i);
-            Impuesto impuesto = new Impuesto(
-                lineaRequest.getCodigo(),
-                null,
-                lineaRequest.getPorcentajeRetener(),
-                lineaRequest.getBaseImponible(),
-                lineaRequest.getValorRetenido(),
-                lineaRequest.getCodigoRetencion(),
-                lineaRequest.getDocSustentoCodigo(),
-                lineaRequest.getDocSustentoNumero(),
-                lineaRequest.getDocSustentoFecha());
+        int contadorLinea = 0;
 
-            DetalleComprobante detalle = new DetalleComprobante();
-            detalle.setId(UUID.randomUUID());
-            detalle.setCodigoPrincipal("RET-" + (i + 1));
-            detalle.setDescripcion("Retención " + lineaRequest.getCodigoRetencion() + " sobre "
-                + lineaRequest.getDocSustentoNumero());
-            detalle.setCantidad(BigDecimal.ONE);
-            detalle.setPrecioUnitario(lineaRequest.getBaseImponible());
-            detalle.setDescuento(BigDecimal.ZERO);
-            detalle.setImpuestos(List.of(impuesto));
-            detalles.add(detalle);
+        for (DocumentoSustentoRequest docRequest : request.getDocumentosSustento()) {
+            List<Impuesto> retenciones = new ArrayList<>();
+            for (RetencionLineaRequest lineaRequest : docRequest.getRetenciones()) {
+                contadorLinea++;
+                Impuesto impuesto = new Impuesto(
+                    lineaRequest.getCodigo(),
+                    null,
+                    lineaRequest.getPorcentajeRetener(),
+                    lineaRequest.getBaseImponible(),
+                    lineaRequest.getValorRetenido(),
+                    lineaRequest.getCodigoRetencion(),
+                    docRequest.getDocSustentoCodigo(),
+                    docRequest.getDocSustentoNumero(),
+                    docRequest.getDocSustentoFecha());
+                retenciones.add(impuesto);
 
-            totalBaseImponible = totalBaseImponible.add(lineaRequest.getBaseImponible());
-            totalRetenido = totalRetenido.add(lineaRequest.getValorRetenido());
+                DetalleComprobante detalle = new DetalleComprobante();
+                detalle.setId(UUID.randomUUID());
+                detalle.setCodigoPrincipal("RET-" + contadorLinea);
+                detalle.setDescripcion("Retención " + lineaRequest.getCodigoRetencion() + " sobre "
+                    + docRequest.getDocSustentoNumero());
+                detalle.setCantidad(BigDecimal.ONE);
+                detalle.setPrecioUnitario(lineaRequest.getBaseImponible());
+                detalle.setDescuento(BigDecimal.ZERO);
+                detalle.setImpuestos(List.of(impuesto));
+                detalles.add(detalle);
+
+                totalBaseImponible = totalBaseImponible.add(lineaRequest.getBaseImponible());
+                totalRetenido = totalRetenido.add(lineaRequest.getValorRetenido());
+            }
+
+            List<ImpuestoDocSustento> impuestosDocSustento = docRequest.getImpuestos().stream()
+                .map(i -> new ImpuestoDocSustento(i.getCodigo(), i.getCodigoPorcentaje(), i.getBaseImponible(),
+                    i.getTarifa(), i.getValor()))
+                .collect(Collectors.toList());
+
+            documentosSustento.add(new DocumentoSustento(
+                docRequest.getCodSustento(),
+                docRequest.getDocSustentoCodigo(),
+                docRequest.getDocSustentoNumero(),
+                docRequest.getDocSustentoFecha(),
+                docRequest.getPagoLocExt(),
+                docRequest.getTotalSinImpuestos(),
+                docRequest.getImporteTotal(),
+                impuestosDocSustento,
+                retenciones,
+                construirPagos(docRequest.getPagos(), docRequest.getImporteTotal())));
         }
 
         comprobante.setCompradorTipoIdentificacion(request.getSujetoRetenidoTipoIdentificacion());
@@ -459,10 +524,15 @@ public class ComprobanteService {
         comprobante.setCompradorCorreo(request.getSujetoRetenidoCorreo());
         comprobante.setMoneda("DOLAR");
         comprobante.setDetalles(detalles);
+        comprobante.setDocumentosSustento(documentosSustento);
         comprobante.setSubtotalSinImpuestos(totalBaseImponible);
         comprobante.setTotalDescuento(BigDecimal.ZERO);
         comprobante.setImporteTotal(totalRetenido);
         comprobante.setPeriodoFiscal(request.getPeriodoFiscal());
+        comprobante.setParteRelacionada(
+            request.getParteRelacionada() == null || request.getParteRelacionada().isBlank()
+                ? "NO"
+                : request.getParteRelacionada());
         comprobante.setCamposAdicionales(construirCamposAdicionales(request.getCampoAdicional()));
         return Uni.createFrom().item(comprobante);
     }

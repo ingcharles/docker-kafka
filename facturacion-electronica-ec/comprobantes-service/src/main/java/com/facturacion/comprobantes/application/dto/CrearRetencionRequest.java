@@ -9,11 +9,12 @@ import jakarta.validation.constraints.NotNull;
 
 /**
  * Certifica la retención de IVA/renta aplicada sobre uno o más documentos
- * sustento — no tiene {@code <detalles>} de ítems, solo la lista de líneas
- * de retención ({@link RetencionLineaRequest}). El "sujeto retenido" (a
- * quien se le retiene) se guarda reutilizando las columnas comprador_* del
- * agregado Comprobante — mismo dato, distinto nombre según el tipo de
- * comprobante (ver ComprobanteService).
+ * sustento (XSD v2.0.0, estilo ATS) — no tiene {@code <detalles>} de
+ * ítems, sino una lista de {@link DocumentoSustentoRequest}, cada uno con
+ * sus propias líneas de retención. El "sujeto retenido" (a quien se le
+ * retiene) se guarda reutilizando las columnas comprador_* del agregado
+ * Comprobante — mismo dato, distinto nombre según el tipo de comprobante
+ * (ver ComprobanteService).
  */
 public class CrearRetencionRequest {
 
@@ -36,9 +37,12 @@ public class CrearRetencionRequest {
     @NotBlank
     private String periodoFiscal;
 
+    /** "SI"|"NO" — si el sujeto retenido es parte relacionada (XSD v2.0.0); si no se manda, se asume "NO". */
+    private String parteRelacionada;
+
     @NotEmpty
     @Valid
-    private List<RetencionLineaRequest> retenciones;
+    private List<DocumentoSustentoRequest> documentosSustento;
 
     @Valid
     private List<CampoAdicionalRequest> campoAdicional = List.of();
@@ -91,12 +95,20 @@ public class CrearRetencionRequest {
         this.periodoFiscal = periodoFiscal;
     }
 
-    public List<RetencionLineaRequest> getRetenciones() {
-        return retenciones;
+    public String getParteRelacionada() {
+        return parteRelacionada;
     }
 
-    public void setRetenciones(List<RetencionLineaRequest> retenciones) {
-        this.retenciones = retenciones;
+    public void setParteRelacionada(String parteRelacionada) {
+        this.parteRelacionada = parteRelacionada;
+    }
+
+    public List<DocumentoSustentoRequest> getDocumentosSustento() {
+        return documentosSustento;
+    }
+
+    public void setDocumentosSustento(List<DocumentoSustentoRequest> documentosSustento) {
+        this.documentosSustento = documentosSustento;
     }
 
     public List<CampoAdicionalRequest> getCampoAdicional() {

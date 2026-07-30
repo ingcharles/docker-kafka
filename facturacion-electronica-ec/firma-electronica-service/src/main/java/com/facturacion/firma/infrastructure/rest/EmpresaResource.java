@@ -10,6 +10,7 @@ import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
@@ -177,18 +178,45 @@ public class EmpresaResource {
             .map((CertificadoMetadataResponse response) -> Response.ok(response).build());
     }
 
-    @PUT
+    @DELETE
+    @Path("/{id}/certificado")
+    @Operation(summary = "Revocar el certificado activo de la empresa",
+        description = "Sin subir uno nuevo en su lugar (ej. certificado comprometido) — a diferencia de POST /{id}/certificado, que revoca el anterior implícitamente al reemplazarlo.")
+    @APIResponse(responseCode = "204", description = "Revocado")
+    @APIResponse(responseCode = "404", description = "La empresa no tiene un certificado activo")
+    public Uni<Response> revocarCertificado(
+            @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id) {
+        return certificadoService.revocarActivo(id).map(ignorado -> Response.noContent().build());
+    }
+
+    @POST
     @Path("/{id}/configuracion/{clave}")
     @Consumes(MediaType.APPLICATION_JSON)
-    @Operation(summary = "Establecer un ajuste de configuración de la empresa",
-        description = "Crea o actualiza (upsert) el valor de esa clave — pensado para ajustes opcionales que no ameritan una columna propia en Empresa: URLs del SRI a sobreescribir, plantilla del RIDE, política de reintentos, etc.")
-    @APIResponse(responseCode = "200", description = "Guardado")
+    @Operation(summary = "Crear un ajuste de configuración de la empresa",
+        description = "Registra la clave por primera vez — pensado para ajustes opcionales que no ameritan una columna propia en Empresa: URLs del SRI a sobreescribir, plantilla del RIDE, política de reintentos, etc.")
+    @APIResponse(responseCode = "200", description = "Creado")
     @APIResponse(responseCode = "404", description = "Empresa no encontrada")
-    public Uni<Response> establecerConfiguracion(
+    @APIResponse(responseCode = "409", description = "Ya existe esa clave para esta empresa — usa PATCH para cambiar su valor")
+    public Uni<Response> crearConfiguracion(
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id,
             @Parameter(description = "Clave del ajuste", required = true) @PathParam("clave") String clave,
             @Valid EstablecerConfiguracionRequest request) {
-        return configuracionService.establecer(id, clave, request.getValor())
+        return configuracionService.crear(id, clave, request.getValor())
+            .map(response -> Response.ok(response).build());
+    }
+
+    @PATCH
+    @Path("/{id}/configuracion/{clave}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Cambiar el valor de un ajuste de configuración ya existente",
+        description = "PATCH porque modifica un ajuste puntual dentro de la configuración de la empresa, no reemplaza la empresa entera.")
+    @APIResponse(responseCode = "200", description = "Actualizado")
+    @APIResponse(responseCode = "404", description = "Empresa no encontrada, o esa clave todavía no existe — usa POST para crearla")
+    public Uni<Response> actualizarConfiguracion(
+            @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id,
+            @Parameter(description = "Clave del ajuste", required = true) @PathParam("clave") String clave,
+            @Valid EstablecerConfiguracionRequest request) {
+        return configuracionService.actualizar(id, clave, request.getValor())
             .map(response -> Response.ok(response).build());
     }
 

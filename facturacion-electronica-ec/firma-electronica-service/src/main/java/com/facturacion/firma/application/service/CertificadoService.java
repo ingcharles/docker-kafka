@@ -78,6 +78,20 @@ public class CertificadoService {
                     .map(mapper::toResponse)));
     }
 
+    /**
+     * Revoca el certificado activo de la empresa sin subir uno nuevo en su
+     * lugar (ej. certificado comprometido) — reutiliza el mismo update masivo
+     * que ya usa {@link #subirCertificado} antes de guardar el reemplazo.
+     */
+    @WithTransaction
+    public Uni<Void> revocarActivo(UUID empresaId) {
+        return certificadoRepository.findActivoByEmpresaId(empresaId)
+            .onItem().ifNull().failWith(
+                () -> new NotFoundException("La empresa " + empresaId + " no tiene un certificado activo"))
+            .onItem().transformToUni(ignorado -> certificadoRepository.revocarActivosDelEmpresa(empresaId))
+            .replaceWithVoid();
+    }
+
     @WithSession
     public Uni<CertificadoMetadataResponse> obtenerActivoPorEmpresa(UUID empresaId) {
         return certificadoRepository.findActivoByEmpresaId(empresaId)
