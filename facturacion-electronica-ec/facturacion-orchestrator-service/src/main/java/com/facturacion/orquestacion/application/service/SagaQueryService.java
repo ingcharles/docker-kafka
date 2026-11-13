@@ -15,11 +15,11 @@ import com.facturacion.orquestacion.application.dto.SagaStepResponse;
 import com.facturacion.orquestacion.domain.model.entity.SagaInstance;
 import com.facturacion.orquestacion.domain.model.entity.SagaStep;
 import com.facturacion.orquestacion.domain.model.enums.SagaState;
-import com.facturacion.orquestacion.domain.model.vo.PageResult;
+import com.facturacion.commons.paging.PageResult;
 import com.facturacion.orquestacion.domain.repository.SagaInstanceRepository;
 import com.facturacion.orquestacion.domain.repository.SagaStepRepository;
-import com.facturacion.orquestacion.shared.exception.NotFoundException;
-import com.facturacion.orquestacion.shared.responses.PagedResponse;
+import com.facturacion.commons.exception.NotFoundException;
+import com.facturacion.commons.paging.PagedResponse;
 
 @ApplicationScoped
 public class SagaQueryService {
@@ -33,17 +33,22 @@ public class SagaQueryService {
         this.sagaStepRepository = sagaStepRepository;
     }
 
+    /**
+     * @param empresaRuc RUC de la api-key: una saga de otra empresa responde igual que una inexistente (404), para no
+     *                   revelar que existe.
+     */
     @WithSession
-    public Uni<SagaResponse> getByComprobanteId(UUID comprobanteId) {
+    public Uni<SagaResponse> getByComprobanteId(UUID comprobanteId, String empresaRuc) {
         return sagaInstanceRepository.findById(comprobanteId)
+            .onItem().transform(saga -> saga != null && saga.getEmpresaRuc().equals(empresaRuc) ? saga : null)
             .onItem().ifNull().failWith(() -> new NotFoundException("No hay saga para el comprobante " + comprobanteId))
             .onItem().transformToUni(saga -> sagaStepRepository.findBySagaId(comprobanteId)
                 .map(steps -> toResponse(saga, steps)));
     }
 
     @WithSession
-    public Uni<PagedResponse<SagaResponse>> listPaged(int page, int limit, SagaState state) {
-        return sagaInstanceRepository.findPaged(page, limit, state)
+    public Uni<PagedResponse<SagaResponse>> listPaged(int page, int limit, SagaState state, String empresaRuc) {
+        return sagaInstanceRepository.findPaged(page, limit, state, empresaRuc)
             .map((PageResult<SagaInstance> pageResult) -> {
                 List<SagaResponse> items = pageResult.items().stream()
                     .map(saga -> toResponse(saga, List.of()))
@@ -62,6 +67,7 @@ public class SagaQueryService {
         response.setFailureReason(saga.getFailureReason());
         response.setCreatedAt(saga.getCreatedAt());
         response.setUpdatedAt(saga.getUpdatedAt());
+        response.setReintentos(saga.getReintentos());
         response.setSteps(steps.stream().map(this::toStepResponse).collect(Collectors.toList()));
         return response;
     }

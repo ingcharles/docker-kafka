@@ -12,7 +12,7 @@ import io.quarkus.panache.common.Sort;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.inventario.domain.model.entity.MovimientoKardex;
-import com.facturacion.inventario.domain.model.vo.PageResult;
+import com.facturacion.commons.paging.PageResult;
 import com.facturacion.inventario.domain.repository.MovimientoKardexRepository;
 import com.facturacion.inventario.infrastructure.persistence.entity.MovimientoKardexEntity;
 import com.facturacion.inventario.infrastructure.persistence.mapper.MovimientoKardexMapper;

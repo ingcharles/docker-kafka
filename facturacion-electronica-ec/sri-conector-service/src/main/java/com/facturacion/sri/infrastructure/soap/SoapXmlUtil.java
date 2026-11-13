@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
@@ -29,6 +30,12 @@ final class SoapXmlUtil {
     static Document parsear(String xml) throws Exception {
         var factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(false);
+        // La respuesta viene de un servidor externo (y la URL puede configurarse por empresa): nunca debe poder
+        // declarar un DOCTYPE ni resolver entidades externas (XXE). Una respuesta SOAP legítima no los usa.
+        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        factory.setXIncludeAware(false);
+        factory.setExpandEntityReferences(false);
         var builder = factory.newDocumentBuilder();
         return builder.parse(new InputSource(new StringReader(xml)));
     }

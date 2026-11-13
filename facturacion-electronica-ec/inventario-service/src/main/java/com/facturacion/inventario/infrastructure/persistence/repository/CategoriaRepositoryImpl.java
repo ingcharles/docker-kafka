@@ -11,7 +11,7 @@ import io.quarkus.panache.common.Page;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.inventario.domain.model.entity.Categoria;
-import com.facturacion.inventario.domain.model.vo.PageResult;
+import com.facturacion.commons.paging.PageResult;
 import com.facturacion.inventario.domain.repository.CategoriaRepository;
 import com.facturacion.inventario.infrastructure.persistence.entity.CategoriaEntity;
 import com.facturacion.inventario.infrastructure.persistence.mapper.CategoriaMapper;
@@ -52,8 +52,8 @@ public class CategoriaRepositoryImpl implements CategoriaRepository {
     }
 
     @Override
-    public Uni<PageResult<Categoria>> findPaged(int page, int limit) {
-        var panacheQuery = repository.findAll().page(Page.of(page, limit));
+    public Uni<PageResult<Categoria>> findPaged(int page, int limit, String ruc) {
+        var panacheQuery = repository.find("ruc = ?1 order by nombre", ruc).page(Page.of(page, limit));
         Uni<List<CategoriaEntity>> itemsUni = panacheQuery.list();
         Uni<Long> countUni = panacheQuery.count();
 

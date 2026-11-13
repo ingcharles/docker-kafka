@@ -25,17 +25,23 @@ public class SagaInstance {
     private String failureReason;
     private Instant createdAt;
     private Instant updatedAt;
+    /** Reintentos automáticos del watchdog (ver SagaWatchdog); los manuales por REST no cuentan. */
+    private int reintentos;
+    /** false si el comprobante no tiene correo: tras la autorización la saga termina sin esperar una notificación. */
+    private boolean notificacionEsperada = true;
 
     public SagaInstance() {
     }
 
-    public static SagaInstance start(UUID comprobanteId, String empresaRuc, String claveAcceso, String ambiente) {
+    public static SagaInstance start(UUID comprobanteId, String empresaRuc, String claveAcceso, String ambiente,
+            boolean notificacionEsperada) {
         SagaInstance instance = new SagaInstance();
         instance.id = comprobanteId;
         instance.state = SagaState.CREADO;
         instance.empresaRuc = empresaRuc;
         instance.claveAcceso = claveAcceso;
         instance.ambiente = ambiente;
+        instance.notificacionEsperada = notificacionEsperada;
         Instant now = Instant.now();
         instance.createdAt = now;
         instance.updatedAt = now;
@@ -96,6 +102,22 @@ public class SagaInstance {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public boolean isNotificacionEsperada() {
+        return notificacionEsperada;
+    }
+
+    public void setNotificacionEsperada(boolean notificacionEsperada) {
+        this.notificacionEsperada = notificacionEsperada;
+    }
+
+    public int getReintentos() {
+        return reintentos;
+    }
+
+    public void setReintentos(int reintentos) {
+        this.reintentos = reintentos;
     }
 
     public Instant getUpdatedAt() {

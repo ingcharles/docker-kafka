@@ -9,6 +9,7 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.PATCH;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
@@ -24,6 +25,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.identidad.application.dto.AgregarMiembroRequest;
 import com.facturacion.identidad.application.dto.CambiarRolMiembroRequest;
 import com.facturacion.identidad.application.dto.EmpresaRolResponse;
 import com.facturacion.identidad.application.dto.MiembroEmpresaResponse;
@@ -61,6 +63,22 @@ public class EmpresaMiembroResource {
     public Uni<List<MiembroEmpresaResponse>> listar(
             @Parameter(description = "RUC de la empresa", required = true) @PathParam("ruc") String ruc) {
         return usuarioService.listarMiembros(sesionActual.getUsuarioId(), ruc);
+    }
+
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Dar acceso a un usuario a este ruc",
+        description = "Solo un ADMIN del ruc puede hacerlo. El usuario debe estar ya registrado (se identifica por su correo). "
+            + "Es la forma de sumar gente a una empresa que ya tiene dueño.")
+    @APIResponse(responseCode = "201", description = "Acceso otorgado")
+    @APIResponse(responseCode = "403", description = "El usuario autenticado no es ADMIN de este ruc")
+    @APIResponse(responseCode = "404", description = "No hay ningún usuario registrado con ese correo")
+    @APIResponse(responseCode = "409", description = "Ese usuario ya tiene acceso a este ruc")
+    public Uni<Response> agregar(
+            @Parameter(description = "RUC de la empresa", required = true) @PathParam("ruc") String ruc,
+            @Valid AgregarMiembroRequest request) {
+        return usuarioService.agregarMiembro(sesionActual.getUsuarioId(), ruc, request.getEmail(), request.getRol())
+            .map(asociacion -> Response.status(Response.Status.CREATED).entity(asociacion).build());
     }
 
     @PATCH

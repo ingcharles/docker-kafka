@@ -16,7 +16,7 @@ import io.smallrye.mutiny.Uni;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
-import com.facturacion.comprobantes.domain.model.vo.PageResult;
+import com.facturacion.commons.paging.PageResult;
 import com.facturacion.comprobantes.domain.repository.ComprobanteRepository;
 import com.facturacion.comprobantes.infrastructure.persistence.entity.ComprobanteEntity;
 import com.facturacion.comprobantes.infrastructure.persistence.entity.SecuencialComprobanteEntity;

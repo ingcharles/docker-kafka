@@ -1,9 +1,12 @@
 package com.facturacion.firma.shared.exception;
 
-/** Ya existe una empresa activa registrada con ese RUC. */
-public class RucDuplicadoException extends RuntimeException {
+import com.facturacion.commons.exception.ApiException;
+import com.facturacion.firma.shared.error.FirmaError;
+
+/** Ya existe una empresa activa registrada con ese RUC. 409, {@link FirmaError#RUC_DUPLICADO}. */
+public class RucDuplicadoException extends ApiException {
 
     public RucDuplicadoException(String ruc) {
-        super("Ya existe una empresa registrada con el RUC " + ruc);
+        super(FirmaError.RUC_DUPLICADO, ruc);
     }
 }

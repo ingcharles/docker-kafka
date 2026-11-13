@@ -47,6 +47,9 @@ public class SriRecepcionClient {
     @ConfigProperty(name = "sri.recepcion.url.produccion")
     String urlProduccion;
 
+    @ConfigProperty(name = "sri.url.hosts-permitidos", defaultValue = "*.sri.gob.ec")
+    java.util.List<String> hostsPermitidos;
+
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
 
     /**
@@ -62,8 +65,8 @@ public class SriRecepcionClient {
     }
 
     private RecepcionResultado enviarBloqueante(String xmlFirmado, AmbienteSri ambiente, String urlOverride) {
-        String url = urlOverride != null && !urlOverride.isBlank() ? urlOverride
-            : ambiente == AmbienteSri.PRODUCCION ? urlProduccion : urlPruebas;
+        String url = UrlsSri.elegir(urlOverride, ambiente == AmbienteSri.PRODUCCION ? urlProduccion : urlPruebas,
+            hostsPermitidos);
         String base64Xml = Base64.getEncoder().encodeToString(xmlFirmado.getBytes(StandardCharsets.UTF_8));
         String sobre = "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" "
             + "xmlns:rec=\"http://ec.gob.sri.ws.recepcion\">"
@@ -86,16 +89,23 @@ public class SriRecepcionClient {
         }
     }
 
-    private RecepcionResultado parsear(String cuerpoXml) throws Exception {
+    /** Identificadores de error de Recepción que significan "el SRI ya tiene este comprobante" (ver RecepcionResultado). */
+    private static final java.util.Set<String> IDENTIFICADORES_YA_REGISTRADA = java.util.Set.of("43", "70");
+
+    static RecepcionResultado parsear(String cuerpoXml) throws Exception {
         Document doc = SoapXmlUtil.parsear(cuerpoXml);
         String estado = SoapXmlUtil.textoDe(doc, "estado");
 
         StringBuilder mensajes = new StringBuilder();
+        boolean claveYaRegistrada = false;
         NodeList nodosMensaje = doc.getElementsByTagName("mensaje");
         for (int i = 0; i < nodosMensaje.getLength(); i++) {
             Element mensaje = (Element) nodosMensaje.item(i);
             String texto = SoapXmlUtil.hijoTexto(mensaje, "mensaje");
             String infoAdicional = SoapXmlUtil.hijoTexto(mensaje, "informacionAdicional");
+            String identificador = SoapXmlUtil.hijoTexto(mensaje, "identificador");
+            // Set.of(...).contains(null) lanza NullPointerException: un mensaje sin identificador es válido.
+            claveYaRegistrada |= identificador != null && IDENTIFICADORES_YA_REGISTRADA.contains(identificador);
             if (texto != null) {
                 if (mensajes.length() > 0) {
                     mensajes.append(" | ");
@@ -106,6 +116,7 @@ public class SriRecepcionClient {
                 }
             }
         }
-        return new RecepcionResultado(estado, mensajes.length() == 0 ? null : mensajes.toString());
+        return new RecepcionResultado(estado, mensajes.length() == 0 ? null : mensajes.toString(),
+            "DEVUELTA".equalsIgnoreCase(estado) && claveYaRegistrada);
     }
 }

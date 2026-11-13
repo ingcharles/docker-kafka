@@ -21,7 +21,6 @@ public class ItemResponse {
     private boolean activo;
     private String codigoImpuesto;
     private String codigoPorcentaje;
-    private BigDecimal tarifaIva;
     private boolean tieneIce;
     private String codigoPorcentajeIce;
     private BigDecimal tarifaIce;
@@ -146,14 +145,6 @@ public class ItemResponse {
 
     public void setCodigoPorcentaje(String codigoPorcentaje) {
         this.codigoPorcentaje = codigoPorcentaje;
-    }
-
-    public BigDecimal getTarifaIva() {
-        return tarifaIva;
-    }
-
-    public void setTarifaIva(BigDecimal tarifaIva) {
-        this.tarifaIva = tarifaIva;
     }
 
     public boolean isTieneIce() {

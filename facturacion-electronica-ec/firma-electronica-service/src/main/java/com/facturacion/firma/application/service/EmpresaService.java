@@ -25,7 +25,6 @@ import com.facturacion.firma.domain.model.entity.Empresa;
 import com.facturacion.firma.domain.model.entity.Establecimiento;
 import com.facturacion.firma.domain.model.entity.PuntoEmision;
 import com.facturacion.firma.domain.model.enums.AmbienteSri;
-import com.facturacion.firma.domain.model.vo.PageResult;
 import com.facturacion.firma.domain.repository.EmpresaRepository;
 import com.facturacion.firma.domain.repository.EstablecimientoRepository;
 import com.facturacion.firma.domain.repository.PuntoEmisionRepository;
@@ -33,9 +32,9 @@ import com.facturacion.firma.infrastructure.outbox.OutboxEventEntity;
 import com.facturacion.firma.infrastructure.outbox.OutboxEventRepository;
 import com.facturacion.firma.infrastructure.persistence.mapper.EmpresaMapper;
 import com.facturacion.firma.shared.constant.MessagingConstants;
-import com.facturacion.firma.shared.exception.NotFoundException;
+import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.firma.shared.exception.RucDuplicadoException;
-import com.facturacion.firma.shared.responses.PagedResponse;
+import com.facturacion.commons.paging.PagedResponse;
 
 @ApplicationScoped
 public class EmpresaService {
@@ -197,14 +196,17 @@ public class EmpresaService {
             .map(mapper::toResponse);
     }
 
+    /**
+     * Las empresas visibles para una api-key: solo la suya (una api-key es de un RUC). Antes devolvía todas las
+     * empresas registradas, de cualquier cliente.
+     */
     @WithSession
-    public Uni<PagedResponse<EmpresaResponse>> listarPaginado(int page, int limit) {
-        return repository.findPaged(page, limit)
-            .map((PageResult<Empresa> pageResult) -> {
-                List<EmpresaResponse> items = pageResult.items().stream()
-                    .map(mapper::toResponse)
-                    .collect(Collectors.toList());
-                return PagedResponse.of(items, page, limit, pageResult.total());
+    public Uni<PagedResponse<EmpresaResponse>> listarDeLaEmpresa(String ruc, int page, int limit) {
+        return repository.findByRuc(ruc)
+            .map(empresa -> {
+                List<EmpresaResponse> items = empresa == null || page > 0
+                    ? List.<EmpresaResponse>of() : List.of(mapper.toResponse(empresa));
+                return PagedResponse.of(items, page, limit, empresa == null ? 0 : 1);
             });
     }
 

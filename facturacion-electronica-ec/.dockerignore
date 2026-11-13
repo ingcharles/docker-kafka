@@ -1,0 +1,10 @@
+# El contexto de build de cada servicio es esta carpeta (necesita facturacion-commons); se excluye todo lo que no
+# hace falta para compilar, para que el contexto sea pequeño y las capas se cacheen.
+**/target
+**/.git
+**/.idea
+**/*.iml
+**/.env
+**/*.log
+documentacion
+ARQUITECTURA.md

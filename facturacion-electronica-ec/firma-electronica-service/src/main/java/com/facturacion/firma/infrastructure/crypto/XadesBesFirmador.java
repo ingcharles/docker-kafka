@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import javax.xml.XMLConstants;
 import javax.xml.crypto.dsig.CanonicalizationMethod;
 import javax.xml.crypto.dsig.DigestMethod;
 import javax.xml.crypto.dsig.Reference;
@@ -233,6 +234,12 @@ public final class XadesBesFirmador {
     private static Document parsear(byte[] xml) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(true);
+        // El XML llega por Kafka: aunque hoy lo genere comprobantes-service, un mensaje manipulado no debe poder
+        // declarar un DOCTYPE ni resolver entidades externas (XXE) con el material de firma en memoria.
+        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        factory.setXIncludeAware(false);
+        factory.setExpandEntityReferences(false);
         DocumentBuilder builder = factory.newDocumentBuilder();
         return builder.parse(new ByteArrayInputStream(xml));
     }

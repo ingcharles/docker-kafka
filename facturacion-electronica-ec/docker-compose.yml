@@ -1,44 +1,11 @@
-# Stack de facturación electrónica SRI Ecuador: un Postgres compartido (un
-# esquema por servicio), los microservicios Quarkus, y un job de bootstrap
-# de tópicos. Reutiliza el broker de Kafka que ya está corriendo en
-# ../kafka (red externa `kafka_net`, nombre fijo) — levanta ese stack
-# primero. Se construye de forma incremental (mismo orden que ecommerce/):
-# por ahora solo están cableados facturacion-db, facturacion-topic-init y
-# firma-electronica-service; los demás servicios se agregan aquí a medida
+# Stack de facturación electrónica SRI Ecuador: los microservicios Quarkus y un
+# job de bootstrap de tópicos. Necesita dos stacks externos ya levantados:
+#   - Postgres: D:/inf_sri/CONTENEDORES/postgres (red `facturacion_net`, host
+#     `facturacion-db`, un esquema por servicio).
+#   - Kafka: el broker en ../kafka (red `kafka_net`).
+# Se construye de forma incremental: los servicios se agregan aquí a medida
 # que se van construyendo.
 services:
-  facturacion-db:
-    build:
-      context: ./db
-    restart: unless-stopped
-    # Mismo ajuste que ecommerce-db: varios servicios con pool reactivo de
-    # hasta 20 conexiones cada uno en modo prod pueden superar el
-    # max_connections=100 por defecto de Postgres.
-    command: postgres -c max_connections=200
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      POSTGRES_DB: ${POSTGRES_DB:-facturacion}
-      INVENTARIO_DB_PASSWORD: ${INVENTARIO_DB_PASSWORD:?INVENTARIO_DB_PASSWORD is required}
-      FIRMA_DB_PASSWORD: ${FIRMA_DB_PASSWORD:?FIRMA_DB_PASSWORD is required}
-      COMPROBANTES_DB_PASSWORD: ${COMPROBANTES_DB_PASSWORD:?COMPROBANTES_DB_PASSWORD is required}
-      SRI_DB_PASSWORD: ${SRI_DB_PASSWORD:?SRI_DB_PASSWORD is required}
-      NOTIFICACION_DB_PASSWORD: ${NOTIFICACION_DB_PASSWORD:?NOTIFICACION_DB_PASSWORD is required}
-      ORQUESTACION_DB_PASSWORD: ${ORQUESTACION_DB_PASSWORD:?ORQUESTACION_DB_PASSWORD is required}
-      IDENTIDAD_DB_PASSWORD: ${IDENTIDAD_DB_PASSWORD:?IDENTIDAD_DB_PASSWORD is required}
-    volumes:
-      - facturacion_pg_data:/var/lib/postgresql/data
-    ports:
-      - "${POSTGRES_PORT:-5434}:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - facturacion_net
-
   facturacion-topic-init:
     build:
       context: ../kafka/topic-init
@@ -80,11 +47,10 @@ services:
 
   firma-electronica-service:
     build:
-      context: ./firma-electronica-service
+      context: .
+      dockerfile: firma-electronica-service/Dockerfile
     restart: unless-stopped
     depends_on:
-      facturacion-db:
-        condition: service_healthy
       facturacion-topic-init:
         condition: service_completed_successfully
     environment:
@@ -102,11 +68,10 @@ services:
 
   inventario-service:
     build:
-      context: ./inventario-service
+      context: .
+      dockerfile: inventario-service/Dockerfile
     restart: unless-stopped
     depends_on:
-      facturacion-db:
-        condition: service_healthy
       facturacion-topic-init:
         condition: service_completed_successfully
     environment:
@@ -123,17 +88,18 @@ services:
 
   comprobantes-service:
     build:
-      context: ./comprobantes-service
+      context: .
+      dockerfile: comprobantes-service/Dockerfile
     restart: unless-stopped
     depends_on:
-      facturacion-db:
-        condition: service_healthy
       facturacion-topic-init:
         condition: service_completed_successfully
     environment:
       COMPROBANTES_DB_PASSWORD: ${COMPROBANTES_DB_PASSWORD:?COMPROBANTES_DB_PASSWORD is required}
       COMPROBANTES_DB_REACTIVE_URL: postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
       COMPROBANTES_DB_JDBC_URL: jdbc:postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      # Token para MODIFICAR los catálogos del SRI por PUT /catalogos (son globales, no por empresa). Vacío = escritura deshabilitada.
+      CATALOGOS_ADMIN_TOKEN: ${CATALOGOS_ADMIN_TOKEN:-}
       KAFKA_BOOTSTRAP_SERVERS: broker:9092
       IDENTIDAD_JWT_SECRET: ${IDENTIDAD_JWT_SECRET:?IDENTIDAD_JWT_SECRET is required}
     ports:
@@ -144,11 +110,10 @@ services:
 
   sri-conector-service:
     build:
-      context: ./sri-conector-service
+      context: .
+      dockerfile: sri-conector-service/Dockerfile
     restart: unless-stopped
     depends_on:
-      facturacion-db:
-        condition: service_healthy
       facturacion-topic-init:
         condition: service_completed_successfully
     environment:
@@ -165,11 +130,10 @@ services:
 
   notificacion-service:
     build:
-      context: ./notificacion-service
+      context: .
+      dockerfile: notificacion-service/Dockerfile
     restart: unless-stopped
     depends_on:
-      facturacion-db:
-        condition: service_healthy
       facturacion-topic-init:
         condition: service_completed_successfully
     environment:
@@ -191,11 +155,10 @@ services:
 
   facturacion-orchestrator-service:
     build:
-      context: ./facturacion-orchestrator-service
+      context: .
+      dockerfile: facturacion-orchestrator-service/Dockerfile
     restart: unless-stopped
     depends_on:
-      facturacion-db:
-        condition: service_healthy
       facturacion-topic-init:
         condition: service_completed_successfully
     environment:
@@ -212,11 +175,10 @@ services:
 
   identidad-service:
     build:
-      context: ./identidad-service
+      context: .
+      dockerfile: identidad-service/Dockerfile
     restart: unless-stopped
     depends_on:
-      facturacion-db:
-        condition: service_healthy
       facturacion-topic-init:
         condition: service_completed_successfully
     environment:
@@ -233,10 +195,8 @@ services:
 
 networks:
   facturacion_net:
-    driver: bridge
+    external: true
+    name: facturacion_net
   kafka_net_ext:
     external: true
     name: kafka_net
-
-volumes:
-  facturacion_pg_data:

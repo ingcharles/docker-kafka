@@ -96,7 +96,7 @@ graph TB
 1. `inventario-service` e `firma-electronica-service` no participan en la saga de comandos — son **fuentes de datos de referencia**. `inventario-service` publica `ItemCreado`/`ItemActualizado`, que `comprobantes-service` consume y mantiene como copia de solo lectura (`item_local`, usada para auto-derivar impuestos por `itemId`) — vista materializada vía evento. `firma-electronica-service` publica `EmpresaRegistrada`/`EmpresaActualizada` (sin datos del certificado); hoy el único consumidor es `identidad-service` (`empresa_local`, ver sección 8) — `comprobantes-service` **ya no** mantiene una réplica de Empresa: desde que el modelo pasó a ser scoped por `ruc` en vez de por `empresaId`, cada request de creación de comprobante trae los datos de la empresa inline (ver `V6__ecosistema_separado.sql`), así que no necesita consultar nada localmente.
 2. `notificacion-service` no es comandado por el orquestador — consume directamente `ComprobanteAutorizado` desde `facturacion.comprobante.eventos.v1` (publicado por `comprobantes-service`, no por el orquestador) porque no hay ninguna decisión de negocio que tomar antes de notificar: si un comprobante quedó `AUTORIZADO` y tiene un correo, se notifica, punto. El orquestador igual observa `NotificacionExitosa`/`NotificacionFallida` para completar su propia máquina de estados, pero no es quien dispara el envío.
 
-**Independencia real, no solo de código:** los 6 proyectos Maven no comparten ni una sola librería propia — cada servicio define sus propios records de mensaje Kafka en su paquete `application/event`, aunque el *shape* del JSON coincida con el que espera el consumidor. Mismo trade-off que en `ecommerce/`: pequeña duplicación de definiciones a cambio de poder redesplegar cada servicio de forma independiente.
+**Independencia real, no solo de código:** los servicios solo comparten `facturacion-commons` (ver sección 12): errores/excepciones con su mapper, verificación del JWT, paginación — **infraestructura transversal sin lógica de negocio ni contratos de mensajes**. Los records de mensaje Kafka NO se comparten: cada servicio define los suyos en su paquete `application/event`, aunque el *shape* del JSON coincida con el que espera el consumidor. Mismo trade-off que en `ecommerce/`: pequeña duplicación de definiciones a cambio de poder redesplegar cada servicio de forma independiente.
 
 ## 3. Flujo completo de emisión de un comprobante (camino feliz)
 
@@ -188,12 +188,45 @@ stateDiagram-v2
     FIRMADO --> RECHAZADO_RECEPCION: SriRechazadoRecepcion
     FIRMADO --> NO_AUTORIZADO: SriNoAutorizado
 
+    AUTORIZADO --> AUTORIZADO_SIN_NOTIFICACION: SriAutorizado, comprobante sin correo
+    AUTORIZADO_SIN_NOTIFICACION --> [*]
     NOTIFICADO --> [*]
     NOTIFICACION_FALLIDA --> [*]
     FIRMA_FALLIDA --> [*]
     RECHAZADO_RECEPCION --> [*]
     NO_AUTORIZADO --> [*]
+
+    CREADO --> EXPIRADA: sin respuesta tras N reintentos (watchdog)
+    FIRMADO --> EXPIRADA: sin respuesta tras N reintentos (watchdog)
+    EXPIRADA --> FIRMADO: respuesta tardía de firma
+    EXPIRADA --> FIRMA_FALLIDA: respuesta tardía de firma (fallo)
+    EXPIRADA --> AUTORIZADO: respuesta tardía del SRI
+    EXPIRADA --> NO_AUTORIZADO: respuesta tardía del SRI
+    EXPIRADA --> RECHAZADO_RECEPCION: respuesta tardía del SRI
 ```
+
+### 4.1 Watchdog: sagas que esperan una respuesta que no llega
+
+La saga es asíncrona por Kafka, así que "no pasó nada" es indistinguible de "todavía no contestan". Antes la única recuperación era manual (`POST /sagas/{id}/retry`): si `firma-electronica-service` o el SRI nunca respondían, la saga quedaba en `CREADO`/`FIRMADO` para siempre sin que nadie lo notara. `SagaWatchdog` (en `facturacion-orchestrator-service`) revisa cada 30 s las sagas en estados *reintentables* y aplica `PoliticaReintentoSaga` (lógica pura, probada sin base de datos):
+
+| Estado | Espera a | Plazo (configurable) | Al vencer el plazo |
+|---|---|---|---|
+| `CREADO` | firma-electronica-service | `saga.watchdog.plazo-firma` = 2 min | reintenta `FirmarComprobante` |
+| `FIRMADO` | el SRI | `saga.watchdog.plazo-sri` = 15 min (el SRI puede tardar más) | reintenta `EnviarComprobante` |
+| cualquiera de los dos, con `reintentos >= saga.watchdog.max-reintentos` (3) | — | un plazo más tras el último reintento | pasa a **`EXPIRADA`** (el watchdog ya no la toca; `failure_reason` explica por qué; ver respuestas tardías abajo) |
+
+El reintento vuelve a publicar el **payload exacto** del último comando (mismo `eventId`), así que la idempotencia del servicio destino (inbox) decide si era un reintento genuino o si ya lo había procesado. El contador `reintentos` se incrementa con compare-and-set por estado, y cada acción deja una fila `NOTA` en `saga_step`. Las sagas `EXPIRADA` se listan con `GET /sagas?state=EXPIRADA`; `saga.watchdog.habilitado=false` lo apaga.
+
+**`EXPIRADA` acepta respuestas tardías.** Expirar no significa que el servicio destino no vaya a contestar nunca: puede volver horas después (firma o SRI caídos y recuperados) y su respuesta llega a una saga ya `EXPIRADA`. Antes esa respuesta se ignoraba —las transiciones solo aceptaban `CREADO → FIRMADO → AUTORIZADO`— y la saga quedaba `EXPIRADA` aunque el comprobante sí se hubiera firmado o autorizado (defecto que se encontró probando el flujo completo: firma se levantó, firmó, y la saga seguía `EXPIRADA`). Ahora `ComprobanteFirmado`, `FirmaFallida`, `SriAutorizado`, `SriNoAutorizado` y `SriRechazadoRecepcion` también se aceptan desde `EXPIRADA` y la saga sigue su camino normal. `failure_reason` conserva el motivo de la expiración como historial; manda el estado. `POST /sagas/{id}/retry` no cambia el estado: solo vuelve a publicar el último comando, y si el destino ya lo había procesado lo descarta (inbox), así que sobre una saga expirada sirve cuando el comando nunca llegó a procesarse.
+
+**Estados que el watchdog no toca:** los terminales, y `AUTORIZADO` (espera la notificación pero su último comando ya se cumplió).
+
+**Otros puntos de la revisión de la saga**
+- **Sagas sin correo (corregido):** `comprobantes-service` solo publica `ComprobanteAutorizado` si hay `compradorCorreo`, así que antes esas sagas se quedaban en `AUTORIZADO` para siempre. Ahora `ComprobanteCreado` lleva `notificacionEsperada` (un `Boolean`; `null` en eventos anteriores = `true`, el comportamiento previo) y, si es `false`, la saga pasa de `AUTORIZADO` a **`AUTORIZADO_SIN_NOTIFICACION`** (terminal) en cuanto el SRI autoriza.
+- **Una saga que falla ya no frena a las demás (corregido):** cada saga se procesa en su propia transacción (`idsParaRecuperar` lee; `recuperarSaga` actúa sobre una). Si un reintento falla, se registra una nota `ORQ-003` en otra transacción y **se cuenta como intento**, así una saga con un dato corrupto termina en `EXPIRADA` en vez de fallar eternamente.
+- **Relay del outbox con `FOR UPDATE SKIP LOCKED` (corregido, en los 6 servicios con outbox):** con 2 o más instancias de un servicio, cada una toma lotes distintos en vez de publicar los mismos eventos. Los consumidores siguen siendo idempotentes por inbox: el bloqueo evita tráfico duplicado, no es lo que garantiza la corrección.
+- **DLQ sin consumidor ni alerta (no corregido; ver el procedimiento en 6.5):** un mensaje que falla se aparta pero nadie recibe aviso. Falta una alerta sobre el tamaño de los `.dlq` y una herramienta de reproceso.
+- **La saga no reintenta el envío de notificación** (`NOTIFICACION_FALLIDA` es terminal): decisión documentada en 5, pero hoy no hay herramienta para reenviar el correo.
 
 `SriRecibido` queda registrado en la bitácora de pasos (`saga_step`) pero **no** cambia `SagaInstance.state` — es un checkpoint informativo entre Recepción y Autorización, no un estado de negocio nuevo (misma idea que `StockReleased`/`PaymentRefunded` en `ecommerce/`). La validación de transición se aplica igual que en `ecommerce/`: `UPDATE saga_instance SET state = ? WHERE id = ? AND state IN (...)` atómico — una redelivery duplicada de Kafka simplemente no afecta ninguna fila.
 
@@ -248,6 +281,15 @@ Idénticos en mecánica a `ecommerce/` (ver `../ecommerce/ARQUITECTURA.md` secci
 
 Cada tópico con consumidor real tiene `failure-strategy=dead-letter-queue`: un mensaje que falla su procesamiento de forma repetida se mueve a `<tópico>.dlq` en vez de bloquear la partición — mismo mecanismo de contención que `ecommerce/`.
 
+**Procedimiento para revisar y reprocesar un DLQ** (hoy es manual; no hay alerta automática):
+```sh
+# ¿cuántos mensajes tiene cada DLQ? (offset final = total acumulado)
+docker exec kafka-broker-1 /opt/kafka/bin/kafka-get-offsets.sh --bootstrap-server localhost:9092 --topic <topico>.dlq
+# leer los mensajes (el motivo del fallo viaja en los headers dead-letter-reason / dead-letter-cause)
+docker exec kafka-broker-1 /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 \n  --topic <topico>.dlq --from-beginning --property print.headers=true --timeout-ms 5000
+```
+Para reprocesar: corregir la causa (un consumidor roto, una migración pendiente, un catálogo sin cargar) y volver a publicar el mensaje en el tópico original (`kafka-console-producer.sh --topic <topico> --property parse.key=true`). Los consumidores son idempotentes por inbox, así que reenviar un mensaje que sí se había procesado es inocuo.
+
 ### 6.6 Configuración de confiabilidad (resumen)
 
 | Lado | Configuración | Por qué |
@@ -260,19 +302,19 @@ Cada tópico con consumidor real tiene `failure-strategy=dead-letter-queue`: un 
 
 ## 7. Base de datos
 
-Un solo contenedor Postgres (`facturacion-electronica-ec/db`), con **una sola base de datos** (`facturacion`) y **un esquema por servicio**:
+Un solo contenedor Postgres (`facturacion-db`), con **una sola base de datos** (`facturacion`) y **un esquema por servicio**. El contenedor ya no vive en este proyecto: se movió a `D:\inf_sri\CONTENEDORES\postgres` (su propio `docker-compose.yml`, red externa `facturacion_net`, ver su README) y este `docker-compose.yml` se conecta a él — hay que levantarlo antes que los microservicios. Ese stack crea los esquemas y roles; las tablas las crean las migraciones Flyway de cada servicio (o se pueden crear sin levantar los servicios con `docker compose --profile migrar run --rm migraciones`, desde ese mismo directorio):
 
 ```mermaid
 graph TB
     subgraph PG["Postgres — base de datos 'facturacion'"]
-        subgraph S1["esquema firma"]
+        subgraph S1["esquema firma_electronica"]
             T1["empresa<br/>establecimiento<br/>punto_emision<br/>certificado_digital<br/>configuracion_empresa<br/>outbox_event<br/>processed_message"]
         end
         subgraph S2["esquema inventario"]
             T2["item<br/>categoria<br/>imagen_item<br/>movimiento_kardex<br/>reserva_stock<br/>outbox_event<br/>processed_message"]
         end
         subgraph S3["esquema comprobantes"]
-            T3["comprobante<br/>detalle_comprobante<br/>destinatario_guia_remision<br/>item_local<br/>establecimiento_local<br/>punto_emision_local<br/>configuracion_empresa_local<br/>secuencial_comprobante<br/>outbox_event<br/>processed_message"]
+            T3["comprobante<br/>comprobante_pago<br/>forma_pago<br/>impuesto<br/>tarifa_impuesto<br/>tipo_identificacion<br/>impuesto_retencion<br/>retencion<br/>sustento_tributario<br/>detalle_comprobante<br/>detalle_impuesto<br/>destinatario_guia_remision<br/>item_local<br/>establecimiento_local<br/>punto_emision_local<br/>configuracion_empresa_local<br/>secuencial_comprobante<br/>outbox_event<br/>processed_message"]
         end
         subgraph S4["esquema sri"]
             T4["envio_sri<br/>configuracion_empresa_local<br/>outbox_event<br/>processed_message"]
@@ -312,7 +354,7 @@ graph TB
 
 La tabla `configuracion_empresa` (clave/valor genérico, sección 7) existía desde antes con CRUD completo pero **sin ningún consumidor real** — nada leía sus valores para cambiar comportamiento. `ConfiguracionEmpresaService.crear`/`actualizar`/`eliminar` ahora publican un evento en el outbox (tópico de la tabla de 6.1: genérico, cualquier `clave`/`valor`, un `valor` en `null` en el evento de eliminación revierte al comportamiento por defecto). `crear` (`POST /{id}/configuracion/{clave}`) y `actualizar` (`PATCH /{id}/configuracion/{clave}`) están separados a propósito — antes era un único `establecer` que hacía upsert, pero eso rompía el contrato REST del resto de la API (todo lo demás usa `POST` para "esto no debe existir todavía" y `PUT`/`PATCH` para "esto ya existe"): `crear` responde `409` si la clave ya existe (usa `CodigoDuplicadoException`, la misma que ya usaban `Establecimiento`/`PuntoEmision` para su propio código duplicado), `actualizar` responde `404` si todavía no existe. Ambos comparten el mismo `upsert` de bajo nivel del repositorio tras la validación. Tres servicios mantienen su propia réplica `configuracion_empresa_local` (mismo principio "Empresa sin ID", indexada por `(ruc, clave)`), cada uno con sus propias claves reales:
 
-- **`comprobantes-service`** — `ride.color` (hex RGB, ej. `#1A73E8`): `ComprobanteService.aplicarComando` la consulta justo antes de generar el RIDE en `MARCAR_AUTORIZADO` y `RideGenerador` la dibuja como una barra de acento bajo el encabezado si es un hex válido; si no está configurada (o es inválida), el RIDE se ve exactamente igual que antes.
+- **`comprobantes-service`** — `ride.color` (hex RGB, ej. `#1A73E8`): `ActualizacionComprobanteService.aplicarComando` la consulta justo antes de generar el RIDE en `MARCAR_AUTORIZADO` y `RideGenerador` la dibuja como una barra de acento bajo el encabezado si es un hex válido; si no está configurada (o es inválida), el RIDE se ve exactamente igual que antes.
 - **`notificacion-service`** — `notificacion.asunto` (asunto del correo) y `notificacion.remitente_nombre` (nombre visible del remitente, ej. "Facturación Acme" — nunca cambia la dirección real autenticada ante el SMTP, `quarkus.mailer.from`): `NotificacionService.procesarComprobanteAutorizado` las consulta antes de llamar a `CorreoService.enviarComprobante`.
 - **`sri-conector-service`** — `sri.recepcion.url`, `sri.autorizacion.url` (sobreescriben la URL fija por ambiente) y `sri.autorizacion.poll.max-intentos` (sobreescribe el default global de `application.properties`): `SriConectorService` las consulta en `procesarComando`/`consultarAutorizacion`. Esto necesitó agregar `empresaRuc` a `EnviarComprobanteCommand` (facturacion-orchestrator-service) y a `EnvioSri` (columna nueva, nullable — los envíos de prueba anteriores a este cambio quedan sin ella, sin overrides aplicables, sin afectar su comportamiento ya fijado). El poller (`AutorizacionPoller`) dejó de filtrar por intentos a nivel de consulta SQL (ese máximo ahora varía por empresa) — la decisión de cuándo pasar a `ERROR_CONSULTA` se toma fila por fila en `SriConectorService.aplicarResultadoAutorizacion`, y una vez que una fila se agota deja de calificar por su propio cambio de `estado`, así que el filtro SQL nunca hizo falta como mecanismo de corte real.
 - **`comprobantes-service`** — `sri.proveedor.ruc`: RUC del proveedor de sistemas informáticos o servicios de facturación electrónica, requisito del **Anexo 26** de la Ficha Técnica de Comprobantes Electrónicos v2.34 (Resolución SRI No. NAC-DGERCGC26-00000027, 27/07/2026 — plazo de 60 días calendario desde su publicación en Registro Oficial). Deliberadamente white-label: cada empresa (o cada cliente de un revendedor del propio sistema) configura su propio RUC de proveedor, no un valor único fijo de la plataforma. `ComprobanteService.emitir` la consulta junto con la construcción del comprobante (antes de generar el XML, no en el momento del RIDE como `ride.color` — este dato sí tiene que ir en el XML firmado y autorizado ante el SRI) y la guarda inline en `Comprobante.proveedorRuc` (columna `empresa_proveedor_ruc`, mismo criterio "Empresa sin ID" que el resto de datos de empresa en esta tabla). `XmlComprobanteUtil.construirInfoAdicional` la auto-inyecta como `<campoAdicional nombre="RUC Proveedor">...</campoAdicional>` en los 6 tipos de comprobante (mismo mecanismo que ya usaba `granContribuyente`, Anexo 24); `RideGenerador` también imprime la línea "RUC Proveedor" en el RIDE si está configurada. Si la empresa no la configuró, `proveedorRuc` queda `null` y no se agrega nada — retrocompatible.
@@ -341,13 +383,186 @@ Los 6 XSD de referencia (copiados de `documentacion/XML y XSD */` del repo, que 
 
 Detalle de implementación: los `Schema` se compilan una sola vez por tipo al construir el bean `@ApplicationScoped` (compilar un XSD no es gratis); `Validator` no es thread-safe, así que se crea uno nuevo por llamada. `ComprobanteService.emitir` corre `xsdValidador.validar(...)` en el worker pool de Mutiny (`Infrastructure.getDefaultWorkerPool()`, mismo patrón que `CertificadoService.validarYExtraerMetadata`) y vuelve al contexto de Vert.x capturado al inicio del método antes de tocar Hibernate Reactive de nuevo — necesario porque el parsing/validación DOM es trabajo bloqueante. Un XML que no cumpla el XSD de su tipo responde 400 con el motivo SAX exacto (línea/columna), antes de persistir el comprobante — aunque el secuencial ya fue reservado en ese punto de la cadena (`ComprobanteService.emitir`), como con cualquier otro fallo de este método.
 
+### 7.4 Formas de pago (Tabla 24) y reglas de `<pagos>`
+
+**Qué dice el SRI.** Las formas de pago son la **Tabla 24** de la Ficha Técnica (catálogo del Anexo Transaccional Simplificado). Está idéntica en todas las versiones de la ficha que trae `documentacion/` (2.26 `.txt`, 2.33 `.txt` y 2.34 PDF — la 2.27 a la 2.34 no cambiaron formas de pago):
+
+| Código | Descripción | Vigente desde |
+|---|---|---|
+| `01` | SIN UTILIZACION DEL SISTEMA FINANCIERO | 01/01/2013 |
+| `15` | COMPENSACION DE DEUDAS | 01/01/2013 |
+| `16` | TARJETA DE DEBITO | 01/06/2016 |
+| `17` | DINERO ELECTRONICO | 01/06/2016 |
+| `18` | TARJETA PREPAGO | 01/06/2016 |
+| `19` | TARJETA DE CREDITO | 01/06/2016 |
+| `20` | OTROS CON UTILIZACION DEL SISTEMA FINANCIERO | 01/06/2016 |
+| `21` | ENDOSO DE TITULOS | 01/06/2016 |
+
+**Qué comprobantes llevan `<pagos>`.** Factura, Nota de Débito y Liquidación de Compra (a nivel de `infoXxx`), y Comprobante de Retención v2.0.0 (dentro de cada `docSustento`). Nota de Crédito y Guía de Remisión no. Cada `<pago>` es `formaPago` + `total` + `plazo`/`unidadTiempo` opcionales — salvo en Retención v2.0.0, cuyo XSD define `pago` solo con `formaPago` y `total`.
+
+**Por qué no basta el XSD.** El patrón de `formaPago` en los XSD de los 4 tipos que llevan `<pagos>` acepta cualquier código de `01` a `21`, que es más amplio que la Tabla 24 (los `02`–`14` no existen). Además el XSD no relaciona los pagos con el `importeTotal`, ni obliga a mandar `plazo` y `unidadTiempo` juntos. Esas reglas las aplica este servicio, antes de generar el XML, y devuelven **400** con el motivo (`PagoRequest` valida el formato; `PagosValidador` las reglas de negocio):
+
+| Regla | Fuente |
+|---|---|
+| `formaPago` debe existir y estar vigente a la fecha de emisión en el catálogo de formas de pago (Tabla 24, tabla `forma_pago`, ver 7.6) | Ficha técnica, Tabla 24 |
+| `plazo` y `unidadTiempo` van juntos o ninguno; `plazo` numérico `>= 0`, hasta 2 decimales; `unidadTiempo` de 1 a 10 caracteres | Ficha técnica ("obligatorio cuando corresponda") + XSD (`plazo` decimal 14,2) |
+| La suma de los `total` (cada uno a 2 decimales, como sale en el XML) debe ser igual al `importeTotal` impreso | **Regla de este sistema** — la ficha no la dice expresamente |
+| Retención v2.0.0: el pago **no admite** `plazo`/`unidadTiempo` | XSD `ComprobanteRetencion_V2.0.0` (antes llegaba al XSD y fallaba con un error SAX poco claro) |
+| Factura con forma de pago `21` (endoso de títulos): exige `plazo`, `unidadTiempo` y `compradorDireccion` | Anexo 11 (factura comercial negociable) |
+
+El vocabulario de `unidadTiempo` no está definido por la ficha (todos sus ejemplos usan `dias`), por eso solo se valida longitud y que vaya acompañado de `plazo`. Si el llamador no manda `pagos`, se asume un único pago `01` por el importe total.
+
+El Anexo 11 también menciona `<tipoNegociable><correo>` para la notificación masiva de facturas negociables; eso **no** está implementado (aplica solo a quien notifica masivamente por el portal del SRI).
+
+### 7.5 `comprobante_pago` y `detalle_impuesto`: de JSON a tablas
+
+Antes, los pagos de un comprobante vivían en `comprobante.pagos_json` y los impuestos de cada línea en `detalle_comprobante.impuestos_json` (texto con un arreglo JSON). Eso impedía consultar, sumar o proteger esos datos con constraints. La migración `V11__pagos_e_impuestos_formalizados.sql` los pasó a tablas con columnas tipadas, **migró los datos existentes** desde el JSON y eliminó las dos columnas:
+
+```
+forma_pago (codigo PK, descripcion, vigente_desde, vigente_hasta)        ← catálogo, Tabla 24
+   ▲ FK
+comprobante_pago (id, comprobante_id FK→comprobante, orden, forma_pago,
+                  total numeric(14,2) >= 0, plazo numeric(14,2) >= 0, unidad_tiempo varchar(10))
+
+detalle_impuesto (id, detalle_id FK→detalle_comprobante, orden, codigo, codigo_porcentaje,
+                  tarifa numeric(7,2), base_imponible numeric(22,8), valor numeric(14,2),
+                  codigo_retencion, doc_sustento_codigo, doc_sustento_numero, doc_sustento_fecha date)
+```
+
+Decisiones:
+- **`orden`** preserva la posición dentro del comprobante/línea, porque el orden de `<pago>` e `<impuesto>` en el XML sale de ahí. Su `unique (padre_id, orden)` también sirve de índice por padre.
+- **`base_imponible` es `numeric(22,8)`, no `(14,2)`**, a propósito: es `cantidad × precioUnitario − descuento` (hasta 8 decimales) y los totales de encabezado se suman sobre ese valor sin redondear antes de formatear, igual que cuando estaba en JSON. Redondearlo al guardar habría cambiado totales al recargar un comprobante.
+- **Constraints `NOT VALID`** (`fk_comprobante_pago_forma_pago`, `chk_comprobante_pago_plazo_unidad`): se exigen a toda fila nueva o modificada, pero no a las históricas — el XSD sí dejaba pasar códigos `02`–`14` y `plazo` sin `unidadTiempo`, y esas filas no deben impedir que la migración corra. Cuando se depuren: `ALTER TABLE comprobantes.comprobante_pago VALIDATE CONSTRAINT <nombre>`.
+- **En Retención**, cada línea de retención sigue siendo una fila de `detalle_comprobante` con su `detalle_impuesto`: `codigo_porcentaje` queda en `null` y se llenan `codigo_retencion` y los `doc_sustento_*` (`doc_sustento_fecha` es `date` en la base; el dominio y el XML siguen usando `dd/MM/aaaa`). Los `pagos` por documento sustento siguen siendo transitorios (solo viven en `xml_generado`, ver 7.3) — `comprobante_pago` solo guarda los de Factura/Nota de Débito/Liquidación de Compra.
+- `campos_adicionales_json` **sigue siendo JSON**: es información libre (`nombre`/`valor`) sin esquema fijo ni consultas previstas.
+
+Ahora sí se puede, por ejemplo, el total vendido por forma de pago:
+
+```sql
+select fp.codigo, fp.descripcion, count(*) as pagos, sum(p.total) as total
+from comprobantes.comprobante_pago p
+join comprobantes.forma_pago fp on fp.codigo = p.forma_pago
+group by fp.codigo, fp.descripcion order by total desc;
+```
+
+### 7.6 Catálogos del SRI: un módulo de `comprobantes-service`
+
+Los catálogos de la ficha técnica (formas de pago, impuestos y tarifas de IVA, tipos de identificación, retenciones, sustento) son datos **globales** —no pertenecen a una empresa— y cambian cuando el SRI publica una nueva versión de la ficha. Viven en `comprobantes-service` porque es el servicio que **aplica** las reglas del SRI (XSD, generadores de XML, validaciones) y el único que los necesita para emitir: un cambio de catálogo y un cambio de XSD/regla van juntos.
+
+**Historia y decisión.** Primero los catálogos se repetían (la tarifa de IVA se copiaba en cada ítem de inventario y otra vez en `item_local`; las formas de pago eran un `enum`). Luego se separaron en un `catalogos-service` propio que publicaba por Kafka y dejaba réplicas en `comprobantes` e `inventario`. Con el servicio funcionando se vio que **solo `comprobantes-service` consumía 5 de los 7 catálogos**, e inventario los usaba únicamente para validar el código de un ítem y mostrar su tarifa. El costo de un octavo servicio (tópico, siete réplicas, consumidores con DLQ, serializadores, invalidación de caché entre servicios) no se justificaba, y los cuatro defectos que aparecieron al probar con Kafka real estaban todos en esa tubería de réplicas. Se volvió a un módulo dentro de `comprobantes-service`, primero con caché en memoria y después —por decisión del dueño del proyecto— leyendo la base con entidades en cada emisión. **Si más adelante hay un segundo consumidor real** (un servicio de ATS o reportes, una pantalla que liste catálogos), conviene volver a separarlo: la API y las tablas ya tienen la forma de un servicio.
+
+| Alternativa evaluada | Costo por emisión | Acoplamiento | Decisión |
+|---|---|---|---|
+| Servicio aparte + REST en cada emisión | salto de red + JSON; si cae, no se emite | en tiempo de ejecución | Descartada: rompe "cero REST en la ruta de emisión" y crea un punto único de falla para datos que casi nunca cambian |
+| Servicio aparte + réplicas por Kafka | consulta local | eventos entre servicios | Probada y retirada (ver arriba): complejidad sin segundo consumidor |
+| Leer el esquema de otro servicio | 1 consulta | **de datos** (comparten tablas) | Descartada: rompe el aislamiento por esquema y rol |
+| Entidades JPA por catálogo, leídas en cada emisión | 7 consultas (~8–11 ms más por emisión, medido) | ninguno | **Elegida** (decisión del dueño del proyecto: el valor de la base manda, sin desfase entre instancias) |
+| Tablas propias + caché en memoria | 0 consultas (acierto de caché) | ninguno | Probada y retirada: ahorraba ~8–11 ms por emisión a cambio de hasta 30 s de desfase entre instancias y una invalidación que mantener |
+
+**Cómo funciona**
+- **Datos:** las 7 tablas (`forma_pago`, `impuesto`, `tarifa_impuesto`, `tipo_identificacion`, `impuesto_retencion`, `retencion`, `sustento_tributario`) son del esquema `comprobantes`. La migración `V14` las **siembra con los datos de la ficha v2.34** y les pone las restricciones (FK, `check`) que antes garantizaba el servicio de catálogos.
+- **API** (`/comprobantes/api/v1/catalogos`, todo con api-key): `GET /catalogos` (lista los catálogos), `GET /catalogos/{catalogo}?vigentes=true&fecha=yyyy-MM-dd`, `PUT /catalogos/{catalogo}` (crea o actualiza por clave). **Escribir exige además el header `X-Catalogos-Admin-Token`** (variable `CATALOGOS_ADMIN_TOKEN`): los catálogos son globales y una api-key de una empresa no debe poder cambiarlos para todas las demás. Sin token configurado la escritura está deshabilitada (403). Dar de baja = `"activo": false` (no se borra: el histórico lo necesita). Para cambiar un catálogo **no hace falta redesplegar**.
+- **Sin caché:** `CatalogoSriRepositoryImpl` lee las siete tablas con entidades de solo lectura (`FormaPagoEntity`, `ImpuestoEntity`, `TarifaImpuestoEntity`, …) en cada emisión, dentro de la transacción del comprobante, y evalúa la vigencia a la fecha de emisión (hora de Ecuador, UTC-5) en memoria. Un `PUT /catalogos/...` aplica a la siguiente factura en cualquier instancia. La administración (`GET`/`PUT`) sigue siendo genérica sobre `CatalogoDef` con SQL directo, porque los 7 catálogos se operan igual.
+- **Vigencia:** un registro aplica en la fecha F si está activo y `vigente_desde <= F <= vigente_hasta` (sin `hasta` = sin fin). `vigente_desde = 1900-01-01` significa "la ficha no publica fecha de inicio".
+- **Catálogo vacío:** las validaciones que dependen de un catálogo sin filas **no bloquean**, solo se validan por formato (ver `CatalogosSriAFecha`). La excepción es la tarifa de IVA: sin tarifas en la tabla y sin tarifa en el request, la emisión falla con `COMP-400-204`.
+- **Inventario** solo guarda `codigoImpuesto` + `codigoPorcentaje` de cada ítem y **ya no los valida ni muestra la tarifa**: comprobantes los valida y resuelve la tarifa al emitir. Un código inexistente se detecta al facturar, no al crear el ítem.
+
+| Catálogo | Tabla de la ficha | Qué se valida con él |
+|---|---|---|
+| `forma_pago` | 24 | `formaPago` de cada pago existe y está vigente |
+| `impuesto` | 16 | `codigo` del impuesto de cada línea |
+| `tarifa_impuesto` | 17 (IVA) | `codigoPorcentaje` existe y vigente; la **tarifa se toma de aquí**; si el cliente manda tarifa debe coincidir |
+| `tipo_identificacion` | 6 | tipo de identificación; `07` (consumidor final) solo en Factura |
+| `impuesto_retencion` | 19 | impuesto a retener (1 Renta, 2 IVA, 6 ISD) |
+| `retencion` | 20 | `codigoRetencion` existe y vigente para ese impuesto y `porcentajeRetener` coincide (IVA e ISD; el ISD 4580 tiene una fila por período) |
+| `sustento_tributario` | ATS | `codSustento` |
+
+**Medición que justificó la caché (hoy retirada)** (una máquina, emisión completa de factura —validación, catálogos, secuencial, XML+XSD, persistencia—; 60 muestras por pasada, descartando el calentamiento; se comparó contra leer las 7 tablas en cada emisión):
+
+| | mediana | media | p90 |
+|---|---|---|---|
+| Caché activa | 35.5 / 32.2 ms | 39.5 / 34.2 ms | 52.6 / 49.5 ms |
+| Caché desactivada (7 consultas) | 46.1 / 40.1 ms | 51.3 / 46.9 ms | 75.3 / 69.2 ms |
+
+Ahorro de ~8–11 ms por emisión (~20–25 %). La pasada "desactivada" arrancó con una JVM recién iniciada, así que parte de la diferencia puede ser calentamiento: es un orden de magnitud, no una cifra exacta. El generador de XML y el XSD siguen dominando el tiempo.
+
+**Defecto que dejó esta historia y sigue vigente como lección:** un parámetro declarado `$n::numeric` hace que el cliente de Postgres exija un tipo numérico y rechace el `String` con el que viajan los decimales y las fechas del body JSON. Ahora se declara `::text` y se convierte (`$n::text::numeric`, `$n::text::date`), tanto en el `PUT` como en el filtro `vigentes` del `GET`; `CatalogoAdminServiceSqlTest` fija la forma del SQL.
+
+**Qué NO está cargado, y por qué** (la documentación del proyecto no lo trae y no se inventó):
+- **ICE (Tabla 18):** la tabla de la ficha no es utilizable (columnas por fecha ilegibles); el ítem sigue llevando `codigoPorcentajeIce` + `tarifaIce`, y el request de ICE debe traer su `tarifa`.
+- **Códigos de retención de Renta** (303, 304, 312, …) y **`codSustento`**: pertenecen al Catálogo del Anexo Transaccional Simplificado (ATS), que no está en `documentacion/`. Las tablas existen (la de sustento, vacía); se cargan con `PUT /catalogos/retencion` y `PUT /catalogos/sustento_tributario` desde el catálogo oficial. Mientras estén vacías solo se valida el formato; desde que tengan filas la validación pasa a ser estricta.
+- **Fechas de vigencia de las tarifas de IVA:** la ficha lista los códigos (0, 2, 3, 4, 5, 6, 7, 8, 10) sin fechas; se cargaron sin fecha. Para acotar una tarifa cuando el SRI la cambie: `PUT /catalogos/tarifa_impuesto` con `vigente_hasta`.
+- **Países, tipos de comprobante del ATS y demás tablas** de la ficha: nadie los necesita todavía.
+
+Para agregar un catálogo nuevo: tabla + entrada en `Catalogo` y en `CatalogoDef.TODOS` (el REST y el SQL son genéricos), y la lectura en `CatalogoSriRepositoryImpl` si alguna validación lo usa.
+
+### 7.7 Otras validaciones de negocio al emitir
+
+Controles que el XSD no hace y que se aplican antes de generar el XML (todos devuelven 400 con el motivo):
+
+| Regla | Dónde |
+|---|---|
+| Un ítem dado de baja (`activo=false`) no se puede facturar cuando el impuesto se deriva del ítem | `comprobantes` |
+| `tieneIce=true` exige `codigoPorcentajeIce` y `tarifaIce >= 0` (antes fallaba al facturar con un error interno) | `inventario` |
+| `07` (consumidor final) exige la identificación `9999999999999`, y ese número solo es válido con `07` (Tabla 6) | `comprobantes` |
+| RUC (`04`) = 13 dígitos; cédula (`05`) = 10 dígitos (máscaras de la Tabla 5). No se valida el dígito verificador: el algoritmo no está en la ficha | `comprobantes` |
+| `valorRetenido` = `baseImponible × porcentajeRetener / 100` (tolerancia de 1 centavo) | `comprobantes` |
+| `docSustentoFecha` debe ser una fecha real (no 31/02) | `comprobantes` |
+
+**Monto máximo a consumidor final.** Una factura con identificación `07` por encima del monto máximo se rechaza con `COMP-400-306` (ficha técnica 8.10: más de 50 USD exige los datos del adquirente). El monto es configurable (`comprobantes.consumidor-final.monto-maximo`, variable `CONSUMIDOR_FINAL_MONTO_MAXIMO`, 50.00 por defecto) porque el historial de la ficha dice que se ha actualizado y no da el valor vigente. Lo que se pudo confirmar (fuentes de prensa y un estudio jurídico, no el texto del Registro Oficial): desde el 10/11/2022 (Decreto Ejecutivo 586, que reformó el artículo 19 numeral 1 del Reglamento de Comprobantes de Venta) el tope general bajó de 200 a 50 USD. Una sola fuente secundaria dice que para RIMPE Negocio Popular el tope es 200 USD; no está confirmado y esos contribuyentes no están obligados a facturar electrónicamente, así que el sistema aplica un único tope. Tampoco queda claro si exactamente 50,00 puede ir a consumidor final (la implementación lo permite: rechaza solo lo que supere el tope). **Confirmar ambos puntos con el texto oficial del Reglamento.**
+
+**Sin implementar**: validación del dígito verificador de RUC/cédula (a propósito, ver sección 11) y que una nota de crédito no exceda el comprobante que modifica (requiere consultar otro comprobante).
+
+### 7.8 Errores de negocio con código y textos en `mensajes.properties`
+
+Las reglas de negocio nuevas (catálogos, pagos, identificación, retención, ICE, saga) **no lanzan `IllegalArgumentException` ni texto suelto**. Cada servicio tiene el mismo esquema:
+
+| Pieza | Qué hace |
+|---|---|
+| `shared/error/CodigoError` (enum) | Catálogo cerrado de errores. Cada uno lleva `codigo` estable (`COMP-400-101`...), `estadoHttp` y `claveMensaje`. |
+| `src/main/resources/mensajes.properties` | El **texto** de cada error, con `{0}`, `{1}`... para los parámetros (UTF-8). Cambiar un texto no cambia el código que recibe el cliente. |
+| `Mensajes` (en `facturacion-commons`) | Lee `mensajes.properties` del servicio (y `mensajes-comunes.properties` del jar) y reemplaza los parámetros (reemplazo literal, sin reglas de comillas ni formato de números). |
+| `ErrorNegocioException` (en `facturacion-commons`) | Excepción de las reglas: lleva la entrada del catálogo (`ErrorCatalogo`), sus parámetros y, si agrupa varios problemas, una lista de `detalles`. |
+| `ApiExceptionMapper` (en `facturacion-commons`) | **Único** mapper de toda excepción que extienda `ApiException` (NotFound, SinPermiso, TokenInvalido, Conflicto, ErrorNegocio y las propias de cada servicio): status y `codigo` salen de su entrada del catálogo. El código de negocio solo lanza, nunca arma un `Response`. |
+
+El catálogo completo (códigos, HTTP y mensajes) está en [`CATALOGO_ERRORES.md`](CATALOGO_ERRORES.md).
+
+Respuesta de error: `{"timestamp", "status", "error", "message", "codigo": "COMP-400-101", "details": [...]}` — **ahora toda respuesta de error lleva `codigo`**: los `throw new NotFoundException("texto")` y similares salen con el código genérico `GEN-*`.
+
+Prefijos: `GEN-` comunes (jar), `COMP-` comprobantes, `INV-` inventario, `FIR-` firma, `IDE-` identidad, `ORQ-` orquestador (sin HTTP). En cada servicio hay un `MensajesTest` que **falla** si un `CodigoError` no tiene clave en `mensajes.properties` o si sobra una clave sin código; los demás tests verifican el **código** devuelto, no el texto.
+
+**Códigos fijos como enums, no como strings:** las formas de pago con regla propia (`FormaPagoSri`: `01` por defecto y `21` endoso/factura negociable), los tipos de identificación y sus reglas de forma (`TipoIdentificacionSri`), los impuestos (`ImpuestoSri`), los nombres de catálogo del contrato de Kafka (`Catalogo`) y la zona horaria (`ZonaHoraria.ECUADOR`). Los enums de dominio **no son el catálogo**: la lista de formas de pago, tarifas, etc. y su vigencia viven en las tablas de catálogo de `comprobantes-service` (ver 7.6).
+
+Alcance: **los 7 servicios** usan el mismo esquema. Las excepciones propias de cada servicio (`StockInsuficienteException`, `CertificadoInvalidoException`, `EmailDuplicadoException`...) extienden `ApiException`, tienen su entrada en el enum del servicio (`CodigoError`, `FirmaError`, `IdentidadError`) y ya no tienen mapper propio: los ~30 mappers duplicados se reemplazaron por el `ApiExceptionMapper` del jar. `IllegalArgumentException` → 400 `GEN-400-002`, Bean Validation → 400 `GEN-400-001`, el resto → 500 `GEN-500-001`. Un 401 del filtro de api-key ahora también sale por el mapper (JSON con `codigo`), ya no como texto plano.
+
+### 7.9 Organización del código de `comprobantes-service` (una responsabilidad por clase)
+
+`ComprobanteService` llegó a 940 líneas con cinco responsabilidades mezcladas. Se repartió sin cambiar el comportamiento (los 6 tipos se siguen emitiendo y autorizando igual; se verificó con la prueba de integración):
+
+| Clase | Responsabilidad |
+|---|---|
+| `ComprobanteService` | Solo el flujo común de emisión (`emitir`): validar establecimiento y punto de emisión, reservar el secuencial, generar y validar el XML y dejarlo en el outbox. |
+| `construccion/Constructor*` (6) | Armar el agregado de UN tipo (factura, nota de crédito, nota de débito, guía de remisión, retención, liquidación de compra), todos detrás de `ConstructorComprobante<R>`. **Agregar un tipo = agregar una clase** (abierto a extensión, sin tocar el flujo). |
+| `construccion/ConstructorComun` | Encabezado (clave de acceso, snapshot de la empresa), pagos, campos adicionales y fechas dd/MM/aaaa. |
+| `construccion/ConstructorDetalles` | Líneas de detalle: ítems en lote, impuestos desde el catálogo, totales. |
+| `ActualizacionComprobanteService` | Aplicar al comprobante las transiciones que manda el orquestador (`MARCAR_*`) y generar el RIDE al autorizar. |
+| `ComprobanteConsultaService` | Consultas (por id, XML, RIDE, listado), siempre acotadas a la empresa de la api-key. |
+| `EventosComprobante` | Contenido y serialización de `ComprobanteCreado` y `ComprobanteAutorizado` para el outbox. |
+
+Dos reglas que salieron de esa revisión: (1) **el ciclo de vida solo avanza** — `EstadoComprobante.puedePasarA` rechaza un comando repetido o fuera de orden (antes un `MARCAR_FIRMADO` tardío podía devolver un comprobante autorizado a "firmado", o regenerar el RIDE y reenviar el correo); (2) **las fechas dd/MM/aaaa son estrictas** — `31/02/2026` ya no se corrige en silencio a `28/02` (`COMP-400-408`).
+
 ## 8. Autenticación y autorización multi-tenant (api-key JWT)
 
 `identidad-service` no participa de la saga de emisión, pero sí consume un tópico de Kafka (ver más abajo) — su razón de ser central es emitir y (junto con los otros 6) verificar las credenciales que protegen todo el ecosistema.
 
-**Modelo de datos** (`identidad`): `Usuario` (email + password con login) puede asociarse a cualquier número de `ruc` vía `POST /usuarios/me/empresas`, sin flujo de invitación/aprobación — pero el `ruc` **sí se valida contra una Empresa real**: el servicio mantiene `empresa_local`, una copia local de solo lectura alimentada consumiendo `facturacion.empresa.eventos.v1` (mismo patrón de vista materializada por eventos que `item_local` en `comprobantes-service`, ver sección 6.1), y `UsuarioService.asociarEmpresa` responde `404` si el ruc no corresponde a ninguna Empresa activa. Esto **no verifica titularidad** — cualquier usuario puede autoasociarse a cualquier ruc que exista, con cualquier rol, no se confirma que sea realmente el dueño de esa empresa — solo que el ruc es real y no un string inventado. Cada asociación usuario↔ruc lleva un `Rol`: `ADMIN` (todo, incluida gestión de api-keys y de otros miembros), `OPERADOR` (puede emitir comprobantes), `LECTURA` (solo consulta — hoy no hay ningún endpoint que diferencie LECTURA de OPERADOR más allá de la intención documentada).
+**Modelo de datos** (`identidad`): `Usuario` (email + password con login) puede asociarse a cualquier número de `ruc` vía `POST /usuarios/me/empresas`, sin flujo de invitación/aprobación — pero el `ruc` **sí se valida contra una Empresa real**: el servicio mantiene `empresa_local`, una copia local de solo lectura alimentada consumiendo `facturacion.empresa.eventos.v1` (mismo patrón de vista materializada por eventos que `item_local` en `comprobantes-service`, ver sección 6.1), y `UsuarioService.asociarEmpresa` responde `404` si el ruc no corresponde a ninguna Empresa activa. Autoasociarse (`POST /usuarios/me/empresas`) **solo es posible mientras la empresa no tenga ningún miembro** (reclamar una empresa recién creada y sin dueño); si ya tiene, responde `403` y el acceso lo da un `ADMIN` del ruc con `POST /empresas/{ruc}/usuarios`. Antes cualquier usuario podía asociarse a cualquier ruc con rol `ADMIN` y operar la empresa de otro (crear api-key, subir o revocar su certificado). Tampoco se puede cambiar el propio rol volviendo a llamar a ese endpoint (antes un `LECTURA` podía ascenderse a `ADMIN`): si ya estás asociado, se devuelve tu asociación sin tocarla; el cambio de rol es solo de un `ADMIN` (`PATCH`). Cada asociación usuario↔ruc lleva un `Rol`: `ADMIN` (todo, incluida gestión de api-keys y de otros miembros), `OPERADOR` (puede emitir comprobantes), `LECTURA` (solo consulta: los servicios la rechazan con `403` en cualquier creación o modificación — ver "Autorización en los servicios").
 
-**Gobernanza de miembros — la otra mitad, deliberadamente separada de la autoasociación**: que cualquiera pueda autoasociarse resuelve el bootstrap (sección "Bootstrap de una empresa nueva" más abajo) pero deja un hueco real — nadie más podía ver ni revocar esas asociaciones. `EmpresaMiembroResource` (`GET`/`PATCH`/`DELETE /empresas/{ruc}/usuarios/{usuarioId}`) lo cierra: solo un `ADMIN` ya existente de ese `ruc` puede listar sus miembros, cambiarle el rol a otro, o revocarle el acceso — `UsuarioService.exigirAdmin` lo comprueba consultando la propia fila `usuario_empresa_rol` del solicitante antes de tocar la del objetivo (403 `RolInsuficienteException` si no es `ADMIN`). El cambio de rol es `PATCH` (no `PUT`) porque solo toca el campo `rol` de la asociación, no la reemplaza entera. No es un flujo de invitación/aprobación (no hay estado pendiente ni se notifica a nadie) — el ADMIN actúa directamente sobre asociaciones que el propio usuario ya creó vía autoasociación; se evaluó explícitamente y se descartó como alcance mayor al necesario. `UsuarioService.asegurarNoUltimoAdmin` bloquea (`409 ConflictoException`) cualquier cambio de rol o revocación que dejaría al `ruc` sin ningún `ADMIN`, incluso si quien lo pide es el propio afectado — sin esto, un `ADMIN` podría autodegradarse (o ser degradado, aunque hoy solo un `ADMIN` puede llegar a ese endpoint) y dejar la empresa sin nadie que pueda seguir gestionándola. `DELETE /usuarios/me/empresas/{ruc}` (abandonar un ruc uno mismo) reutiliza exactamente el mismo `asegurarNoUltimoAdmin` — mismo motivo, sin importar si quien revoca es un ADMIN gestionando a otro o el propio usuario saliéndose.
+**Gobernanza de miembros — la otra mitad, deliberadamente separada de la autoasociación**: que cualquiera pueda autoasociarse resuelve el bootstrap (sección "Bootstrap de una empresa nueva" más abajo) pero deja un hueco real — nadie más podía ver ni revocar esas asociaciones. `EmpresaMiembroResource` (`GET`/`PATCH`/`DELETE /empresas/{ruc}/usuarios/{usuarioId}`) lo cierra: solo un `ADMIN` ya existente de ese `ruc` puede listar sus miembros, cambiarle el rol a otro, o revocarle el acceso — `UsuarioService.exigirAdmin` lo comprueba consultando la propia fila `usuario_empresa_rol` del solicitante antes de tocar la del objetivo (403 `RolInsuficienteException` si no es `ADMIN`). El cambio de rol es `PATCH` (no `PUT`) porque solo toca el campo `rol` de la asociación, no la reemplaza entera. No es un flujo de invitación/aprobación (no hay estado pendiente ni se notifica a nadie): el ADMIN da acceso directamente a un usuario ya registrado (`POST /empresas/{ruc}/usuarios` con su correo y el rol) o gestiona las asociaciones existentes. `UsuarioService.asegurarNoUltimoAdmin` bloquea (`409 ConflictoException`) cualquier cambio de rol o revocación que dejaría al `ruc` sin ningún `ADMIN`, incluso si quien lo pide es el propio afectado — sin esto, un `ADMIN` podría autodegradarse (o ser degradado, aunque hoy solo un `ADMIN` puede llegar a ese endpoint) y dejar la empresa sin nadie que pueda seguir gestionándola. `DELETE /usuarios/me/empresas/{ruc}` (abandonar un ruc uno mismo) reutiliza exactamente el mismo `asegurarNoUltimoAdmin` — mismo motivo, sin importar si quien revoca es un ADMIN gestionando a otro o el propio usuario saliéndose.
+
+**Autorización en los servicios (aislamiento por empresa y roles).** Una api-key es de UN ruc y lleva un rol; ningún servicio puede fiarse solo de que el JWT sea válido:
+- **Por empresa.** Todo recurso se resuelve contra el RUC de la api-key. Un recurso de otra empresa responde **404** (igual que uno inexistente, para no revelar que existe); pedir en un listado el RUC de otra empresa responde **403**. Cubre comprobantes (por id, `/xml`, `/ride` y el listado), sagas (consulta y `retry`), envíos al SRI, notificaciones, ítems/categorías/kardex/imágenes de inventario y, en firma-electronica-service, la empresa, su certificado, su configuración, sus establecimientos y puntos de emisión (y `GET /empresas` solo devuelve la de la api-key). Antes la comprobación existía únicamente en los `POST` de creación: con la api-key de cualquier empresa se podía leer comprobantes ajenos o subir y revocar el certificado de firma de otra empresa. Cada servicio tiene su `TokenPrincipal.esDeLaEmpresa(ruc)` y, donde hay varios recursos hijos, una guardia `AccesoEmpresa` (inventario, firma) que resuelve el dueño del recurso. notificacion-service deduce el RUC de la propia clave de acceso (dígitos 11–23). Las categorías de inventario también son por empresa (columna `ruc`, migración `V6__categoria_por_empresa.sql`): un ítem solo puede usar categorías de su propio RUC.
+- **Por rol.** `LECTURA` solo consulta (`403` al crear o modificar comprobantes, ítems, kardex, imágenes, categorías o al reintentar una saga); `OPERADOR` además emite y gestiona inventario; `ADMIN` además gestiona la empresa (certificado, configuración, establecimientos y puntos de emisión de firma-electronica-service) y los miembros (identidad-service).
+- **Revocación de api-keys.** Cada servicio verifica el JWT localmente, sin consultar a identidad-service, así que **revocar una api-key (`DELETE /api-keys/{id}`) no la invalida hasta que vence** (como máximo 365 días: `identidad.jwt.apikey.max-dias`, que también se aplica si piden `0` o un valor mayor). Ver la sección 11.
 
 **Autogestión de cuenta**: `PATCH /usuarios/me` (nombres/apellidos — el email de login no cambia por ahí, es un flujo más sensible fuera de alcance de esta versión) y `PATCH /usuarios/me/password` (exige la contraseña actual, `401` si no coincide) cierran el hueco de que una cuenta, una vez creada, no tuviera ninguna forma de editarse a sí misma — ambos son `PATCH`, no `PUT`, porque cada uno toca solo una parte del recurso `Usuario` (nunca las 7 columnas completas a la vez).
 
@@ -421,3 +636,35 @@ Esta sección no tiene equivalente en `ecommerce/` porque allá todo lo externo 
 - **IVA e ICE calculados de forma independiente sobre la misma base imponible** — la ley ecuatoriana real calcula IVA sobre (base + ICE) para ítems con ICE; documentado como simplificación conocida en el código de `comprobantes-service`.
 - **Factura 1.1.0 (bloque de reembolso)** — fuera de alcance; si se agrega en el futuro, cada tipo de comprobante nuevo o campo opcional nuevo debe re-verificarse contra una llamada real de Recepción antes de darse por bueno (la ficha técnica por sí sola no fue suficiente para detectar 2 de los mismatches de XSD encontrados durante la construcción — ver historial del proyecto).
 - **No hay reintento automático de notificación** — si `NotificacionFallida` queda como estado terminal de la saga, reenviar el correo es una operación manual/aparte, no algo que el orquestador reintente solo (a propósito: reintentar SMTP indefinidamente sin intervención podría enmascarar un problema real de configuración, como una contraseña de aplicación inválida).
+
+### Observaciones de una revisión de calidad y seguridad que quedan abiertas (decisión pendiente)
+
+- **Cualquier usuario registrado puede asociarse como `ADMIN` a cualquier RUC existente** (`UsuarioService.asociarEmpresa`, sin verificar titularidad ni invitación): con eso obtiene api-keys ADMIN de esa empresa, puede subir/revocar su certificado y emitir comprobantes. El aislamiento por tenant es nominal hasta que haya invitación/aprobación o verificación del RUC.
+- **Un solo secreto HS256 compartido por todos los servicios**: comprometer uno permite fabricar tokens de cualquier RUC y rol. Alternativa: firma asimétrica (EdDSA/RS256) con la llave privada solo en identidad-service.
+- **Arquitectura hexagonal incompleta**: `application` importa clases de `infrastructure` (outbox, mappers JPA, clientes SOAP, `XsdValidador`, `RideGenerador`) en ~19 archivos; faltan puertos (`EventPublisher`, `XmlValidator`, `RideRenderer`, `SriGateway`) y un test ArchUnit que lo haga cumplir. El dominio `Comprobante` es anémico (56 setters, sin comportamiento).
+- **Llamada SOAP dentro de la transacción de BD** en `SriConectorService.procesarComando`/`consultarAutorizacion` (hasta 30 s con una conexión retenida).
+- *(Corregido en esta revisión)* override de URL del SRI sin validar (SSRF): ahora solo se respeta `https` + host en `sri.url.hosts-permitidos` (por defecto `*.sri.gob.ec`); XXE en los parsers de XML; timeout de 30 s en el relay del outbox; comando de saga fuera de orden ya no se descarta en silencio (falla visible → DLQ); bcrypt fuera del event loop.
+
+- **Revocar una api-key no la invalida** hasta que vence: los 6 servicios verifican el JWT localmente (sin consultar a identidad-service) y no conocen la lista de revocadas. Opciones: (a) vida corta (p. ej. 1 h) con renovación; (b) publicar un evento `ApiKeyRevocada` que cada servicio guarde (tabla de `jti` revocados) y consulte en el filtro; (c) consultar a identidad-service con caché corta. La (b) encaja con el resto de la arquitectura (eventos + réplica local).
+- **El login no tiene límite de intentos** (fuerza bruta de contraseñas): conviene un limitador en la puerta de entrada o un bloqueo temporal por cuenta/IP. El tiempo de respuesta ya no delata si un correo existe, pero el registro (`POST /usuarios`) sí responde `409` a un correo repetido.
+- **La nota de crédito no valida contra el documento que modifica** (que exista, que sea de la misma empresa, que no se exceda su valor): hoy confía en el número y la fecha que manda el cliente.
+- **No se valida el dígito verificador de cédula/RUC** a propósito: el SRI es la autoridad y tiene excepciones; rechazar de más bloquearía emisiones válidas. La longitud y el tipo sí se validan.
+- **Los consumidores de Kafka** (17) no validan el sobre del mensaje de forma uniforme; firma-electronica-service y sri-conector-service rechazan un comando sin `eventId`/`comprobanteId` (va al DLQ con un motivo claro), el resto depende de que el mensaje venga bien formado. Los DLQ siguen sin consumidor ni alerta (ver 6.5).
+
+## 12. `facturacion-commons`: el jar de recursos compartidos
+
+Un análisis de duplicados (mismo nombre y mismo contenido, normalizando el paquete) encontró ~40 clases idénticas copiadas en 5–7 servicios: excepciones y mappers, `ApiErrorResponse`, `Mensajes`, `JwtVerificador`/`ApiKeyAuthFilter`/`TokenPrincipal`, `SecurityRequirementOpenApiFilter`, paginación. Cada arreglo de seguridad costaba 7 cambios. Ahora viven una sola vez en `facturacion-commons` (jar, paquete `com.facturacion.commons`):
+
+| Paquete | Contenido |
+|---|---|
+| `error` | `ErrorCatalogo`/`MensajeCatalogo` (contrato del catálogo), `ErrorComun` (`GEN-*`), `Mensajes`, `ApiErrorResponse`, mappers (`ApiExceptionMapper`, Bean Validation, `IllegalArgument`, catch-all) |
+| `exception` | `ApiException` y sus derivadas: `NotFoundException`, `SinPermisoException`, `TokenInvalidoException`, `ConflictoException`, `ErrorNegocioException` |
+| `security` | `JwtVerificador`, `ApiKeyAuthFilter`, `TokenPrincipal`, `@PermiteSesion`, `SecurityRequirementOpenApiFilter` (los 6 servicios de dominio; identidad conserva su propia seguridad de sesión) |
+| `paging` | `PageRequest`, `PagedResponse`, `PageResult` |
+| `reactive` | `TrabajoBloqueante`: corre trabajo bloqueante (p. ej. bcrypt) fuera del event loop y vuelve al contexto de Vert.x |
+
+**Qué NO se comparte, a propósito:** los records de mensajes Kafka, las entidades JPA/outbox/inbox, los modelos de réplica local (`ConfiguracionEmpresaLocal`, `EstablecimientoLocal`...) y cualquier regla de negocio — compartirlos acoplaría los bounded contexts y su despliegue independiente. El jar es solo infraestructura transversal y todas sus dependencias son `provided` (no cambia el classpath de los servicios). Un `META-INF/beans.xml` hace que Quarkus lo indexe y descubra sus `@Provider` y beans CDI.
+
+**Construcción:** el jar debe estar instalado antes de compilar un servicio. `mvn install` en esta carpeta (pom agregador) construye todo en orden; o solo el jar: `mvn -f facturacion-commons/pom.xml install`. Los Dockerfiles construyen el jar dentro de la imagen, por eso el contexto de build de `docker-compose.yml` pasó a ser esta carpeta (`context: .` + `dockerfile: <servicio>/Dockerfile`; hay un `.dockerignore` en la raíz). Versión de Quarkus: 3.40 LTS en los 8 módulos.
+
+**Reglas del catálogo (`CatalogoErroresTest` en el jar; el `MensajesTest` de cada servicio las aplica a su enum):** código único con formato `PREFIJO-HTTP-NNN`, el segmento HTTP coincide con `estadoHttp`, y toda entrada tiene su texto en un `.properties`.

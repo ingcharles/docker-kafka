@@ -3,11 +3,12 @@ package com.facturacion.comprobantes.application.dto;
 import java.math.BigDecimal;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
 /**
- * El llamador solo indica qué impuesto aplica y su tarifa (Tabla 16/17 del
- * SRI) — {@code baseImponible} y {@code valor} los calcula el servidor a
+ * El llamador indica qué impuesto aplica (Tabla 16/17 del SRI) y, opcionalmente,
+ * su tarifa: para IVA la tarifa sale del catálogo (catálogo de este servicio)
+ * y si el cliente la manda debe coincidir con ella; ICE/IRBPNR no tienen tarifas
+ * en el catálogo, ahí la tarifa es obligatoria — {@code baseImponible} y {@code valor} los calcula el servidor a
  * partir del subtotal de la línea, no se confía en que el cliente los
  * mande ya calculados.
  */
@@ -19,7 +20,7 @@ public class ImpuestoRequest {
     @NotBlank
     private String codigoPorcentaje;
 
-    @NotNull
+    /** Opcional para IVA (se toma del catálogo); obligatoria para ICE/IRBPNR. */
     private BigDecimal tarifa;
 
     public String getCodigo() {

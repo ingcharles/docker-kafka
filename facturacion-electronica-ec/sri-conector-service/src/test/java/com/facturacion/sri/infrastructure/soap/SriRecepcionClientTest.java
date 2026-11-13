@@ -1,0 +1,52 @@
+package com.facturacion.sri.infrastructure.soap;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.Test;
+
+class SriRecepcionClientTest {
+
+    private static String respuesta(String estado, String identificador, String mensaje) {
+        String detalle = identificador == null ? "<comprobantes/>"
+            : "<comprobantes><comprobante><claveAcceso>1</claveAcceso><mensajes><mensaje><identificador>" + identificador
+                + "</identificador><mensaje>" + mensaje + "</mensaje><tipo>ERROR</tipo></mensaje></mensajes></comprobante></comprobantes>";
+        return "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body>"
+            + "<ns2:validarComprobanteResponse xmlns:ns2=\"http://ec.gob.sri.ws.recepcion\"><RespuestaRecepcionComprobante>"
+            + "<estado>" + estado + "</estado>" + detalle
+            + "</RespuestaRecepcionComprobante></ns2:validarComprobanteResponse></soap:Body></soap:Envelope>";
+    }
+
+    @Test
+    void unaRespuestaRecibidaEsRecibida() throws Exception {
+        RecepcionResultado r = SriRecepcionClient.parsear(respuesta("RECIBIDA", null, null));
+        assertTrue(r.recibida());
+        assertFalse(r.claveYaRegistrada());
+    }
+
+    @Test
+    void unaDevueltaPorEstructuraEsUnRechazo() throws Exception {
+        RecepcionResultado r = SriRecepcionClient.parsear(respuesta("DEVUELTA", "35", "ARCHIVO NO CUMPLE ESTRUCTURA XML"));
+        assertFalse(r.recibida());
+        assertEquals("ARCHIVO NO CUMPLE ESTRUCTURA XML", r.mensajes());
+    }
+
+    @Test
+    void unaClaveYaRegistradaNoEsUnRechazoSinoQueElSriYaLaTiene() throws Exception {
+        RecepcionResultado r = SriRecepcionClient.parsear(respuesta("DEVUELTA", "43", "CLAVE ACCESO REGISTRADA"));
+        assertTrue(r.recibida());
+        assertTrue(r.claveYaRegistrada());
+    }
+
+    @Test
+    void unComprobanteEnProcesamientoTampocoEsUnRechazo() throws Exception {
+        assertTrue(SriRecepcionClient.parsear(respuesta("DEVUELTA", "70", "CLAVE ACCESO EN PROCESAMIENTO")).recibida());
+    }
+
+    @Test
+    void unSecuencialYaRegistradoSiEsUnRechazo() throws Exception {
+        // identificador 45: el secuencial se repitió con otra clave de acceso — hay que corregir el comprobante
+        assertFalse(SriRecepcionClient.parsear(respuesta("DEVUELTA", "45", "ERROR SECUENCIAL REGISTRADO")).recibida());
+    }
+}

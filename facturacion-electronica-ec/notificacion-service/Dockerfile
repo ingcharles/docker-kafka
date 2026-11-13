@@ -3,9 +3,14 @@
 # esa capa cacheada entre builds.
 FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /build
-COPY pom.xml .
+# facturacion-commons (jar compartido) se construye e instala primero en el repo Maven de esta etapa.
+COPY facturacion-commons/pom.xml /commons/pom.xml
+COPY facturacion-commons/src /commons/src
+RUN mvn -q -B -f /commons/pom.xml -DskipTests install
+
+COPY notificacion-service/pom.xml .
 RUN mvn -q -B dependency:go-offline
-COPY src ./src
+COPY notificacion-service/src ./src
 RUN mvn -q -B -DskipTests package
 
 # Runtime: solo JRE, no-root, únicamente el layout fast-jar copiado.

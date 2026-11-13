@@ -32,11 +32,12 @@ public class Item {
 
     // Clasificación tributaria — fuente de verdad para que comprobantes-service
     // tome el impuesto automáticamente cuando una línea solo trae itemId (ver
-    // ARQUITECTURA.md). codigoImpuesto/codigoPorcentaje/tarifaIva son
-    // obligatorios (Tabla 16/17 del SRI); el bloque ICE es opcional.
+    // ARQUITECTURA.md). codigoImpuesto/codigoPorcentaje son obligatorios
+    // (Tabla 16/17 del SRI) y la tarifa NO se guarda: se resuelve contra el
+    // catálogo (catalogos-service) a la fecha de uso; el bloque ICE es opcional
+    // y sí lleva su tarifa (la Tabla 18 no está en el catálogo).
     private String codigoImpuesto;
     private String codigoPorcentaje;
-    private BigDecimal tarifaIva;
     private boolean tieneIce;
     private String codigoPorcentajeIce;
     private BigDecimal tarifaIce;
@@ -50,7 +51,7 @@ public class Item {
     public Item(UUID id, String ruc, TipoItem tipo, UUID categoriaId, String codigoPrincipal, String codigoAuxiliar,
             String descripcion, BigDecimal precioUnitario, String unidadMedida, BigDecimal cantidadDisponible,
             BigDecimal cantidadReservada, BigDecimal stockMinimo, boolean activo, String codigoImpuesto,
-            String codigoPorcentaje, BigDecimal tarifaIva, boolean tieneIce, String codigoPorcentajeIce,
+            String codigoPorcentaje, boolean tieneIce, String codigoPorcentajeIce,
             BigDecimal tarifaIce, Instant creadoEn, Instant actualizadoEn) {
         this.id = id;
         this.ruc = ruc;
@@ -67,7 +68,6 @@ public class Item {
         this.activo = activo;
         this.codigoImpuesto = codigoImpuesto;
         this.codigoPorcentaje = codigoPorcentaje;
-        this.tarifaIva = tarifaIva;
         this.tieneIce = tieneIce;
         this.codigoPorcentajeIce = codigoPorcentajeIce;
         this.tarifaIce = tarifaIce;
@@ -197,14 +197,6 @@ public class Item {
 
     public void setCodigoPorcentaje(String codigoPorcentaje) {
         this.codigoPorcentaje = codigoPorcentaje;
-    }
-
-    public BigDecimal getTarifaIva() {
-        return tarifaIva;
-    }
-
-    public void setTarifaIva(BigDecimal tarifaIva) {
-        this.tarifaIva = tarifaIva;
     }
 
     public boolean isTieneIce() {

@@ -18,6 +18,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.notificacion.application.service.NotificacionService;
+import com.facturacion.commons.security.TokenPrincipal;
 
 /** Superficie de observabilidad — el envío real ocurre exclusivamente al consumir ComprobanteAutorizado. */
 @Path("")
@@ -26,10 +27,12 @@ import com.facturacion.notificacion.application.service.NotificacionService;
 public class NotificacionResource {
 
     private final NotificacionService notificacionService;
+    private final TokenPrincipal tokenPrincipal;
 
     @Inject
-    public NotificacionResource(NotificacionService notificacionService) {
+    public NotificacionResource(NotificacionService notificacionService, TokenPrincipal tokenPrincipal) {
         this.notificacionService = notificacionService;
+        this.tokenPrincipal = tokenPrincipal;
     }
 
     @GET
@@ -40,6 +43,7 @@ public class NotificacionResource {
     public Uni<Response> obtenerPorComprobanteId(
             @Parameter(description = "Id del comprobante en comprobantes-service", required = true)
             @PathParam("comprobanteId") UUID comprobanteId) {
-        return notificacionService.obtenerPorComprobanteId(comprobanteId).map(response -> Response.ok(response).build());
+        return notificacionService.obtenerPorComprobanteId(comprobanteId, tokenPrincipal.getRuc())
+            .map(response -> Response.ok(response).build());
     }
 }

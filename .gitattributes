@@ -1,0 +1,8 @@
+# Normalización de saltos de línea. El repositorio guarda LF (así está el índice); en Windows, core.autocrlf
+# convierte a CRLF en el working tree, lo cual rompe los scripts que se ejecutan dentro de contenedores Linux
+# (un "#!/bin/sh^M" hace que Postgres/Kafka no puedan ejecutarlos y se salten la inicialización).
+* text=auto
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.pdf binary
+*.p12 binary

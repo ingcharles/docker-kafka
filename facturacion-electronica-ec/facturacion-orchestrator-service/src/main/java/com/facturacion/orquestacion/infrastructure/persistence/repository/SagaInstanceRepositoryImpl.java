@@ -12,11 +12,12 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import io.quarkus.panache.common.Page;
+import io.quarkus.panache.common.Sort;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.orquestacion.domain.model.entity.SagaInstance;
 import com.facturacion.orquestacion.domain.model.enums.SagaState;
-import com.facturacion.orquestacion.domain.model.vo.PageResult;
+import com.facturacion.commons.paging.PageResult;
 import com.facturacion.orquestacion.domain.repository.SagaInstanceRepository;
 import com.facturacion.orquestacion.infrastructure.persistence.entity.SagaInstanceEntity;
 import com.facturacion.orquestacion.infrastructure.persistence.mapper.SagaInstanceMapper;
@@ -44,9 +45,10 @@ public class SagaInstanceRepositoryImpl implements SagaInstanceRepository {
     }
 
     @Override
-    public Uni<PageResult<SagaInstance>> findPaged(int page, int limit, SagaState state) {
-        String query = "1 = 1";
+    public Uni<PageResult<SagaInstance>> findPaged(int page, int limit, SagaState state, String empresaRuc) {
+        String query = "empresaRuc = :empresaRuc";
         Map<String, Object> params = new HashMap<>();
+        params.put("empresaRuc", empresaRuc);
         if (state != null) {
             query += " and state = :state";
             params.put("state", state.name());
@@ -74,5 +76,19 @@ public class SagaInstanceRepositoryImpl implements SagaInstanceRepository {
             .chain(rowsUpdated -> rowsUpdated == 0
                 ? Uni.createFrom().nullItem()
                 : findById(comprobanteId));
+    }
+
+    @Override
+    public Uni<List<SagaInstance>> findByEstados(List<SagaState> estados, int limite) {
+        List<String> nombres = estados.stream().map(SagaState::name).collect(Collectors.toList());
+        return repository.find("state in ?1", Sort.ascending("updatedAt"), nombres).page(Page.ofSize(limite)).list()
+            .map(entidades -> entidades.stream().map(mapper::toDomain).collect(Collectors.toList()));
+    }
+
+    @Override
+    public Uni<SagaInstance> registrarReintento(UUID comprobanteId, SagaState estadoActual) {
+        return repository.update("reintentos = reintentos + 1, updatedAt = ?1 where id = ?2 and state = ?3",
+                Instant.now(), comprobanteId, estadoActual.name())
+            .chain(filas -> filas == 0 ? Uni.createFrom().nullItem() : findById(comprobanteId));
     }
 }

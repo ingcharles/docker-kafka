@@ -2,10 +2,16 @@ package com.facturacion.inventario.shared.exception;
 
 import java.util.UUID;
 
-/** Se intentó una operación de existencias (kardex, reserva, imagen de stock) sobre un ítem tipo SERVICIO. */
-public class ItemNoEsProductoException extends RuntimeException {
+import com.facturacion.commons.exception.ApiException;
+import com.facturacion.inventario.shared.error.CodigoError;
+
+/**
+ * Se intentó una operación de existencias (kardex, reserva, imagen de stock) sobre un ítem tipo SERVICIO. 400,
+ * {@link CodigoError#ITEM_NO_ES_PRODUCTO}.
+ */
+public class ItemNoEsProductoException extends ApiException {
 
     public ItemNoEsProductoException(UUID itemId) {
-        super("El ítem " + itemId + " es un SERVICIO — no maneja existencias ni kardex");
+        super(CodigoError.ITEM_NO_ES_PRODUCTO, itemId);
     }
 }

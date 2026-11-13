@@ -60,9 +60,6 @@ public class ItemEntity extends PanacheEntityBase {
     @Column(name = "codigo_porcentaje", nullable = false)
     public String codigoPorcentaje;
 
-    @Column(name = "tarifa_iva", nullable = false)
-    public BigDecimal tarifaIva;
-
     @Column(name = "tiene_ice", nullable = false)
     public boolean tieneIce;
 

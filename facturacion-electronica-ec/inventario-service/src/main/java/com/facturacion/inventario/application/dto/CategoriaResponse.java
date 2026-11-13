@@ -6,6 +6,7 @@ import java.util.UUID;
 public class CategoriaResponse {
 
     private UUID id;
+    private String ruc;
     private String nombre;
     private String tipo;
     private String descripcion;
@@ -18,6 +19,14 @@ public class CategoriaResponse {
 
     public void setId(UUID id) {
         this.id = id;
+    }
+
+    public String getRuc() {
+        return ruc;
+    }
+
+    public void setRuc(String ruc) {
+        this.ruc = ruc;
     }
 
     public String getNombre() {

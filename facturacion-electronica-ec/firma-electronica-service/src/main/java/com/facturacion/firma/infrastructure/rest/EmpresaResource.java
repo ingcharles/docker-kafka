@@ -41,11 +41,12 @@ import com.facturacion.firma.application.dto.SubirCertificadoRequest;
 import com.facturacion.firma.application.service.CertificadoService;
 import com.facturacion.firma.application.service.ConfiguracionEmpresaService;
 import com.facturacion.firma.application.service.EmpresaService;
-import com.facturacion.firma.infrastructure.security.PermiteSesion;
-import com.facturacion.firma.infrastructure.security.TokenPrincipal;
-import com.facturacion.firma.shared.exception.SinPermisoException;
-import com.facturacion.firma.shared.requests.PageRequest;
-import com.facturacion.firma.shared.responses.PagedResponse;
+import com.facturacion.commons.security.PermiteSesion;
+import com.facturacion.firma.infrastructure.security.AccesoEmpresa;
+import com.facturacion.commons.security.TokenPrincipal;
+import com.facturacion.commons.exception.SinPermisoException;
+import com.facturacion.commons.paging.PageRequest;
+import com.facturacion.commons.paging.PagedResponse;
 
 /**
  * CRUD de empresas (multi-tenant) y carga del certificado de firma
@@ -64,14 +65,17 @@ public class EmpresaResource {
     private final CertificadoService certificadoService;
     private final ConfiguracionEmpresaService configuracionService;
     private final TokenPrincipal tokenPrincipal;
+    private final AccesoEmpresa acceso;
 
     @Inject
     public EmpresaResource(EmpresaService empresaService, CertificadoService certificadoService,
-            ConfiguracionEmpresaService configuracionService, TokenPrincipal tokenPrincipal) {
+            ConfiguracionEmpresaService configuracionService, TokenPrincipal tokenPrincipal,
+            AccesoEmpresa acceso) {
         this.empresaService = empresaService;
         this.certificadoService = certificadoService;
         this.configuracionService = configuracionService;
         this.tokenPrincipal = tokenPrincipal;
+        this.acceso = acceso;
     }
 
     /**
@@ -99,7 +103,7 @@ public class EmpresaResource {
     public Uni<Response> crear(@Valid CrearEmpresaRequest request, @Context UriInfo uriInfo) {
         // tokenPrincipal.getRuc() == null significa token de sesión (sin
         // claim ruc) — nada que comparar todavía, ver el javadoc de arriba.
-        if (tokenPrincipal.getRuc() != null && !tokenPrincipal.getRuc().equals(request.getRuc())) {
+        if (tokenPrincipal.getRuc() != null && !tokenPrincipal.esDeLaEmpresa(request.getRuc())) {
             throw new SinPermisoException(
                 "La api-key usada es para el ruc " + tokenPrincipal.getRuc() + ", no para " + request.getRuc());
         }
@@ -119,7 +123,8 @@ public class EmpresaResource {
     public Uni<Response> actualizar(
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id,
             @Valid ActualizarEmpresaRequest request) {
-        return empresaService.actualizarEmpresa(id, request).map(response -> Response.ok(response).build());
+        return acceso.exigirEmpresaAdmin(id).chain(() -> empresaService.actualizarEmpresa(id, request))
+            .map(response -> Response.ok(response).build());
     }
 
     @GET
@@ -129,14 +134,16 @@ public class EmpresaResource {
     @APIResponse(responseCode = "404", description = "Empresa no encontrada")
     public Uni<Response> obtenerPorId(
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id) {
-        return empresaService.obtenerPorId(id).map(response -> Response.ok(response).build());
+        return acceso.exigirEmpresa(id).chain(() -> empresaService.obtenerPorId(id))
+            .map(response -> Response.ok(response).build());
     }
 
     @GET
     @Operation(summary = "Listar empresas", description = "Paginado.")
     @APIResponse(responseCode = "200", description = "Listado")
     public Uni<Response> listar(@Valid @BeanParam PageRequest pageRequest) {
-        return empresaService.listarPaginado(pageRequest.getPage(), pageRequest.getLimit())
+        // Solo la empresa de la api-key: este listado no cruza empresas.
+        return empresaService.listarDeLaEmpresa(tokenPrincipal.getRuc(), pageRequest.getPage(), pageRequest.getLimit())
             .map((PagedResponse<EmpresaResponse> paged) -> Response.ok(paged).build());
     }
 
@@ -158,9 +165,14 @@ public class EmpresaResource {
         // Hibernate Reactive) siga la cadena. Mismo motivo que el salto de
         // contexto dentro de CertificadoService.
         io.vertx.core.Context callingContext = Vertx.currentContext();
-        return Uni.createFrom().item(() -> leerArchivo(form))
-            .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-            .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
+        // Primero se comprueba que la empresa sea la de la api-key: no se lee el archivo subido si no lo es.
+        // OJO: el worker pool es SOLO para leer el archivo (IO bloqueante). La comprobación de acceso usa Hibernate
+        // Reactive y debe correr en el hilo de eventos de Vert.x; si runSubscriptionOn envolviera toda la cadena, fallaría
+        // con HR000068.
+        return acceso.exigirEmpresaAdmin(id)
+            .chain(() -> Uni.createFrom().item(() -> leerArchivo(form))
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run())))
             .onItem().transformToUni(contenido ->
                 certificadoService.subirCertificado(id, contenido, form.contrasena))
             .map(response -> Response.status(Response.Status.CREATED).entity(response).build());
@@ -174,7 +186,7 @@ public class EmpresaResource {
     @APIResponse(responseCode = "404", description = "La empresa no tiene un certificado activo")
     public Uni<Response> obtenerCertificadoActivo(
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id) {
-        return certificadoService.obtenerActivoPorEmpresa(id)
+        return acceso.exigirEmpresa(id).chain(() -> certificadoService.obtenerActivoPorEmpresa(id))
             .map((CertificadoMetadataResponse response) -> Response.ok(response).build());
     }
 
@@ -186,7 +198,8 @@ public class EmpresaResource {
     @APIResponse(responseCode = "404", description = "La empresa no tiene un certificado activo")
     public Uni<Response> revocarCertificado(
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id) {
-        return certificadoService.revocarActivo(id).map(ignorado -> Response.noContent().build());
+        return acceso.exigirEmpresaAdmin(id).chain(() -> certificadoService.revocarActivo(id))
+            .map(ignorado -> Response.noContent().build());
     }
 
     @POST
@@ -201,7 +214,7 @@ public class EmpresaResource {
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id,
             @Parameter(description = "Clave del ajuste", required = true) @PathParam("clave") String clave,
             @Valid EstablecerConfiguracionRequest request) {
-        return configuracionService.crear(id, clave, request.getValor())
+        return acceso.exigirEmpresaAdmin(id).chain(() -> configuracionService.crear(id, clave, request.getValor()))
             .map(response -> Response.ok(response).build());
     }
 
@@ -216,7 +229,7 @@ public class EmpresaResource {
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id,
             @Parameter(description = "Clave del ajuste", required = true) @PathParam("clave") String clave,
             @Valid EstablecerConfiguracionRequest request) {
-        return configuracionService.actualizar(id, clave, request.getValor())
+        return acceso.exigirEmpresaAdmin(id).chain(() -> configuracionService.actualizar(id, clave, request.getValor()))
             .map(response -> Response.ok(response).build());
     }
 
@@ -226,7 +239,7 @@ public class EmpresaResource {
     @APIResponse(responseCode = "200", description = "Listado")
     public Uni<Response> listarConfiguracion(
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id) {
-        return configuracionService.listar(id)
+        return acceso.exigirEmpresa(id).chain(() -> configuracionService.listar(id))
             .map((java.util.List<ConfiguracionEmpresaResponse> ajustes) -> Response.ok(ajustes).build());
     }
 
@@ -238,7 +251,8 @@ public class EmpresaResource {
     public Uni<Response> obtenerConfiguracion(
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id,
             @Parameter(description = "Clave del ajuste", required = true) @PathParam("clave") String clave) {
-        return configuracionService.obtener(id, clave).map(response -> Response.ok(response).build());
+        return acceso.exigirEmpresa(id).chain(() -> configuracionService.obtener(id, clave))
+            .map(response -> Response.ok(response).build());
     }
 
     @DELETE
@@ -249,7 +263,8 @@ public class EmpresaResource {
     public Uni<Response> eliminarConfiguracion(
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id,
             @Parameter(description = "Clave del ajuste", required = true) @PathParam("clave") String clave) {
-        return configuracionService.eliminar(id, clave).map(ignorado -> Response.noContent().build());
+        return acceso.exigirEmpresaAdmin(id).chain(() -> configuracionService.eliminar(id, clave))
+            .map(ignorado -> Response.noContent().build());
     }
 
     private byte[] leerArchivo(SubirCertificadoRequest form) {

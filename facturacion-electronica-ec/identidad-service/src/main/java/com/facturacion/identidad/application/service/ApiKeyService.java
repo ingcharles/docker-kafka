@@ -25,8 +25,8 @@ import com.facturacion.identidad.domain.repository.PuntoEmisionLocalRepository;
 import com.facturacion.identidad.domain.repository.UsuarioEmpresaRolRepository;
 import com.facturacion.identidad.infrastructure.crypto.JwtService;
 import com.facturacion.identidad.infrastructure.persistence.mapper.ApiKeyMapper;
-import com.facturacion.identidad.shared.exception.ConflictoException;
-import com.facturacion.identidad.shared.exception.NotFoundException;
+import com.facturacion.commons.exception.ConflictoException;
+import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.identidad.shared.exception.SinAsociacionException;
 
 /**

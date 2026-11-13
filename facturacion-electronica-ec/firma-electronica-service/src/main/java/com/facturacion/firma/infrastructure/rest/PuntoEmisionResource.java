@@ -28,6 +28,7 @@ import io.smallrye.mutiny.Uni;
 
 import com.facturacion.firma.application.dto.ActualizarPuntoEmisionRequest;
 import com.facturacion.firma.application.dto.CrearPuntoEmisionRequest;
+import com.facturacion.firma.infrastructure.security.AccesoEmpresa;
 import com.facturacion.firma.application.dto.PuntoEmisionResponse;
 import com.facturacion.firma.application.service.PuntoEmisionService;
 
@@ -38,10 +39,12 @@ import com.facturacion.firma.application.service.PuntoEmisionService;
 public class PuntoEmisionResource {
 
     private final PuntoEmisionService puntoEmisionService;
+    private final AccesoEmpresa acceso;
 
     @Inject
-    public PuntoEmisionResource(PuntoEmisionService puntoEmisionService) {
+    public PuntoEmisionResource(PuntoEmisionService puntoEmisionService, AccesoEmpresa acceso) {
         this.puntoEmisionService = puntoEmisionService;
+        this.acceso = acceso;
     }
 
     @POST
@@ -56,7 +59,8 @@ public class PuntoEmisionResource {
             @Parameter(description = "Id del establecimiento", required = true)
             @PathParam("establecimientoId") UUID establecimientoId,
             @Valid CrearPuntoEmisionRequest request, @Context UriInfo uriInfo) {
-        return puntoEmisionService.crear(empresaId, establecimientoId, request)
+        return acceso.exigirEstablecimientoAdmin(empresaId, establecimientoId)
+            .chain(() -> puntoEmisionService.crear(empresaId, establecimientoId, request))
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("puntos-emision")
                     .path(response.getId().toString()).build();
@@ -76,7 +80,8 @@ public class PuntoEmisionResource {
             @PathParam("establecimientoId") UUID establecimientoId,
             @Parameter(description = "Id del punto de emisión", required = true) @PathParam("id") UUID id,
             @Valid ActualizarPuntoEmisionRequest request) {
-        return puntoEmisionService.actualizar(empresaId, establecimientoId, id, request)
+        return acceso.exigirEstablecimientoAdmin(empresaId, establecimientoId)
+            .chain(() -> puntoEmisionService.actualizar(empresaId, establecimientoId, id, request))
             .map(response -> Response.ok(response).build());
     }
 
@@ -88,7 +93,8 @@ public class PuntoEmisionResource {
             @Parameter(description = "Id de la empresa", required = true) @PathParam("empresaId") UUID empresaId,
             @Parameter(description = "Id del establecimiento", required = true)
             @PathParam("establecimientoId") UUID establecimientoId) {
-        return puntoEmisionService.listarPorEstablecimiento(establecimientoId)
+        return acceso.exigirEstablecimiento(empresaId, establecimientoId)
+            .chain(() -> puntoEmisionService.listarPorEstablecimiento(establecimientoId))
             .map((List<PuntoEmisionResponse> puntos) -> Response.ok(puntos).build());
     }
 
@@ -102,6 +108,8 @@ public class PuntoEmisionResource {
             @Parameter(description = "Id del establecimiento", required = true)
             @PathParam("establecimientoId") UUID establecimientoId,
             @Parameter(description = "Id del punto de emisión", required = true) @PathParam("id") UUID id) {
-        return puntoEmisionService.obtener(establecimientoId, id).map(response -> Response.ok(response).build());
+        return acceso.exigirEstablecimiento(empresaId, establecimientoId)
+            .chain(() -> puntoEmisionService.obtener(establecimientoId, id))
+            .map(response -> Response.ok(response).build());
     }
 }

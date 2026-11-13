@@ -170,12 +170,14 @@ public class ComprobanteEntity extends PanacheEntityBase {
     @Column
     public String placa;
 
-    /** Serializados como JSON — mismo patrón que {@code impuestos_json} en DetalleComprobanteEntity (ver ComprobanteMapper). */
-    @Column(name = "pagos_json", columnDefinition = "text")
-    public String pagosJson;
-
+    /** Serializado como JSON (ver ComprobanteMapper). Los pagos ya no: tienen su propia tabla, {@link #pagos}. */
     @Column(name = "campos_adicionales_json", columnDefinition = "text")
     public String camposAdicionalesJson;
+
+    /** Solo Factura/Nota de Débito/Liquidación de Compra; vacío en los otros 3 tipos. */
+    @OneToMany(mappedBy = "comprobante", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OrderBy("orden")
+    public List<ComprobantePagoEntity> pagos = new ArrayList<>();
 
     @OneToMany(mappedBy = "comprobante", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("id")

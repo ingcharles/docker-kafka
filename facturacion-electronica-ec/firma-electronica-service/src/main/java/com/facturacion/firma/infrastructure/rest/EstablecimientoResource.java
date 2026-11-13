@@ -30,6 +30,7 @@ import com.facturacion.firma.application.dto.ActualizarEstablecimientoRequest;
 import com.facturacion.firma.application.dto.CrearEstablecimientoRequest;
 import com.facturacion.firma.application.dto.EstablecimientoResponse;
 import com.facturacion.firma.application.service.EstablecimientoService;
+import com.facturacion.firma.infrastructure.security.AccesoEmpresa;
 
 /**
  * CRUD de establecimientos de una empresa — ver {@link EstablecimientoService}.
@@ -43,10 +44,12 @@ import com.facturacion.firma.application.service.EstablecimientoService;
 public class EstablecimientoResource {
 
     private final EstablecimientoService establecimientoService;
+    private final AccesoEmpresa acceso;
 
     @Inject
-    public EstablecimientoResource(EstablecimientoService establecimientoService) {
+    public EstablecimientoResource(EstablecimientoService establecimientoService, AccesoEmpresa acceso) {
         this.establecimientoService = establecimientoService;
+        this.acceso = acceso;
     }
 
     @POST
@@ -59,7 +62,7 @@ public class EstablecimientoResource {
     public Uni<Response> crear(
             @Parameter(description = "Id de la empresa", required = true) @PathParam("empresaId") UUID empresaId,
             @Valid CrearEstablecimientoRequest request, @Context UriInfo uriInfo) {
-        return establecimientoService.crear(empresaId, request)
+        return acceso.exigirEmpresaAdmin(empresaId).chain(() -> establecimientoService.crear(empresaId, request))
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("establecimientos")
                     .path(response.getId().toString()).build();
@@ -77,7 +80,7 @@ public class EstablecimientoResource {
             @Parameter(description = "Id de la empresa", required = true) @PathParam("empresaId") UUID empresaId,
             @Parameter(description = "Id del establecimiento", required = true) @PathParam("id") UUID id,
             @Valid ActualizarEstablecimientoRequest request) {
-        return establecimientoService.actualizar(empresaId, id, request)
+        return acceso.exigirEmpresaAdmin(empresaId).chain(() -> establecimientoService.actualizar(empresaId, id, request))
             .map(response -> Response.ok(response).build());
     }
 
@@ -87,7 +90,7 @@ public class EstablecimientoResource {
     @APIResponse(responseCode = "200", description = "Listado")
     public Uni<Response> listar(
             @Parameter(description = "Id de la empresa", required = true) @PathParam("empresaId") UUID empresaId) {
-        return establecimientoService.listarPorEmpresa(empresaId)
+        return acceso.exigirEmpresa(empresaId).chain(() -> establecimientoService.listarPorEmpresa(empresaId))
             .map((List<EstablecimientoResponse> establecimientos) -> Response.ok(establecimientos).build());
     }
 
@@ -99,6 +102,7 @@ public class EstablecimientoResource {
     public Uni<Response> obtener(
             @Parameter(description = "Id de la empresa", required = true) @PathParam("empresaId") UUID empresaId,
             @Parameter(description = "Id del establecimiento", required = true) @PathParam("id") UUID id) {
-        return establecimientoService.obtener(empresaId, id).map(response -> Response.ok(response).build());
+        return acceso.exigirEmpresa(empresaId).chain(() -> establecimientoService.obtener(empresaId, id))
+            .map(response -> Response.ok(response).build());
     }
 }

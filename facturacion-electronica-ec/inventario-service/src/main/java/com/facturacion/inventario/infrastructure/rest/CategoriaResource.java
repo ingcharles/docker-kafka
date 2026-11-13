@@ -30,8 +30,10 @@ import com.facturacion.inventario.application.dto.ActualizarCategoriaRequest;
 import com.facturacion.inventario.application.dto.CategoriaResponse;
 import com.facturacion.inventario.application.dto.CrearCategoriaRequest;
 import com.facturacion.inventario.application.service.CategoriaService;
-import com.facturacion.inventario.shared.requests.PageRequest;
-import com.facturacion.inventario.shared.responses.PagedResponse;
+import com.facturacion.inventario.infrastructure.security.AccesoEmpresa;
+import com.facturacion.commons.security.TokenPrincipal;
+import com.facturacion.commons.paging.PageRequest;
+import com.facturacion.commons.paging.PagedResponse;
 
 @Path("")
 @Produces(MediaType.APPLICATION_JSON)
@@ -39,19 +41,25 @@ import com.facturacion.inventario.shared.responses.PagedResponse;
 public class CategoriaResource {
 
     private final CategoriaService categoriaService;
+    private final TokenPrincipal tokenPrincipal;
+    private final AccesoEmpresa acceso;
 
     @Inject
-    public CategoriaResource(CategoriaService categoriaService) {
+    public CategoriaResource(CategoriaService categoriaService, TokenPrincipal tokenPrincipal,
+            AccesoEmpresa acceso) {
         this.categoriaService = categoriaService;
+        this.tokenPrincipal = tokenPrincipal;
+        this.acceso = acceso;
     }
 
     @POST
     @Path("/categorias")
     @Consumes(MediaType.APPLICATION_JSON)
-    @Operation(summary = "Crear una categoría")
+    @Operation(summary = "Crear una categoría", description = "Queda en la empresa (RUC) de la api-key.")
     @APIResponse(responseCode = "201", description = "Categoría creada")
     public Uni<Response> crear(@Valid CrearCategoriaRequest request, @Context UriInfo uriInfo) {
-        return categoriaService.crear(request)
+        tokenPrincipal.exigirEscritura();
+        return categoriaService.crear(tokenPrincipal.getRuc(), request)
             .map(response -> {
                 URI location = uriInfo.getAbsolutePathBuilder().path(response.getId().toString()).build();
                 return Response.created(location).entity(response).build();
@@ -67,7 +75,8 @@ public class CategoriaResource {
     public Uni<Response> actualizar(
             @Parameter(description = "Id de la categoría", required = true) @PathParam("id") UUID id,
             @Valid ActualizarCategoriaRequest request) {
-        return categoriaService.actualizar(id, request).map(response -> Response.ok(response).build());
+        return acceso.exigirCategoriaEscritura(id).chain(() -> categoriaService.actualizar(id, request))
+            .map(response -> Response.ok(response).build());
     }
 
     @GET
@@ -77,15 +86,16 @@ public class CategoriaResource {
     @APIResponse(responseCode = "404", description = "Categoría no encontrada")
     public Uni<Response> obtenerPorId(
             @Parameter(description = "Id de la categoría", required = true) @PathParam("id") UUID id) {
-        return categoriaService.obtenerPorId(id).map(response -> Response.ok(response).build());
+        return acceso.exigirCategoria(id).chain(() -> categoriaService.obtenerPorId(id))
+            .map(response -> Response.ok(response).build());
     }
 
     @GET
     @Path("/categorias")
-    @Operation(summary = "Listar categorías", description = "Paginado.")
+    @Operation(summary = "Listar categorías", description = "Paginado; solo las de la empresa de la api-key.")
     @APIResponse(responseCode = "200", description = "Listado")
     public Uni<Response> listar(@Valid @BeanParam PageRequest pageRequest) {
-        return categoriaService.listarPaginado(pageRequest.getPage(), pageRequest.getLimit())
+        return categoriaService.listarPaginado(pageRequest.getPage(), pageRequest.getLimit(), tokenPrincipal.getRuc())
             .map((PagedResponse<CategoriaResponse> paged) -> Response.ok(paged).build());
     }
 }

@@ -32,6 +32,7 @@ import io.vertx.core.Vertx;
 import com.facturacion.inventario.application.dto.ImagenItemResponse;
 import com.facturacion.inventario.application.dto.SubirImagenRequest;
 import com.facturacion.inventario.application.service.ImagenService;
+import com.facturacion.inventario.infrastructure.security.AccesoEmpresa;
 import com.facturacion.inventario.domain.model.entity.ImagenItem;
 
 /**
@@ -48,10 +49,12 @@ import com.facturacion.inventario.domain.model.entity.ImagenItem;
 public class ImagenResource {
 
     private final ImagenService imagenService;
+    private final AccesoEmpresa acceso;
 
     @Inject
-    public ImagenResource(ImagenService imagenService) {
+    public ImagenResource(ImagenService imagenService, AccesoEmpresa acceso) {
         this.imagenService = imagenService;
+        this.acceso = acceso;
     }
 
     @POST
@@ -67,9 +70,14 @@ public class ImagenResource {
             @Parameter(description = "Id del ítem", required = true) @PathParam("id") UUID id,
             @Valid @BeanParam SubirImagenRequest form, @Context UriInfo uriInfo) {
         io.vertx.core.Context callingContext = Vertx.currentContext();
-        return Uni.createFrom().item(() -> leerArchivo(form))
-            .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-            .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
+        // Primero se comprueba que el ítem sea de la empresa de la api-key: no se lee el archivo subido si no lo es.
+        // OJO: el worker pool es SOLO para leer el archivo (IO bloqueante). La comprobación de acceso usa Hibernate
+        // Reactive y debe correr en el hilo de eventos de Vert.x; si runSubscriptionOn envolviera toda la cadena, fallaría
+        // con HR000068.
+        return acceso.exigirItemEscritura(id)
+            .chain(() -> Uni.createFrom().item(() -> leerArchivo(form))
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run())))
             .onItem().transformToUni(contenido -> imagenService.subirImagen(id, contenido,
                 form.archivo.fileName(), form.archivo.contentType(), form.esPrincipal, form.orden))
             .map(response -> {
@@ -86,7 +94,8 @@ public class ImagenResource {
     @APIResponse(responseCode = "200", description = "Listado")
     public Uni<Response> listarPorItem(
             @Parameter(description = "Id del ítem", required = true) @PathParam("id") UUID id) {
-        return imagenService.listarPorItem(id)
+        return acceso.exigirItem(id)
+            .chain(() -> imagenService.listarPorItem(id))
             .map((java.util.List<ImagenItemResponse> imagenes) -> Response.ok(imagenes).build());
     }
 
@@ -97,7 +106,8 @@ public class ImagenResource {
     @APIResponse(responseCode = "404", description = "Imagen no encontrada")
     public Uni<Response> obtenerContenido(
             @Parameter(description = "Id de la imagen", required = true) @PathParam("id") UUID id) {
-        return imagenService.obtenerParaDescarga(id)
+        return acceso.exigirImagen(id)
+            .chain(() -> imagenService.obtenerParaDescarga(id))
             .map((ImagenItem imagen) -> Response.ok(imagen.getContenido())
                 .type(imagen.getTipoMime())
                 .header("Content-Disposition", "inline; filename=\"" + imagen.getNombreArchivo() + "\"")
@@ -111,7 +121,8 @@ public class ImagenResource {
     @APIResponse(responseCode = "404", description = "Imagen no encontrada")
     public Uni<Response> eliminar(
             @Parameter(description = "Id de la imagen", required = true) @PathParam("id") UUID id) {
-        return imagenService.eliminar(id).map(ignorado -> Response.noContent().build());
+        return acceso.exigirImagenEscritura(id).chain(() -> imagenService.eliminar(id))
+            .map(ignorado -> Response.noContent().build());
     }
 
     private byte[] leerArchivo(SubirImagenRequest form) {

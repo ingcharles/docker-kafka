@@ -10,7 +10,7 @@ import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.comprobantes.application.event.ActualizarComprobanteCommand;
-import com.facturacion.comprobantes.application.service.ComprobanteService;
+import com.facturacion.comprobantes.application.service.ActualizacionComprobanteService;
 import com.facturacion.comprobantes.infrastructure.inbox.ProcessedMessageEntity;
 import com.facturacion.comprobantes.infrastructure.inbox.ProcessedMessageRepository;
 
@@ -25,13 +25,13 @@ public class ActualizarComprobanteCommandConsumer {
 
     private static final Logger LOG = Logger.getLogger(ActualizarComprobanteCommandConsumer.class);
 
-    private final ComprobanteService comprobanteService;
+    private final ActualizacionComprobanteService actualizacionService;
     private final ProcessedMessageRepository processedMessageRepository;
 
     @Inject
-    public ActualizarComprobanteCommandConsumer(ComprobanteService comprobanteService,
+    public ActualizarComprobanteCommandConsumer(ActualizacionComprobanteService actualizacionService,
             ProcessedMessageRepository processedMessageRepository) {
-        this.comprobanteService = comprobanteService;
+        this.actualizacionService = actualizacionService;
         this.processedMessageRepository = processedMessageRepository;
     }
 
@@ -45,7 +45,7 @@ public class ActualizarComprobanteCommandConsumer {
                         command.eventId(), command.comprobanteId());
                     return Uni.createFrom().voidItem();
                 }
-                return comprobanteService.aplicarComando(command)
+                return actualizacionService.aplicarComando(command)
                     .chain(() -> processedMessageRepository.persist(ProcessedMessageEntity.of(command.eventId())))
                     .replaceWithVoid();
             });

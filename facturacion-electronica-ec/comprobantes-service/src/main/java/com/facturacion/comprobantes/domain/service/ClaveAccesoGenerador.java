@@ -1,10 +1,10 @@
 package com.facturacion.comprobantes.domain.service;
 
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.ThreadLocalRandom;
 
+import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 import com.facturacion.comprobantes.domain.model.enums.AmbienteSri;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 
@@ -73,6 +73,6 @@ public final class ClaveAccesoGenerador {
     }
 
     public static LocalDate hoyEnEcuador() {
-        return LocalDate.now(ZoneOffset.of("-05:00"));
+        return LocalDate.now(ZonaHoraria.ECUADOR);
     }
 }

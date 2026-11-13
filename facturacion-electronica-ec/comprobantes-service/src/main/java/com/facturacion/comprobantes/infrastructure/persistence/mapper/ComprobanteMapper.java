@@ -1,6 +1,9 @@
 package com.facturacion.comprobantes.infrastructure.persistence.mapper;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
@@ -20,6 +23,7 @@ import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.CampoAdicional;
 import com.facturacion.comprobantes.domain.model.vo.Pago;
 import com.facturacion.comprobantes.infrastructure.persistence.entity.ComprobanteEntity;
+import com.facturacion.comprobantes.infrastructure.persistence.entity.ComprobantePagoEntity;
 
 /**
  * {@code detalles} sí se mapea automáticamente (vía {@link DetalleComprobanteMapper}),
@@ -29,9 +33,10 @@ import com.facturacion.comprobantes.infrastructure.persistence.entity.Comprobant
  * después del mapeo principal, mismo patrón que {@code OrderMapper} en
  * ecommerce/order-service para {@code OrderItemEntity.order}.
  * <p>
- * {@code pagos}/{@code camposAdicionales} (dominio) <-> {@code pagosJson}/{@code camposAdicionalesJson}
- * (entidad) se serializan a mano igual que {@code impuestosJson} en
- * {@link DetalleComprobanteMapper} — mismo criterio, sin librería compartida.
+ * {@code pagos} (dominio, lista de {@link Pago}) <-> {@code pagos} (entidad, filas de
+ * {@code comprobante_pago}) se construye a mano: cada fila lleva su {@code orden} y la
+ * referencia inversa se completa en {@link #linkDetallesToComprobante}. {@code camposAdicionales}
+ * <-> {@code camposAdicionalesJson} sigue serializándose como JSON.
  */
 @Mapper(componentModel = MappingConstants.ComponentModel.CDI,
     uses = { DetalleComprobanteMapper.class, DestinatarioGuiaRemisionMapper.class })
@@ -39,34 +44,46 @@ public interface ComprobanteMapper {
 
     ObjectMapper JSON = new ObjectMapper();
 
-    @Mapping(target = "pagosJson", expression = "java(escribirPagos(domain.getPagos()))")
+    @Mapping(target = "pagos", expression = "java(escribirPagos(domain.getPagos()))")
     @Mapping(target = "camposAdicionalesJson", expression = "java(escribirCamposAdicionales(domain.getCamposAdicionales()))")
     ComprobanteEntity toEntity(Comprobante domain);
 
-    @Mapping(target = "pagos", expression = "java(leerPagos(entity.pagosJson))")
+    @Mapping(target = "pagos", expression = "java(leerPagos(entity.pagos))")
     @Mapping(target = "camposAdicionales", expression = "java(leerCamposAdicionales(entity.camposAdicionalesJson))")
     Comprobante toDomain(ComprobanteEntity entity);
 
     ComprobanteResponse toResponse(Comprobante domain);
 
-    default String escribirPagos(List<Pago> pagos) {
-        try {
-            return JSON.writeValueAsString(pagos == null ? List.of() : pagos);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("No se pudo serializar los pagos del comprobante", e);
+    default List<ComprobantePagoEntity> escribirPagos(List<Pago> pagos) {
+        List<ComprobantePagoEntity> filas = new ArrayList<>();
+        if (pagos == null) {
+            return filas;
         }
+        for (int i = 0; i < pagos.size(); i++) {
+            Pago pago = pagos.get(i);
+            ComprobantePagoEntity fila = new ComprobantePagoEntity();
+            fila.id = UUID.randomUUID();
+            fila.orden = i;
+            fila.formaPago = pago.formaPago();
+            fila.total = pago.total();
+            fila.plazo = pago.plazo() == null || pago.plazo().isBlank() ? null : new BigDecimal(pago.plazo().trim());
+            fila.unidadTiempo = pago.unidadTiempo() == null || pago.unidadTiempo().isBlank() ? null : pago.unidadTiempo();
+            filas.add(fila);
+        }
+        return filas;
     }
 
-    default List<Pago> leerPagos(String pagosJson) {
-        if (pagosJson == null) {
-            return List.of();
+    default List<Pago> leerPagos(List<ComprobantePagoEntity> filas) {
+        List<Pago> pagos = new ArrayList<>();
+        if (filas == null) {
+            return pagos;
         }
-        try {
-            return JSON.readValue(pagosJson, new TypeReference<List<Pago>>() {
-            });
-        } catch (Exception e) {
-            throw new IllegalStateException("No se pudo leer los pagos del comprobante", e);
+        for (ComprobantePagoEntity fila : filas) {
+            // plazo es numeric(14,2) en la base; "30.00" se vuelve a "30" para que coincida con lo que mando el cliente.
+            String plazo = fila.plazo == null ? null : fila.plazo.stripTrailingZeros().toPlainString();
+            pagos.add(new Pago(fila.formaPago, fila.total, plazo, fila.unidadTiempo));
         }
+        return pagos;
     }
 
     default String escribirCamposAdicionales(List<CampoAdicional> campos) {
@@ -93,6 +110,9 @@ public interface ComprobanteMapper {
     default void linkDetallesToComprobante(@MappingTarget ComprobanteEntity entity) {
         if (entity.detalles != null) {
             entity.detalles.forEach(detalle -> detalle.comprobante = entity);
+        }
+        if (entity.pagos != null) {
+            entity.pagos.forEach(pago -> pago.comprobante = entity);
         }
         if (entity.destinatarios != null) {
             entity.destinatarios.forEach(destinatario -> destinatario.comprobante = entity);

@@ -5,7 +5,7 @@ import java.util.UUID;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.firma.domain.model.entity.Empresa;
-import com.facturacion.firma.domain.model.vo.PageResult;
+import com.facturacion.commons.paging.PageResult;
 
 public interface EmpresaRepository {
 

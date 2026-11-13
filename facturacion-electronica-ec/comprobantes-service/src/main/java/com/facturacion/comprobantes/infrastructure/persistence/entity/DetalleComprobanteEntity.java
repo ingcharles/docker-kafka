@@ -1,14 +1,19 @@
 package com.facturacion.comprobantes.infrastructure.persistence.entity;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 
 import io.quarkus.hibernate.reactive.panache.PanacheEntityBase;
@@ -48,9 +53,10 @@ public class DetalleComprobanteEntity extends PanacheEntityBase {
     @Column(name = "precio_total_sin_impuesto", nullable = false)
     public BigDecimal precioTotalSinImpuesto;
 
-    /** Arreglo de impuestos de esta línea (código, código de porcentaje, tarifa, base, valor), serializado como JSON. */
-    @Column(name = "impuestos_json", nullable = false, columnDefinition = "text")
-    public String impuestosJson;
+    /** Impuestos de esta línea (código, código de porcentaje, tarifa, base, valor), en su propia tabla. */
+    @OneToMany(mappedBy = "detalle", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OrderBy("orden")
+    public List<DetalleImpuestoEntity> impuestos = new ArrayList<>();
 
     /**
      * Solo para Guía de Remisión: id del {@link DestinatarioGuiaRemisionEntity}

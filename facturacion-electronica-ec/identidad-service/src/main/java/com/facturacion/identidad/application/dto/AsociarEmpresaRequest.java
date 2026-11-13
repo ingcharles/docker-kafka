@@ -5,13 +5,11 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
 /**
- * Asocia al usuario autenticado con un ruc — sin flujo de invitación ni
- * verificación de *titularidad* real (cualquier usuario puede pedir
- * asociarse a cualquier ruc con cualquier rol), pero el servicio sí exige
- * que el ruc corresponda a un Empresa real y activo en
- * firma-electronica-service (ver {@code UsuarioService.asociarEmpresa} y
- * {@code EmpresaLocal}) — un 404 significa que ese ruc todavía no tiene
- * Empresa dado de alta.
+ * Asocia al usuario autenticado con un ruc. Solo es posible mientras la empresa NO tenga ningún miembro (el
+ * arranque: reclamar una empresa recién creada sin dueño); si ya tiene administradores, el acceso lo da uno de ellos
+ * ({@code POST /empresas/{ruc}/usuarios}). El servicio exige además que el ruc corresponda a una Empresa real y
+ * activa en firma-electronica-service (ver {@code UsuarioService.asociarEmpresa} y {@code EmpresaLocal}) — un 404
+ * significa que ese ruc todavía no tiene Empresa dado de alta.
  */
 public class AsociarEmpresaRequest {
 
@@ -20,6 +18,7 @@ public class AsociarEmpresaRequest {
     private String ruc;
 
     @NotNull
+    @Pattern(regexp = "ADMIN|OPERADOR|LECTURA", message = "el rol debe ser ADMIN, OPERADOR o LECTURA")
     private String rol;
 
     public String getRuc() {

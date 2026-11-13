@@ -1,6 +1,5 @@
 package com.facturacion.comprobantes.infrastructure.xml;
 
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
 import jakarta.enterprise.context.ApplicationScoped;
@@ -8,6 +7,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.DocumentoSustento;
@@ -82,7 +82,7 @@ public class GeneradorXmlRetencion implements GeneradorXmlComprobante {
     private Element construirInfoCompRetencion(Document doc, Comprobante c) {
         Element info = doc.createElement("infoCompRetencion");
         XmlComprobanteUtil.texto(doc, info, "fechaEmision",
-            FORMATO_FECHA.format(c.getFechaEmision().atZone(ZoneOffset.of("-05:00"))));
+            FORMATO_FECHA.format(c.getFechaEmision().atZone(ZonaHoraria.ECUADOR)));
         XmlComprobanteUtil.texto(doc, info, "dirEstablecimiento", XmlComprobanteUtil.direccionEstablecimiento(c));
         if (c.isEmpresaContribuyenteEspecial() && c.getEmpresaNumeroContribuyenteEspecial() != null) {
             XmlComprobanteUtil.texto(doc, info, "contribuyenteEspecial", c.getEmpresaNumeroContribuyenteEspecial());

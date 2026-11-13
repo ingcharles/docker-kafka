@@ -8,6 +8,8 @@ import com.facturacion.inventario.domain.model.enums.TipoCategoria;
 public class Categoria {
 
     private UUID id;
+    /** RUC de la empresa dueña de la categoría. */
+    private String ruc;
     private String nombre;
     private TipoCategoria tipo;
     private String descripcion;
@@ -17,9 +19,10 @@ public class Categoria {
     public Categoria() {
     }
 
-    public Categoria(UUID id, String nombre, TipoCategoria tipo, String descripcion, boolean activa,
+    public Categoria(UUID id, String ruc, String nombre, TipoCategoria tipo, String descripcion, boolean activa,
             Instant creadoEn) {
         this.id = id;
+        this.ruc = ruc;
         this.nombre = nombre;
         this.tipo = tipo;
         this.descripcion = descripcion;
@@ -33,6 +36,14 @@ public class Categoria {
 
     public void setId(UUID id) {
         this.id = id;
+    }
+
+    public String getRuc() {
+        return ruc;
+    }
+
+    public void setRuc(String ruc) {
+        this.ruc = ruc;
     }
 
     public String getNombre() {

@@ -19,7 +19,7 @@ import com.facturacion.inventario.domain.repository.ImagenItemRepository;
 import com.facturacion.inventario.domain.repository.ItemRepository;
 import com.facturacion.inventario.infrastructure.persistence.mapper.ImagenItemMapper;
 import com.facturacion.inventario.shared.exception.ImagenInvalidaException;
-import com.facturacion.inventario.shared.exception.NotFoundException;
+import com.facturacion.commons.exception.NotFoundException;
 
 /**
  * Imágenes de productos y servicios. El contenido se guarda directamente en

@@ -25,7 +25,7 @@ import com.facturacion.firma.domain.repository.EmpresaRepository;
 import com.facturacion.firma.infrastructure.crypto.CifradoService;
 import com.facturacion.firma.infrastructure.persistence.mapper.CertificadoDigitalMapper;
 import com.facturacion.firma.shared.exception.CertificadoInvalidoException;
-import com.facturacion.firma.shared.exception.NotFoundException;
+import com.facturacion.commons.exception.NotFoundException;
 
 /**
  * Carga y custodia del certificado {@code .p12} de una empresa. Nunca guarda

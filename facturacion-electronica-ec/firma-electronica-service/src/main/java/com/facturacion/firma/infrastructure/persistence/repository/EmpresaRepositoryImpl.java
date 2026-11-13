@@ -12,7 +12,7 @@ import io.quarkus.panache.common.Page;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.firma.domain.model.entity.Empresa;
-import com.facturacion.firma.domain.model.vo.PageResult;
+import com.facturacion.commons.paging.PageResult;
 import com.facturacion.firma.domain.repository.EmpresaRepository;
 import com.facturacion.firma.infrastructure.persistence.entity.EmpresaEntity;
 import com.facturacion.firma.infrastructure.persistence.mapper.EmpresaMapper;

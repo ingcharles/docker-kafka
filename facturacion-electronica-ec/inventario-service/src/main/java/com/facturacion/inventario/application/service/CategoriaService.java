@@ -18,11 +18,11 @@ import com.facturacion.inventario.application.dto.CategoriaResponse;
 import com.facturacion.inventario.application.dto.CrearCategoriaRequest;
 import com.facturacion.inventario.domain.model.entity.Categoria;
 import com.facturacion.inventario.domain.model.enums.TipoCategoria;
-import com.facturacion.inventario.domain.model.vo.PageResult;
+import com.facturacion.commons.paging.PageResult;
 import com.facturacion.inventario.domain.repository.CategoriaRepository;
 import com.facturacion.inventario.infrastructure.persistence.mapper.CategoriaMapper;
-import com.facturacion.inventario.shared.exception.NotFoundException;
-import com.facturacion.inventario.shared.responses.PagedResponse;
+import com.facturacion.commons.exception.NotFoundException;
+import com.facturacion.commons.paging.PagedResponse;
 
 @ApplicationScoped
 public class CategoriaService {
@@ -37,15 +37,15 @@ public class CategoriaService {
     }
 
     @WithTransaction
-    public Uni<CategoriaResponse> crear(@Valid CrearCategoriaRequest request) {
-        Categoria categoria = new Categoria(UUID.randomUUID(), request.getNombre(),
+    public Uni<CategoriaResponse> crear(String ruc, @Valid CrearCategoriaRequest request) {
+        Categoria categoria = new Categoria(UUID.randomUUID(), ruc, request.getNombre(),
             TipoCategoria.valueOf(request.getTipo()), request.getDescripcion(), true, Instant.now());
         return repository.persist(categoria).map(mapper::toResponse);
     }
 
     @WithTransaction
     public Uni<CategoriaResponse> actualizar(UUID id, @Valid ActualizarCategoriaRequest request) {
-        Categoria categoria = new Categoria(id, request.getNombre(), TipoCategoria.valueOf(request.getTipo()),
+        Categoria categoria = new Categoria(id, null, request.getNombre(), TipoCategoria.valueOf(request.getTipo()),
             request.getDescripcion(), request.isActiva(), null);
         return repository.update(categoria)
             .onItem().ifNull().failWith(() -> new NotFoundException("Categoría no encontrada: " + id))
@@ -60,8 +60,8 @@ public class CategoriaService {
     }
 
     @WithSession
-    public Uni<PagedResponse<CategoriaResponse>> listarPaginado(int page, int limit) {
-        return repository.findPaged(page, limit)
+    public Uni<PagedResponse<CategoriaResponse>> listarPaginado(int page, int limit, String ruc) {
+        return repository.findPaged(page, limit, ruc)
             .map((PageResult<Categoria> pageResult) -> {
                 List<CategoriaResponse> items = pageResult.items().stream()
                     .map(mapper::toResponse)

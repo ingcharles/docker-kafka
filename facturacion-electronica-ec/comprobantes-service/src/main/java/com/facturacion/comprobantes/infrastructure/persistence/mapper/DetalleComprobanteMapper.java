@@ -1,59 +1,106 @@
 package com.facturacion.comprobantes.infrastructure.persistence.mapper;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.ResolverStyle;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
+import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingConstants;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.mapstruct.MappingTarget;
 
 import com.facturacion.comprobantes.application.dto.DetalleComprobanteResponse;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
 import com.facturacion.comprobantes.domain.model.vo.Impuesto;
 import com.facturacion.comprobantes.infrastructure.persistence.entity.DetalleComprobanteEntity;
+import com.facturacion.comprobantes.infrastructure.persistence.entity.DetalleImpuestoEntity;
 
 /**
- * {@code impuestos} (dominio) <-> {@code impuestosJson} (entidad) no es algo
- * que MapStruct sepa convertir solo — se serializa/deserializa a mano con un
- * Jackson {@link ObjectMapper} local (sin inyección CDI: es un conversor sin
- * estado, no hace falta compartir la instancia con el resto del servicio).
+ * {@code impuestos} (dominio, lista de {@link Impuesto}) <-> {@code impuestos}
+ * (entidad, filas de {@code detalle_impuesto}) no es algo que MapStruct sepa
+ * convertir solo: cada fila lleva su {@code orden} (la posición en la lista) y
+ * una referencia inversa a la línea, así que se construye a mano — la
+ * referencia inversa se completa en {@link #linkImpuestosToDetalle}, mismo
+ * patrón que {@code ComprobanteMapper.linkDetallesToComprobante}.
+ * <p>
+ * El dominio guarda {@code docSustentoFecha} como texto dd/MM/aaaa (así va en
+ * el XML del SRI); la columna es {@code date}, se convierte aquí.
  */
 @Mapper(componentModel = MappingConstants.ComponentModel.CDI)
 public interface DetalleComprobanteMapper {
 
-    ObjectMapper JSON = new ObjectMapper();
+    DateTimeFormatter FECHA_SRI = DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT);
 
     @Mapping(target = "precioTotalSinImpuesto", expression = "java(domain.precioTotalSinImpuesto())")
     DetalleComprobanteResponse toResponse(DetalleComprobante domain);
 
     @Mapping(target = "comprobante", ignore = true)
     @Mapping(target = "precioTotalSinImpuesto", expression = "java(domain.precioTotalSinImpuesto())")
-    @Mapping(target = "impuestosJson", expression = "java(escribirImpuestos(domain.getImpuestos()))")
+    @Mapping(target = "impuestos", expression = "java(escribirImpuestos(domain.getImpuestos()))")
     DetalleComprobanteEntity toEntity(DetalleComprobante domain);
 
-    @Mapping(target = "impuestos", expression = "java(leerImpuestos(entity.impuestosJson))")
+    @Mapping(target = "impuestos", expression = "java(leerImpuestos(entity.impuestos))")
     DetalleComprobante toDomain(DetalleComprobanteEntity entity);
 
-    default String escribirImpuestos(List<Impuesto> impuestos) {
-        try {
-            return JSON.writeValueAsString(impuestos);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("No se pudo serializar los impuestos de la línea de detalle", e);
+    default List<DetalleImpuestoEntity> escribirImpuestos(List<Impuesto> impuestos) {
+        List<DetalleImpuestoEntity> filas = new ArrayList<>();
+        if (impuestos == null) {
+            return filas;
+        }
+        for (int i = 0; i < impuestos.size(); i++) {
+            Impuesto impuesto = impuestos.get(i);
+            DetalleImpuestoEntity fila = new DetalleImpuestoEntity();
+            fila.id = UUID.randomUUID();
+            fila.orden = i;
+            fila.codigo = impuesto.codigo();
+            fila.codigoPorcentaje = impuesto.codigoPorcentaje();
+            fila.tarifa = impuesto.tarifa();
+            fila.baseImponible = impuesto.baseImponible();
+            fila.valor = impuesto.valor();
+            fila.codigoRetencion = impuesto.codigoRetencion();
+            fila.docSustentoCodigo = impuesto.docSustentoCodigo();
+            fila.docSustentoNumero = impuesto.docSustentoNumero();
+            fila.docSustentoFecha = parseFechaSri(impuesto.docSustentoFecha());
+            filas.add(fila);
+        }
+        return filas;
+    }
+
+    default List<Impuesto> leerImpuestos(List<DetalleImpuestoEntity> filas) {
+        List<Impuesto> impuestos = new ArrayList<>();
+        if (filas == null) {
+            return impuestos;
+        }
+        for (DetalleImpuestoEntity fila : filas) {
+            impuestos.add(new Impuesto(
+                fila.codigo,
+                fila.codigoPorcentaje,
+                fila.tarifa,
+                fila.baseImponible,
+                fila.valor,
+                fila.codigoRetencion,
+                fila.docSustentoCodigo,
+                fila.docSustentoNumero,
+                fila.docSustentoFecha == null ? null : fila.docSustentoFecha.format(FECHA_SRI)));
+        }
+        return impuestos;
+    }
+
+    private static LocalDate parseFechaSri(String fecha) {
+        return fecha == null || fecha.isBlank() ? null : LocalDate.parse(fecha, FECHA_SRI);
+    }
+
+    @AfterMapping
+    default void linkImpuestosToDetalle(@MappingTarget DetalleComprobanteEntity entity) {
+        if (entity.impuestos != null) {
+            entity.impuestos.forEach(impuesto -> impuesto.detalle = entity);
         }
     }
 
     // destinatarioId se mapea 1-a-1 por nombre (mismo tipo UUID a ambos
     // lados) — MapStruct lo resuelve solo, no necesita @Mapping explícito.
-
-    default List<Impuesto> leerImpuestos(String impuestosJson) {
-        try {
-            return JSON.readValue(impuestosJson, new TypeReference<List<Impuesto>>() {
-            });
-        } catch (Exception e) {
-            throw new IllegalStateException("No se pudo leer los impuestos de la línea de detalle", e);
-        }
-    }
 }

@@ -36,10 +36,11 @@ import com.facturacion.inventario.application.dto.RegistrarEntradaKardexRequest;
 import com.facturacion.inventario.application.service.ItemService;
 import com.facturacion.inventario.application.service.KardexService;
 import com.facturacion.inventario.domain.model.enums.TipoItem;
-import com.facturacion.inventario.infrastructure.security.TokenPrincipal;
-import com.facturacion.inventario.shared.exception.SinPermisoException;
-import com.facturacion.inventario.shared.requests.PageRequest;
-import com.facturacion.inventario.shared.responses.PagedResponse;
+import com.facturacion.inventario.infrastructure.security.AccesoEmpresa;
+import com.facturacion.commons.security.TokenPrincipal;
+import com.facturacion.commons.exception.SinPermisoException;
+import com.facturacion.commons.paging.PageRequest;
+import com.facturacion.commons.paging.PagedResponse;
 
 /**
  * Catálogo unificado de productos y servicios. Las operaciones sobre
@@ -55,12 +56,15 @@ public class ItemResource {
     private final ItemService itemService;
     private final KardexService kardexService;
     private final TokenPrincipal tokenPrincipal;
+    private final AccesoEmpresa acceso;
 
     @Inject
-    public ItemResource(ItemService itemService, KardexService kardexService, TokenPrincipal tokenPrincipal) {
+    public ItemResource(ItemService itemService, KardexService kardexService, TokenPrincipal tokenPrincipal,
+            AccesoEmpresa acceso) {
         this.itemService = itemService;
         this.kardexService = kardexService;
         this.tokenPrincipal = tokenPrincipal;
+        this.acceso = acceso;
     }
 
     @POST
@@ -71,7 +75,8 @@ public class ItemResource {
     @APIResponse(responseCode = "201", description = "Ítem creado")
     @APIResponse(responseCode = "403", description = "La api-key no es del ruc del ítem")
     public Uni<Response> crear(@Valid CrearItemRequest request, @Context UriInfo uriInfo) {
-        if (!tokenPrincipal.getRuc().equals(request.getRuc())) {
+        tokenPrincipal.exigirEscritura();
+        if (!tokenPrincipal.esDeLaEmpresa(request.getRuc())) {
             throw new SinPermisoException(
                 "La api-key usada es para el ruc " + tokenPrincipal.getRuc() + ", no para " + request.getRuc());
         }
@@ -91,7 +96,8 @@ public class ItemResource {
     public Uni<Response> actualizar(
             @Parameter(description = "Id del ítem", required = true) @PathParam("id") UUID id,
             @Valid ActualizarItemRequest request) {
-        return itemService.actualizar(id, request).map(response -> Response.ok(response).build());
+        return acceso.exigirItemEscritura(id).chain(() -> itemService.actualizar(id, request))
+            .map(response -> Response.ok(response).build());
     }
 
     @GET
@@ -101,7 +107,8 @@ public class ItemResource {
     @APIResponse(responseCode = "404", description = "Ítem no encontrado")
     public Uni<Response> obtenerPorId(
             @Parameter(description = "Id del ítem", required = true) @PathParam("id") UUID id) {
-        return itemService.obtenerPorId(id).map(response -> Response.ok(response).build());
+        return acceso.exigirItem(id).chain(() -> itemService.obtenerPorId(id))
+            .map(response -> Response.ok(response).build());
     }
 
     @GET
@@ -111,7 +118,13 @@ public class ItemResource {
     public Uni<Response> listar(@Valid @BeanParam PageRequest pageRequest,
             @QueryParam("tipo") TipoItem tipo, @QueryParam("categoriaId") UUID categoriaId,
             @QueryParam("ruc") String ruc) {
-        return itemService.listarPaginado(pageRequest.getPage(), pageRequest.getLimit(), tipo, categoriaId, ruc)
+        // El listado es siempre de la empresa de la api-key; pedir el de otro RUC es un error, no un resultado vacío.
+        if (ruc != null && !tokenPrincipal.esDeLaEmpresa(ruc)) {
+            throw new SinPermisoException("La api-key usada es para el ruc " + tokenPrincipal.getRuc()
+                + ", no para " + ruc);
+        }
+        return itemService.listarPaginado(pageRequest.getPage(), pageRequest.getLimit(), tipo, categoriaId,
+                tokenPrincipal.getRuc())
             .map((PagedResponse<ItemResponse> paged) -> Response.ok(paged).build());
     }
 
@@ -126,7 +139,7 @@ public class ItemResource {
     public Uni<Response> registrarEntrada(
             @Parameter(description = "Id del ítem", required = true) @PathParam("id") UUID id,
             @Valid RegistrarEntradaKardexRequest request) {
-        return kardexService.registrarEntrada(id, request)
+        return acceso.exigirItemEscritura(id).chain(() -> kardexService.registrarEntrada(id, request))
             .map(response -> Response.status(Response.Status.CREATED).entity(response).build());
     }
 
@@ -142,7 +155,7 @@ public class ItemResource {
     public Uni<Response> registrarAjuste(
             @Parameter(description = "Id del ítem", required = true) @PathParam("id") UUID id,
             @Valid RegistrarAjusteKardexRequest request) {
-        return kardexService.registrarAjuste(id, request)
+        return acceso.exigirItemEscritura(id).chain(() -> kardexService.registrarAjuste(id, request))
             .map(response -> Response.status(Response.Status.CREATED).entity(response).build());
     }
 
@@ -153,7 +166,8 @@ public class ItemResource {
     public Uni<Response> listarKardex(
             @Parameter(description = "Id del ítem", required = true) @PathParam("id") UUID id,
             @Valid @BeanParam PageRequest pageRequest) {
-        return kardexService.listarMovimientos(id, pageRequest.getPage(), pageRequest.getLimit())
+        return acceso.exigirItem(id)
+            .chain(() -> kardexService.listarMovimientos(id, pageRequest.getPage(), pageRequest.getLimit()))
             .map((PagedResponse<MovimientoKardexResponse> paged) -> Response.ok(paged).build());
     }
 }

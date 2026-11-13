@@ -18,6 +18,9 @@ public class CategoriaEntity extends PanacheEntityBase {
     public UUID id;
 
     @Column(nullable = false)
+    public String ruc;
+
+    @Column(nullable = false)
     public String nombre;
 
     @Column(nullable = false)

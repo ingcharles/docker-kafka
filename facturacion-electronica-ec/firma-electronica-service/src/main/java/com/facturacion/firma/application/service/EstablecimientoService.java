@@ -29,7 +29,7 @@ import com.facturacion.firma.infrastructure.outbox.OutboxEventRepository;
 import com.facturacion.firma.infrastructure.persistence.mapper.EstablecimientoMapper;
 import com.facturacion.firma.shared.constant.MessagingConstants;
 import com.facturacion.firma.shared.exception.CodigoDuplicadoException;
-import com.facturacion.firma.shared.exception.NotFoundException;
+import com.facturacion.commons.exception.NotFoundException;
 
 /**
  * CRUD de establecimientos de una {@link Empresa} — antes de esto,

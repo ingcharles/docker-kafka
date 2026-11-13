@@ -31,10 +31,6 @@ public class ActualizarItemRequest {
     @NotBlank
     private String codigoPorcentaje;
 
-    @NotNull
-    @DecimalMin(value = "0.0", inclusive = true)
-    private BigDecimal tarifaIva;
-
     private boolean tieneIce = false;
 
     private String codigoPorcentajeIce;
@@ -103,14 +99,6 @@ public class ActualizarItemRequest {
 
     public void setCodigoPorcentaje(String codigoPorcentaje) {
         this.codigoPorcentaje = codigoPorcentaje;
-    }
-
-    public BigDecimal getTarifaIva() {
-        return tarifaIva;
-    }
-
-    public void setTarifaIva(BigDecimal tarifaIva) {
-        this.tarifaIva = tarifaIva;
     }
 
     public boolean isTieneIce() {

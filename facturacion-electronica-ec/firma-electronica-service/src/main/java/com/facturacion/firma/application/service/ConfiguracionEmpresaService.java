@@ -26,7 +26,7 @@ import com.facturacion.firma.infrastructure.outbox.OutboxEventRepository;
 import com.facturacion.firma.infrastructure.persistence.mapper.ConfiguracionEmpresaMapper;
 import com.facturacion.firma.shared.constant.MessagingConstants;
 import com.facturacion.firma.shared.exception.CodigoDuplicadoException;
-import com.facturacion.firma.shared.exception.NotFoundException;
+import com.facturacion.commons.exception.NotFoundException;
 
 /**
  * Ajustes opcionales por empresa, guardados como pares clave/valor — ver la

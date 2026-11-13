@@ -53,6 +53,13 @@ public class FirmarComprobanteConsumer {
     @Incoming("firma-comandos-in")
     @WithTransaction
     public Uni<Void> onCommand(FirmarComprobanteCommand command) {
+        // Un comando sin identificadores no se puede procesar ni dejar rastro en la base (el outbox exige el id del
+        // comprobante): se rechaza con un motivo claro y SmallRye lo envía al DLQ, en vez de fallar con un error de
+        // restricción de la base.
+        if (command == null || command.eventId() == null || command.comprobanteId() == null) {
+            return Uni.createFrom().failure(new IllegalArgumentException(
+                "Comando de firma inválido: falta eventId o comprobanteId (" + command + ")"));
+        }
         return processedMessageRepository.alreadyProcessed(command.eventId())
             .onItem().transformToUni(processed -> {
                 if (Boolean.TRUE.equals(processed)) {

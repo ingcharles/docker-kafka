@@ -5,7 +5,7 @@ import java.util.UUID;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.inventario.domain.model.entity.MovimientoKardex;
-import com.facturacion.inventario.domain.model.vo.PageResult;
+import com.facturacion.commons.paging.PageResult;
 
 public interface MovimientoKardexRepository {
 

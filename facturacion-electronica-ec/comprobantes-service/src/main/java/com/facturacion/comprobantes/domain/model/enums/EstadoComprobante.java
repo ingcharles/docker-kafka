@@ -26,5 +26,34 @@ public enum EstadoComprobante {
     AUTORIZADO,
     NO_AUTORIZADO,
     NOTIFICADO,
-    ANULADO
+    ANULADO;
+
+    /**
+     * Si el comprobante puede pasar de este estado a {@code destino}. El ciclo de vida solo avanza: BORRADOR →
+     * FIRMADO o FIRMA_FALLIDA; FIRMADO → AUTORIZADO o NO_AUTORIZADO; AUTORIZADO → NOTIFICADO. Los demás son finales.
+     * Un comando repetido o fuera de orden del orquestador no debe retroceder un comprobante.
+     */
+    public boolean puedePasarA(EstadoComprobante destino) {
+        return switch (this) {
+            case BORRADOR -> destino == FIRMADO || destino == FIRMA_FALLIDA;
+            case FIRMADO -> destino == AUTORIZADO || destino == NO_AUTORIZADO;
+            case AUTORIZADO -> destino == NOTIFICADO;
+            case FIRMA_FALLIDA, NO_AUTORIZADO, NOTIFICADO, ANULADO -> false;
+        };
+    }
+
+    /**
+     * Si {@code destino} está ADELANTE en el ciclo de vida pero no es el siguiente paso válido (p. ej. llega
+     * {@code AUTORIZADO} con el comprobante todavía en {@code BORRADOR}): un comando anterior (el de firmado) no se
+     * aplicó. A diferencia de un comando repetido o atrasado —que se ignora sin más— este no puede descartarse en
+     * silencio: el SRI ya autorizó el comprobante y el servicio debe reflejarlo, así que quien aplica el comando
+     * falla de forma visible (DLQ) para poder reprocesarlo en orden.
+     */
+    public boolean saltaPasos(EstadoComprobante destino) {
+        return switch (this) {
+            case BORRADOR -> destino == AUTORIZADO || destino == NO_AUTORIZADO || destino == NOTIFICADO;
+            case FIRMADO -> destino == NOTIFICADO;
+            default -> false;
+        };
+    }
 }

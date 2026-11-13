@@ -1,6 +1,5 @@
 package com.facturacion.comprobantes.infrastructure.xml;
 
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +10,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.entity.DestinatarioGuiaRemision;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
@@ -90,9 +90,9 @@ public class GeneradorXmlGuiaRemision implements GeneradorXmlComprobante {
             XmlComprobanteUtil.texto(doc, info, "contribuyenteEspecial", c.getEmpresaNumeroContribuyenteEspecial());
         }
         XmlComprobanteUtil.texto(doc, info, "fechaIniTransporte",
-            FORMATO_FECHA.format(c.getFechaIniTransporte().atZone(ZoneOffset.of("-05:00"))));
+            FORMATO_FECHA.format(c.getFechaIniTransporte().atZone(ZonaHoraria.ECUADOR)));
         XmlComprobanteUtil.texto(doc, info, "fechaFinTransporte",
-            FORMATO_FECHA.format(c.getFechaFinTransporte().atZone(ZoneOffset.of("-05:00"))));
+            FORMATO_FECHA.format(c.getFechaFinTransporte().atZone(ZonaHoraria.ECUADOR)));
         // Obligatorio siempre en Guía de Remisión (confirmado con un
         // rechazo real de Recepción) — a diferencia de Factura, donde solo
         // es obligatorio para empresas que venden combustibles.
@@ -131,7 +131,7 @@ public class GeneradorXmlGuiaRemision implements GeneradorXmlComprobante {
             }
             if (destino.getFechaEmisionDocSustento() != null) {
                 XmlComprobanteUtil.texto(doc, destinatario, "fechaEmisionDocSustento",
-                    FORMATO_FECHA.format(destino.getFechaEmisionDocSustento().atZone(ZoneOffset.of("-05:00"))));
+                    FORMATO_FECHA.format(destino.getFechaEmisionDocSustento().atZone(ZonaHoraria.ECUADOR)));
             }
 
             Element detalles = doc.createElement("detalles");

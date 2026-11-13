@@ -21,7 +21,6 @@ public record ItemEventMessage(
     String descripcion,
     String codigoImpuesto,
     String codigoPorcentaje,
-    BigDecimal tarifaIva,
     boolean tieneIce,
     String codigoPorcentajeIce,
     BigDecimal tarifaIce,

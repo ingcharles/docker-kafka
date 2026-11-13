@@ -14,6 +14,8 @@ public class SagaResponse {
     private String failureReason;
     private Instant createdAt;
     private Instant updatedAt;
+    /** Reintentos automáticos del watchdog; si la saga quedó EXPIRADA, es el máximo configurado. */
+    private int reintentos;
     private List<SagaStepResponse> steps;
 
     public UUID getComprobanteId() {
@@ -70,6 +72,14 @@ public class SagaResponse {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public int getReintentos() {
+        return reintentos;
+    }
+
+    public void setReintentos(int reintentos) {
+        this.reintentos = reintentos;
     }
 
     public Instant getUpdatedAt() {

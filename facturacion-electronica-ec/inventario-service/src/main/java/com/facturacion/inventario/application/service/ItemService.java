@@ -26,16 +26,17 @@ import com.facturacion.inventario.domain.model.entity.Categoria;
 import com.facturacion.inventario.domain.model.entity.Item;
 import com.facturacion.inventario.domain.model.enums.TipoCategoria;
 import com.facturacion.inventario.domain.model.enums.TipoItem;
-import com.facturacion.inventario.domain.model.vo.PageResult;
+import com.facturacion.commons.paging.PageResult;
 import com.facturacion.inventario.domain.repository.CategoriaRepository;
 import com.facturacion.inventario.domain.repository.ItemRepository;
+import com.facturacion.inventario.domain.service.ImpuestosValidador;
 import com.facturacion.inventario.infrastructure.outbox.OutboxEventEntity;
 import com.facturacion.inventario.infrastructure.outbox.OutboxEventRepository;
 import com.facturacion.inventario.infrastructure.persistence.mapper.ItemMapper;
 import com.facturacion.inventario.shared.constant.MessagingConstants;
 import com.facturacion.inventario.shared.exception.CategoriaIncompatibleException;
-import com.facturacion.inventario.shared.exception.NotFoundException;
-import com.facturacion.inventario.shared.responses.PagedResponse;
+import com.facturacion.commons.exception.NotFoundException;
+import com.facturacion.commons.paging.PagedResponse;
 
 /**
  * {@code Item.tipo} existe como campo propio — deliberadamente no se deriva
@@ -66,8 +67,8 @@ public class ItemService {
     private final ObjectMapper objectMapper;
 
     @Inject
-    public ItemService(ItemRepository repository, CategoriaRepository categoriaRepository, ItemMapper mapper,
-            KardexService kardexService, OutboxEventRepository outboxRepository, ObjectMapper objectMapper) {
+    public ItemService(ItemRepository repository, CategoriaRepository categoriaRepository,
+            ItemMapper mapper, KardexService kardexService, OutboxEventRepository outboxRepository, ObjectMapper objectMapper) {
         this.repository = repository;
         this.categoriaRepository = categoriaRepository;
         this.mapper = mapper;
@@ -90,10 +91,11 @@ public class ItemService {
             request.getCodigoPrincipal(), request.getCodigoAuxiliar(), request.getDescripcion(),
             request.getPrecioUnitario(), request.getUnidadMedida(), BigDecimal.ZERO, BigDecimal.ZERO,
             tipo == TipoItem.PRODUCTO ? request.getStockMinimo() : BigDecimal.ZERO, true,
-            request.getCodigoImpuesto(), request.getCodigoPorcentaje(), request.getTarifaIva(),
+            request.getCodigoImpuesto(), request.getCodigoPorcentaje(),
             request.isTieneIce(), request.getCodigoPorcentajeIce(), request.getTarifaIce(), ahora, ahora);
 
-        return validarCategoriaCompatible(tipo, request.getCategoriaId())
+        return validarClasificacionTributaria(request.isTieneIce(), request.getCodigoPorcentajeIce(), request.getTarifaIce())
+            .chain(() -> validarCategoriaCompatible(tipo, request.getCategoriaId(), request.getRuc()))
             .chain(() -> repository.persist(item))
             .onItem().transformToUni(guardado -> {
                 boolean requiereEntradaInicial = tipo == TipoItem.PRODUCTO
@@ -127,8 +129,9 @@ public class ItemService {
     public Uni<ItemResponse> actualizar(UUID id, @Valid ActualizarItemRequest request) {
         return repository.findById(id)
             .onItem().ifNull().failWith(() -> new NotFoundException("Ítem no encontrado: " + id))
-            .onItem().transformToUni(existente -> validarCategoriaCompatible(existente.getTipo(),
-                    request.getCategoriaId())
+            .onItem().transformToUni(existente -> validarClasificacionTributaria(request.isTieneIce(), request.getCodigoPorcentajeIce(),
+                    request.getTarifaIce())
+                .chain(() -> validarCategoriaCompatible(existente.getTipo(), request.getCategoriaId(), existente.getRuc()))
                 .chain(() -> {
                     existente.setCategoriaId(request.getCategoriaId());
                     existente.setDescripcion(request.getDescripcion());
@@ -140,7 +143,6 @@ public class ItemService {
                     existente.setActivo(request.isActivo());
                     existente.setCodigoImpuesto(request.getCodigoImpuesto());
                     existente.setCodigoPorcentaje(request.getCodigoPorcentaje());
-                    existente.setTarifaIva(request.getTarifaIva());
                     existente.setTieneIce(request.isTieneIce());
                     existente.setCodigoPorcentajeIce(request.getCodigoPorcentajeIce());
                     existente.setTarifaIce(request.getTarifaIce());
@@ -163,7 +165,6 @@ public class ItemService {
             item.getDescripcion(),
             item.getCodigoImpuesto(),
             item.getCodigoPorcentaje(),
-            item.getTarifaIva(),
             item.isTieneIce(),
             item.getCodigoPorcentajeIce(),
             item.getTarifaIce(),
@@ -186,13 +187,16 @@ public class ItemService {
      * Una categoría {@code tipo=AMBOS} admite cualquier ítem; una categoría
      * {@code tipo=PRODUCTO} o {@code tipo=SERVICIO} solo admite ítems de ese
      * mismo tipo. Sin categoría asignada ({@code categoriaId == null}) no
-     * hay nada que validar.
+     * hay nada que validar. La categoría tiene que ser de la misma empresa que el ítem: la de otra empresa
+     * responde igual que una inexistente.
      */
-    private Uni<Void> validarCategoriaCompatible(TipoItem tipoItem, UUID categoriaId) {
+    private Uni<Void> validarCategoriaCompatible(TipoItem tipoItem, UUID categoriaId, String ruc) {
         if (categoriaId == null) {
             return Uni.createFrom().voidItem();
         }
         return categoriaRepository.findById(categoriaId)
+            .onItem().transform(categoria -> categoria != null && ruc != null && ruc.equals(categoria.getRuc())
+                ? categoria : null)
             .onItem().ifNull().failWith(() -> new NotFoundException("Categoría no encontrada: " + categoriaId))
             .onItem().transform(Categoria::getTipo)
             .onItem().transformToUni(tipoCategoria -> {
@@ -203,6 +207,12 @@ public class ItemService {
                 }
                 return Uni.createFrom().voidItem();
             });
+    }
+
+    /** Un ítem con ICE necesita su código y su tarifa (ver {@link ImpuestosValidador}); el resto de la clasificación la valida comprobantes-service al emitir. */
+    private Uni<Void> validarClasificacionTributaria(boolean tieneIce, String codigoPorcentajeIce, BigDecimal tarifaIce) {
+        return Uni.createFrom().voidItem()
+            .invoke(() -> ImpuestosValidador.validarIce(tieneIce, codigoPorcentajeIce, tarifaIce));
     }
 
     @WithSession

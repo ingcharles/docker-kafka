@@ -24,5 +24,7 @@ public record ComprobanteCreadoEventMessage(
     String claveAcceso,
     String ambiente,
     String xmlGenerado,
+    /** Si el comprobante tiene correo del receptor: solo entonces se publicará ComprobanteAutorizado y habrá notificación. */
+    Boolean notificacionEsperada,
     Instant occurredAt) {
 }

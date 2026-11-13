@@ -25,7 +25,8 @@ import io.smallrye.mutiny.Uni;
 import com.facturacion.orquestacion.application.service.SagaOrchestratorService;
 import com.facturacion.orquestacion.application.service.SagaQueryService;
 import com.facturacion.orquestacion.domain.model.enums.SagaState;
-import com.facturacion.orquestacion.shared.requests.PageRequest;
+import com.facturacion.commons.security.TokenPrincipal;
+import com.facturacion.commons.paging.PageRequest;
 
 /**
  * Superficie de operación/observabilidad de la saga — permite leer la
@@ -41,11 +42,14 @@ public class SagaResource {
 
     private final SagaQueryService sagaQueryService;
     private final SagaOrchestratorService sagaOrchestratorService;
+    private final TokenPrincipal tokenPrincipal;
 
     @Inject
-    public SagaResource(SagaQueryService sagaQueryService, SagaOrchestratorService sagaOrchestratorService) {
+    public SagaResource(SagaQueryService sagaQueryService, SagaOrchestratorService sagaOrchestratorService,
+            TokenPrincipal tokenPrincipal) {
         this.sagaQueryService = sagaQueryService;
         this.sagaOrchestratorService = sagaOrchestratorService;
+        this.tokenPrincipal = tokenPrincipal;
     }
 
     @GET
@@ -55,14 +59,15 @@ public class SagaResource {
     @APIResponse(responseCode = "404", description = "No hay saga para ese comprobante")
     public Uni<Response> getByComprobanteId(
             @Parameter(description = "Id del comprobante", required = true) @PathParam("comprobanteId") UUID comprobanteId) {
-        return sagaQueryService.getByComprobanteId(comprobanteId).map(response -> Response.ok(response).build());
+        return sagaQueryService.getByComprobanteId(comprobanteId, tokenPrincipal.getRuc())
+            .map(response -> Response.ok(response).build());
     }
 
     @GET
-    @Operation(summary = "Listar sagas", description = "Paginado, con filtro opcional por estado.")
+    @Operation(summary = "Listar sagas", description = "Paginado, con filtro opcional por estado. Solo las sagas de la empresa de la api-key.")
     @APIResponse(responseCode = "200", description = "Listado")
     public Uni<Response> list(@Valid @BeanParam PageRequest pageRequest, @QueryParam("state") SagaState state) {
-        return sagaQueryService.listPaged(pageRequest.getPage(), pageRequest.getLimit(), state)
+        return sagaQueryService.listPaged(pageRequest.getPage(), pageRequest.getLimit(), state, tokenPrincipal.getRuc())
             .map(paged -> Response.ok(paged).build());
     }
 
@@ -76,7 +81,8 @@ public class SagaResource {
     @APIResponse(responseCode = "404", description = "No hay saga para ese comprobante")
     public Uni<Response> retry(
             @Parameter(description = "Id del comprobante", required = true) @PathParam("comprobanteId") UUID comprobanteId) {
-        return sagaQueryService.getByComprobanteId(comprobanteId)
+        tokenPrincipal.exigirEscritura();
+        return sagaQueryService.getByComprobanteId(comprobanteId, tokenPrincipal.getRuc())
             .chain(() -> sagaOrchestratorService.retryLastCommand(comprobanteId))
             .map(v -> Response.accepted().build());
     }

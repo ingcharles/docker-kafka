@@ -20,15 +20,15 @@ import com.facturacion.inventario.application.dto.RegistrarEntradaKardexRequest;
 import com.facturacion.inventario.domain.model.entity.Item;
 import com.facturacion.inventario.domain.model.entity.MovimientoKardex;
 import com.facturacion.inventario.domain.model.enums.TipoMovimientoKardex;
-import com.facturacion.inventario.domain.model.vo.PageResult;
+import com.facturacion.commons.paging.PageResult;
 import com.facturacion.inventario.domain.repository.ItemRepository;
 import com.facturacion.inventario.domain.repository.MovimientoKardexRepository;
 import com.facturacion.inventario.domain.service.KardexCalculador;
 import com.facturacion.inventario.infrastructure.persistence.mapper.MovimientoKardexMapper;
 import com.facturacion.inventario.shared.exception.ItemNoEsProductoException;
-import com.facturacion.inventario.shared.exception.NotFoundException;
+import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.inventario.shared.exception.StockInsuficienteException;
-import com.facturacion.inventario.shared.responses.PagedResponse;
+import com.facturacion.commons.paging.PagedResponse;
 
 /**
  * Kardex de costeo por promedio ponderado (ver {@link KardexCalculador}).

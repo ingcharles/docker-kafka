@@ -1,8 +1,0 @@
-package com.facturacion.identidad.shared.exception;
-
-public class TokenInvalidoException extends RuntimeException {
-
-    public TokenInvalidoException(String message) {
-        super(message);
-    }
-}

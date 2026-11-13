@@ -21,6 +21,7 @@ import com.facturacion.notificacion.application.dto.NotificacionEnviadaResponse;
 import com.facturacion.notificacion.application.event.ComprobanteEventMessage;
 import com.facturacion.notificacion.application.event.NotificacionResultadoEventMessage;
 import com.facturacion.notificacion.domain.model.entity.ConfiguracionEmpresaLocal;
+import com.facturacion.notificacion.domain.service.ClaveAcceso;
 import com.facturacion.notificacion.domain.model.entity.NotificacionEnviada;
 import com.facturacion.notificacion.domain.model.enums.EstadoNotificacion;
 import com.facturacion.notificacion.domain.repository.ConfiguracionEmpresaLocalRepository;
@@ -30,7 +31,7 @@ import com.facturacion.notificacion.infrastructure.outbox.OutboxEventEntity;
 import com.facturacion.notificacion.infrastructure.outbox.OutboxEventRepository;
 import com.facturacion.notificacion.infrastructure.persistence.mapper.NotificacionEnviadaMapper;
 import com.facturacion.notificacion.shared.constant.MessagingConstants;
-import com.facturacion.notificacion.shared.exception.NotFoundException;
+import com.facturacion.commons.exception.NotFoundException;
 
 /**
  * Dueño del agregado NotificacionEnviada. {@link #procesarComprobanteAutorizado}
@@ -123,8 +124,11 @@ public class NotificacionService {
     }
 
     @WithSession
-    public Uni<NotificacionEnviadaResponse> obtenerPorComprobanteId(UUID comprobanteId) {
+    public Uni<NotificacionEnviadaResponse> obtenerPorComprobanteId(UUID comprobanteId, String empresaRuc) {
         return notificacionRepository.findByComprobanteId(comprobanteId)
+            // Una notificación de otra empresa se trata como inexistente (404): no se revela que existe.
+            .onItem().transform(n -> n != null && empresaRuc != null
+                && empresaRuc.equals(ClaveAcceso.rucDelEmisor(n.getClaveAcceso())) ? n : null)
             .onItem().ifNull().failWith(() ->
                 new NotFoundException("No hay ninguna notificación para el comprobante " + comprobanteId))
             .map(mapper::toResponse);

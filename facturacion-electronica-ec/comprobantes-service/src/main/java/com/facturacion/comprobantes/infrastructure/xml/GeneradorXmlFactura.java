@@ -1,7 +1,6 @@
 package com.facturacion.comprobantes.infrastructure.xml;
 
 import java.math.BigDecimal;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
 import jakarta.enterprise.context.ApplicationScoped;
@@ -9,6 +8,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
@@ -82,7 +82,7 @@ public class GeneradorXmlFactura implements GeneradorXmlComprobante {
     private Element construirInfoFactura(Document doc, Comprobante c) {
         Element info = doc.createElement("infoFactura");
         XmlComprobanteUtil.texto(doc, info, "fechaEmision",
-            FORMATO_FECHA.format(c.getFechaEmision().atZone(ZoneOffset.of("-05:00"))));
+            FORMATO_FECHA.format(c.getFechaEmision().atZone(ZonaHoraria.ECUADOR)));
         if (c.isEmpresaContribuyenteEspecial() && c.getEmpresaNumeroContribuyenteEspecial() != null) {
             XmlComprobanteUtil.texto(doc, info, "contribuyenteEspecial", c.getEmpresaNumeroContribuyenteEspecial());
         }

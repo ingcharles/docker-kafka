@@ -139,10 +139,11 @@ Nada de esta sección es parte del camino obligatorio de la sección 1 — es pa
 gestionar tu cuenta, unirte a una empresa que ya existe, o administrar quién más
 tiene acceso a la tuya.
 
-### 2.1 Asociarte a una empresa que ya existe
-Úsalo en vez de 1.3 si la empresa **ya fue creada** por otra persona/sesión y
-solo necesitas que tu usuario quede asociado a ella. Si la empresa todavía no
-existe, esto da `404` — créala primero con 1.3.
+### 2.1 Asociarte a una empresa que ya existe (y todavía no tiene miembros)
+Úsalo en vez de 1.3 solo si la empresa **ya existe pero ningún usuario está asociado a ella**
+(p. ej. quedó huérfana). Si la empresa todavía no existe, esto da `404` — créala primero con 1.3.
+Si la empresa **ya tiene miembros**, da `403`: pídele a un ADMIN de ese ruc que te agregue con 2.4
+(`POST /empresas/{ruc}/usuarios`). Si ya estás asociado, devuelve tu asociación sin cambiar tu rol.
 
 `POST http://localhost:8097/identidad/api/v1/usuarios/me/empresas` (auth: token de sesión)
 ```json
@@ -180,6 +181,11 @@ No es un flujo de invitación/aprobación (no hay estado pendiente ni se
 notifica a nadie): el ADMIN actúa directamente sobre asociaciones que el
 propio usuario ya creó. Ninguno de los 3 deja a un ruc sin ningún `ADMIN`
 (`409` si lo intentas, incluso contigo mismo).
+
+`POST http://localhost:8097/identidad/api/v1/empresas/{ruc}/usuarios` (auth: token de sesión, debes ser `ADMIN` de `{ruc}`) — da acceso a un usuario **ya registrado**, por su correo (`404` si no existe, `409` si ya tiene acceso):
+```json
+{ "email": "otra-persona@ejemplo.com", "rol": "OPERADOR" }
+```
 
 `GET http://localhost:8097/identidad/api/v1/empresas/{ruc}/usuarios` (auth: token de sesión, debes ser `ADMIN` de `{ruc}`) — lista `{ usuarioId, email, nombres, apellidos, rol, creadoEn }` de cada miembro.
 
@@ -301,6 +307,10 @@ firma-electronica-service no puede firmar el siguiente XML.
 Todo con la **api-key**.
 
 ### 4.1 Categoría (opcional)
+Las categorías son **de cada empresa**: se crean con el RUC de la api-key, el listado solo trae las de esa empresa, y
+una categoría de otra empresa responde `404` (también al asignarla a un ítem). Crear o modificar exige rol
+`ADMIN`/`OPERADOR`.
+
 `POST http://localhost:8092/inventario/api/v1/categorias`
 ```json
 {
@@ -335,7 +345,6 @@ Todo con la **api-key**.
   "stockMinimo": 5,
   "codigoImpuesto": "2",
   "codigoPorcentaje": "4",
-  "tarifaIva": 15.00,
   "tieneIce": false
 }
 ```
@@ -350,10 +359,14 @@ Guarda el `id` de la respuesta — es el `itemId` opcional de la sección 5.
   "descripcion": "Instalación y configuración",
   "precioUnitario": 50.00,
   "codigoImpuesto": "2",
-  "codigoPorcentaje": "4",
-  "tarifaIva": 15.00
+  "codigoPorcentaje": "4"
 }
 ```
+
+> **Tarifa de IVA:** el ítem guarda solo `codigoImpuesto` + `codigoPorcentaje` (Tabla 16/17). La tarifa ya no se manda, no se guarda
+> ni aparece en la respuesta: se resuelve al **facturar**, desde el catálogo de `comprobantes-service` (sección 9). Un
+> `codigoPorcentaje` inexistente se detecta al emitir la factura, no al crear el ítem. `tieneIce=true` exige
+> `codigoPorcentajeIce` y `tarifaIce`.
 
 ### 4.4 Actualizar un ítem
 `PUT http://localhost:8092/inventario/api/v1/items/{id}`
@@ -367,7 +380,6 @@ Guarda el `id` de la respuesta — es el `itemId` opcional de la sección 5.
   "activo": true,
   "codigoImpuesto": "2",
   "codigoPorcentaje": "4",
-  "tarifaIva": 15.00,
   "tieneIce": false
 }
 ```
@@ -462,6 +474,53 @@ Detalle sin `itemId` (impuesto manual, no depende de inventario-service):
     { "codigo": "2", "codigoPorcentaje": "4", "tarifa": 15.00 }
   ]
 }
+```
+
+#### Formas de pago (`pagos`) — Factura, Nota de débito y Liquidación de compra
+
+Opcional. Si no mandas `pagos`, se asume un único pago `01` por el importe total. Si los mandas, se validan
+(400 con el motivo si algo falla) — ver ARQUITECTURA.md sección 7.4:
+
+- `formaPago`: Tabla 24 del SRI — `01` sin utilización del sistema financiero, `15` compensación de deudas,
+  `16` tarjeta de débito, `17` dinero electrónico, `18` tarjeta prepago, `19` tarjeta de crédito,
+  `20` otros con utilización del sistema financiero, `21` endoso de títulos. Cualquier otro código se rechaza.
+- La **suma de `total`** debe ser igual al `importeTotal` del comprobante (con la factura de arriba: 300.00 + 15% IVA = 345.00).
+- `plazo` y `unidadTiempo` van juntos o ninguno (pago a crédito).
+
+Dos pagos, uno de ellos a crédito:
+```json
+"pagos": [
+  { "formaPago": "01", "total": 45.00 },
+  { "formaPago": "19", "total": 300.00, "plazo": "30", "unidadTiempo": "dias" }
+]
+```
+
+Factura comercial negociable (Anexo 11): forma de pago `21`, con `plazo`, `unidadTiempo` y `compradorDireccion`:
+```json
+"pagos": [
+  { "formaPago": "21", "total": 345.00, "plazo": "30", "unidadTiempo": "dias" }
+]
+```
+
+Casos que responden **400** (útiles para probar las validaciones):
+
+| Request | Motivo |
+|---|---|
+| `{ "formaPago": "05", "total": 345.00 }` | `formaPago` fuera de la Tabla 24 |
+| `{ "formaPago": "01", "total": 100.00 }` | la suma de pagos (100.00) no coincide con el importe total (345.00) |
+| `{ "formaPago": "19", "total": 345.00, "plazo": "30" }` | `plazo` sin `unidadTiempo` |
+| `{ "formaPago": "19", "total": 345.00, "plazo": "abc", "unidadTiempo": "dias" }` | `plazo` no numérico |
+| `{ "formaPago": "21", "total": 345.00 }` | forma `21` sin `plazo`/`unidadTiempo` (Anexo 11) |
+
+En **Comprobante de retención** el pago va dentro de cada `documentosSustento[]` (ver 5.5) y solo admite
+`formaPago` y `total`: mandar `plazo`/`unidadTiempo` también responde 400.
+
+Para ver cómo quedaron guardados:
+```sql
+select p.orden, p.forma_pago, fp.descripcion, p.total, p.plazo, p.unidad_tiempo
+from comprobantes.comprobante_pago p
+join comprobantes.forma_pago fp on fp.codigo = p.forma_pago
+where p.comprobante_id = '{comprobanteId}' order by p.orden;
 ```
 
 ### 5.2 Nota de crédito
@@ -712,12 +771,12 @@ borrar de ahí rompe el arranque del servicio en el siguiente `docker compose up
 Ejecución (contenedor real de este proyecto, ajusta el nombre si tu `docker
 compose` usa otro prefijo):
 ```bash
-docker exec -i facturacion-electronica-ec-facturacion-db-1 \
+docker exec -i facturacion-db \
   psql -U postgres -d facturacion <<'EOF'
 -- (pega aquí uno de los dos bloques de abajo)
 EOF
 ```
-O interactivo: `docker exec -it facturacion-electronica-ec-facturacion-db-1 psql -U postgres -d facturacion`, y pega el bloque directo en la sesión.
+O interactivo: `docker exec -it facturacion-db psql -U postgres -d facturacion`, y pega el bloque directo en la sesión.
 
 > **Nota sobre `secuencial_comprobante`**: a propósito **no** se borra en
 > ningún script de abajo. El SRI real (`celcer.sri.gob.ec`, ambiente de
@@ -733,7 +792,9 @@ bootstrap completo (sección 1) para poder seguir probando.
 ```sql
 begin;
 
--- comprobantes (hijos antes que comprobante; el resto no tiene FK)
+-- comprobantes (hijos antes que padre; forma_pago es catálogo del SRI: NO se borra)
+delete from comprobantes.detalle_impuesto;
+delete from comprobantes.comprobante_pago;
 delete from comprobantes.detalle_comprobante;
 delete from comprobantes.destinatario_guia_remision;
 delete from comprobantes.comprobante;
@@ -800,6 +861,8 @@ emitidas.
 ```sql
 begin;
 
+delete from comprobantes.detalle_impuesto;
+delete from comprobantes.comprobante_pago;
 delete from comprobantes.detalle_comprobante;
 delete from comprobantes.destinatario_guia_remision;
 delete from comprobantes.comprobante;
@@ -846,3 +909,78 @@ commit;
 > `punto_emision`/`configuracion_empresa`) **no** se tocó en 8.2 — solo se
 > repueblan si vuelves a hacer un `PUT`/`POST`/`PATCH` sobre esos recursos en
 > firma-electronica-service (3.2/3.3/3.4), no automáticamente.
+
+---
+
+## 9. Catálogos del SRI (comprobantes-service)
+
+Los catálogos de la ficha técnica (formas de pago, impuestos y tarifas de IVA, tipos de identificación, retenciones,
+sustento) son tablas de `comprobantes-service`, sembradas con la ficha v2.34 (ver ARQUITECTURA.md 7.6). Todo requiere
+api-key; **escribir además exige el header `X-Catalogos-Admin-Token`** (variable `CATALOGOS_ADMIN_TOKEN` del servicio;
+sin ella la escritura responde 403). Un cambio rige desde la siguiente emisión, sin redesplegar.
+
+### 9.1 Consultar
+```
+GET http://localhost:8093/comprobantes/api/v1/catalogos                                  # lista de catálogos
+GET http://localhost:8093/comprobantes/api/v1/catalogos/forma_pago
+GET http://localhost:8093/comprobantes/api/v1/catalogos/tarifa_impuesto?vigentes=true
+GET http://localhost:8093/comprobantes/api/v1/catalogos/retencion?vigentes=true&fecha=2023-03-01
+```
+Catálogos: `impuesto`, `tarifa_impuesto`, `forma_pago`, `tipo_identificacion`, `impuesto_retencion`, `retencion`, `sustento_tributario`.
+
+### 9.2 Cambiar una tarifa (una sola vez, sin tocar ítems ni código)
+Por ejemplo, cerrar la vigencia del IVA 14% (código `3`):
+`PUT http://localhost:8093/comprobantes/api/v1/catalogos/tarifa_impuesto` con `X-Catalogos-Admin-Token: <token>`
+```json
+{
+  "impuesto_codigo": "2",
+  "codigo_porcentaje": "3",
+  "descripcion": "IVA 14%",
+  "tarifa": 14.00,
+  "vigente_hasta": "2017-05-31"
+}
+```
+Desde la siguiente factura (no hay caché: cada emisión lee la tabla) ese código deja de aceptarse para fechas posteriores a `vigente_hasta`.
+Dar de baja un registro: mandar `"activo": false` (nunca se borra).
+
+### 9.3 Cargar los catálogos que faltan (ATS)
+Los códigos de retención de **Renta** y los `codSustento` vienen del Catálogo del ATS del SRI (no están en `documentacion/`); las tablas
+existen vacías y mientras lo estén solo se valida el formato. Una vez cargadas, la validación pasa a ser estricta:
+```json
+{ "impuesto_codigo": "1", "codigo": "312", "descripcion": "Transferencia de bienes muebles de naturaleza corporal", "porcentaje": 1.75 }
+```
+`PUT /catalogos/retencion` (y `PUT /catalogos/sustento_tributario` con `{ "codigo": "01", "descripcion": "..." }`).
+
+### 9.4 Validaciones que verás en 400
+- `formaPago` fuera de la Tabla 24 o no vigente · `codigoPorcentaje` inexistente/vencido · tarifa del cliente distinta a la del catálogo.
+- `compradorTipoIdentificacion` fuera de la Tabla 6; `07` (consumidor final) en nota de crédito/débito, retención o liquidación; `07` sin `9999999999999`;
+  RUC (`04`) ≠ 13 dígitos; cédula (`05`) ≠ 10 dígitos.
+- Retención: `codigoRetencion` inexistente/no vigente para el impuesto, `porcentajeRetener` distinto al del catálogo, `valorRetenido` ≠ `baseImponible × porcentaje`.
+- Ítem dado de baja (`activo=false`) al facturar por `itemId`.
+
+### 9.5 Formato de los errores de negocio
+Los errores de las reglas de negocio traen un `codigo` estable (el texto puede cambiar, el código no) y, si agrupan varios problemas, `details`:
+```json
+{ "timestamp": "...", "status": 400, "error": "Bad Request",
+  "message": "La suma de los pagos (100.00) no coincide con el importe total del comprobante (345.00).",
+  "codigo": "COMP-400-108" }
+```
+Prefijos: `COMP-` comprobantes, `INV-` inventario, `ORQ-` orquestador. Los textos están en `mensajes.properties` de cada servicio.
+
+---
+
+## 10. Sagas atascadas — watchdog (facturacion-orchestrator-service)
+
+Una saga que espera la respuesta de firma (`CREADO`) o del SRI (`FIRMADO`) y no la recibe se reintenta sola: tras el plazo
+(2 min firma / 15 min SRI) vuelve a publicar su último comando; tras 3 reintentos pasa a **`EXPIRADA`**.
+```
+GET  http://localhost:8096/sagas/api/v1?state=EXPIRADA        # sagas que requieren revisión
+GET  http://localhost:8096/sagas/api/v1/{comprobanteId}       # incluye "reintentos" y el detalle de pasos (status NOTA = reintento/expiración)
+POST http://localhost:8096/sagas/api/v1/{comprobanteId}/retry # reintento manual: vuelve a publicar el último comando
+```
+Ajustes (variables de entorno del servicio): `SAGA_WATCHDOG_HABILITADO`, `SAGA_WATCHDOG_INTERVALO` (30s), `SAGA_WATCHDOG_PLAZO_FIRMA` (PT2M),
+`SAGA_WATCHDOG_PLAZO_SRI` (PT15M), `SAGA_WATCHDOG_MAX_REINTENTOS` (3). Ver ARQUITECTURA.md 4.1.
+
+Otros estados terminales que verás en `GET /sagas`: `AUTORIZADO_SIN_NOTIFICACION` (el comprobante se autorizó pero no tiene correo del
+receptor, así que no habrá notificación — antes esas sagas se quedaban en `AUTORIZADO`) y `EXPIRADA` (el watchdog agotó los reintentos).
+Cada saga se reintenta en su propia transacción: si una falla, queda una nota `ORQ-003` en su bitácora y cuenta como intento, sin afectar a las demás.

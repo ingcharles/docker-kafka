@@ -20,5 +20,7 @@ public record ComprobanteEventMessage(
     String claveAcceso,
     String ambiente,
     String xmlGenerado,
+    /** null en eventos anteriores a este campo: se asume true (comportamiento previo). */
+    Boolean notificacionEsperada,
     Instant occurredAt) {
 }

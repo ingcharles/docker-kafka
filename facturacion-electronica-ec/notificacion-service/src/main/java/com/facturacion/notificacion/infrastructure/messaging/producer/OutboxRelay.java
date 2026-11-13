@@ -70,6 +70,8 @@ public class OutboxRelay {
         notificacionEventsEmitter.send(message);
 
         return Uni.createFrom().completionStage((CompletionStage<Void>) delivered)
+            // Sin ack en 30 s (broker caído): se suelta la transacción y sus locks en vez de colgar el relay; se reintenta en el siguiente tick.
+            .ifNoItem().after(java.time.Duration.ofSeconds(30)).fail()
             .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
             .onItem().invoke(() -> event.publishedAt = Instant.now())
             .replaceWith(event)

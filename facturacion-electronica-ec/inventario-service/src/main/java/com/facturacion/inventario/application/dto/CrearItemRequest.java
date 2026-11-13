@@ -8,7 +8,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
+import com.facturacion.inventario.domain.model.enums.ImpuestoSri;
+
 public class CrearItemRequest {
+
+    /** Código de porcentaje de la Tabla 17 que se asume si el cliente no manda uno (IVA 15%); debe existir en el catálogo. */
+    private static final String CODIGO_PORCENTAJE_IVA_POR_DEFECTO = "4";
 
     /** RUC de la empresa dueña de este ítem — el catálogo es multi-tenant (ver ARQUITECTURA.md). */
     @NotBlank
@@ -46,14 +51,10 @@ public class CrearItemRequest {
     // Tabla 17 de la ficha técnica del SRI), el caso más común; se puede
     // sobreescribir para ítems con otra tarifa (0%, exento, etc.) o con ICE.
     @NotBlank
-    private String codigoImpuesto = "2";
+    private String codigoImpuesto = ImpuestoSri.IVA.codigo();
 
     @NotBlank
-    private String codigoPorcentaje = "4";
-
-    @NotNull
-    @DecimalMin(value = "0.0", inclusive = true)
-    private BigDecimal tarifaIva = new BigDecimal("15.00");
+    private String codigoPorcentaje = CODIGO_PORCENTAJE_IVA_POR_DEFECTO;
 
     private boolean tieneIce = false;
 
@@ -163,14 +164,6 @@ public class CrearItemRequest {
 
     public void setCodigoPorcentaje(String codigoPorcentaje) {
         this.codigoPorcentaje = codigoPorcentaje;
-    }
-
-    public BigDecimal getTarifaIva() {
-        return tarifaIva;
-    }
-
-    public void setTarifaIva(BigDecimal tarifaIva) {
-        this.tarifaIva = tarifaIva;
     }
 
     public boolean isTieneIce() {

@@ -41,6 +41,9 @@ public class SriAutorizacionClient {
     @ConfigProperty(name = "sri.autorizacion.url.produccion")
     String urlProduccion;
 
+    @ConfigProperty(name = "sri.url.hosts-permitidos", defaultValue = "*.sri.gob.ec")
+    java.util.List<String> hostsPermitidos;
+
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
 
     /**
@@ -54,8 +57,8 @@ public class SriAutorizacionClient {
     }
 
     private AutorizacionResultado consultarBloqueante(String claveAcceso, AmbienteSri ambiente, String urlOverride) {
-        String url = urlOverride != null && !urlOverride.isBlank() ? urlOverride
-            : ambiente == AmbienteSri.PRODUCCION ? urlProduccion : urlPruebas;
+        String url = UrlsSri.elegir(urlOverride, ambiente == AmbienteSri.PRODUCCION ? urlProduccion : urlPruebas,
+            hostsPermitidos);
         String sobre = "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" "
             + "xmlns:aut=\"http://ec.gob.sri.ws.autorizacion\">"
             + "<soap:Body><aut:autorizacionComprobante><claveAccesoComprobante>" + claveAcceso

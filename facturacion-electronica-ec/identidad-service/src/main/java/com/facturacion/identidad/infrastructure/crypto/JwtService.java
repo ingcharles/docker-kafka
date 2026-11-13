@@ -17,7 +17,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
 import com.facturacion.identidad.domain.model.enums.Rol;
-import com.facturacion.identidad.shared.exception.TokenInvalidoException;
+import com.facturacion.commons.exception.TokenInvalidoException;
 
 /**
  * Firma y verifica los JWT de este ecosistema — HS256 con un secreto

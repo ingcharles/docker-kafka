@@ -16,7 +16,7 @@ import io.smallrye.mutiny.Uni;
 
 import com.facturacion.inventario.domain.model.entity.Item;
 import com.facturacion.inventario.domain.model.enums.TipoItem;
-import com.facturacion.inventario.domain.model.vo.PageResult;
+import com.facturacion.commons.paging.PageResult;
 import com.facturacion.inventario.domain.repository.ItemRepository;
 import com.facturacion.inventario.infrastructure.persistence.entity.ItemEntity;
 import com.facturacion.inventario.infrastructure.persistence.mapper.ItemMapper;

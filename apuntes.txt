@@ -90,3 +90,5 @@ http://localhost:8097/identidad/api/v1/api-keys
 }
 
 1.5 Subir el certificado de firma
+
+docker compose --profile migrar run --rm migraciones

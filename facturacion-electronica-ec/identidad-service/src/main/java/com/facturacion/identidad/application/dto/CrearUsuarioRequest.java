@@ -11,7 +11,8 @@ public class CrearUsuarioRequest {
     private String email;
 
     @NotBlank
-    @Size(min = 8, message = "la contraseña debe tener al menos 8 caracteres")
+    // bcrypt solo usa los primeros 72 bytes: más largo no daría más seguridad y se truncaría en silencio.
+    @Size(min = 8, max = 72, message = "la contraseña debe tener entre 8 y 72 caracteres")
     private String password;
 
     @NotBlank

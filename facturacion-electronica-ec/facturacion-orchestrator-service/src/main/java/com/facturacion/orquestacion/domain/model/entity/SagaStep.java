@@ -35,6 +35,22 @@ public class SagaStep {
         return step;
     }
 
+    /**
+     * Anotación de auditoría sin mensaje de Kafka asociado (p. ej. un reintento automático del watchdog).
+     * {@code codigo} es corto (va en {@code step_name}, varchar(100)); el {@code detalle}, que puede ser largo, va en
+     * {@code payload} (text). Un detalle largo en step_name hacía fallar toda la transacción del watchdog.
+     */
+    public static SagaStep nota(UUID sagaId, String codigo, String detalle) {
+        SagaStep step = new SagaStep();
+        step.id = UUID.randomUUID();
+        step.sagaId = sagaId;
+        step.stepName = codigo;
+        step.status = "NOTA";
+        step.payload = detalle;
+        step.createdAt = Instant.now();
+        return step;
+    }
+
     public static SagaStep sent(UUID sagaId, String stepName, String topic, String payload) {
         SagaStep step = new SagaStep();
         step.id = UUID.randomUUID();

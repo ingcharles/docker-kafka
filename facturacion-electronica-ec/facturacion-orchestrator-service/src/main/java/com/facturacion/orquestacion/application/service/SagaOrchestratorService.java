@@ -1,8 +1,10 @@
 package com.facturacion.orquestacion.application.service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -10,6 +12,7 @@ import jakarta.inject.Inject;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
@@ -25,11 +28,14 @@ import com.facturacion.orquestacion.domain.model.entity.SagaStep;
 import com.facturacion.orquestacion.domain.model.enums.SagaState;
 import com.facturacion.orquestacion.domain.repository.SagaInstanceRepository;
 import com.facturacion.orquestacion.domain.repository.SagaStepRepository;
+import com.facturacion.orquestacion.domain.service.PoliticaReintentoSaga;
 import com.facturacion.orquestacion.infrastructure.inbox.ProcessedMessageEntity;
 import com.facturacion.orquestacion.infrastructure.inbox.ProcessedMessageRepository;
 import com.facturacion.orquestacion.infrastructure.outbox.OutboxEventEntity;
 import com.facturacion.orquestacion.infrastructure.outbox.OutboxEventRepository;
 import com.facturacion.orquestacion.shared.constant.MessagingConstants;
+import com.facturacion.orquestacion.shared.error.CodigoError;
+import com.facturacion.commons.error.Mensajes;
 
 /**
  * La única pieza de todo el sistema que conoce la saga completa. Todos los
@@ -74,7 +80,7 @@ public class SagaOrchestratorService {
         }
         return ifNotProcessed(event.eventId(), () -> {
             SagaInstance saga = SagaInstance.start(event.comprobanteId(), event.empresaRuc(), event.claveAcceso(),
-                event.ambiente());
+                event.ambiente(), !Boolean.FALSE.equals(event.notificacionEsperada()));
             FirmarComprobanteCommand command = new FirmarComprobanteCommand(UUID.randomUUID(), event.comprobanteId(),
                 event.empresaRuc(), event.xmlGenerado(), Instant.now());
 
@@ -147,10 +153,88 @@ public class SagaOrchestratorService {
             });
     }
 
+    /**
+     * Ids de las sagas que esperan respuesta de otro servicio y a las que {@link PoliticaReintentoSaga} manda
+     * reintentar o expirar. Solo lectura; cada saga se procesa después en su PROPIA transacción
+     * ({@link #recuperarSaga}) para que una saga que falla no arrastre a las demás ni deje a todas sin avanzar.
+     */
+    @WithSession
+    public Uni<List<UUID>> idsParaRecuperar(PoliticaReintentoSaga.Plazos plazos, int lote) {
+        Instant ahora = Instant.now();
+        return sagaInstanceRepository.findByEstados(SagaState.reintentables(), lote)
+            .map(sagas -> sagas.stream()
+                .filter(saga -> PoliticaReintentoSaga.decidir(saga, ahora, plazos) != PoliticaReintentoSaga.Accion.ESPERAR)
+                .map(SagaInstance::getId)
+                .collect(Collectors.toList()));
+    }
+
+    /**
+     * Reintenta (vuelve a publicar el último comando, que el destino trata de forma idempotente) o expira UNA saga.
+     * Vuelve a leerla y a decidir dentro de su transacción: si otro evento la movió mientras tanto, no hace nada. La
+     * transición es compare-and-set, así que dos instancias del watchdog no duplican reintentos.
+     *
+     * @return true si hizo algo
+     */
+    @WithTransaction
+    public Uni<Boolean> recuperarSaga(UUID comprobanteId, PoliticaReintentoSaga.Plazos plazos) {
+        return sagaInstanceRepository.findById(comprobanteId).onItem().transformToUni(saga -> {
+            if (saga == null) {
+                return Uni.createFrom().item(false);
+            }
+            PoliticaReintentoSaga.Accion accion = PoliticaReintentoSaga.decidir(saga, Instant.now(), plazos);
+            return accion == PoliticaReintentoSaga.Accion.ESPERAR
+                ? Uni.createFrom().item(false)
+                : aplicar(accion, saga, plazos);
+        });
+    }
+
+    /**
+     * Cuenta como intento un reintento que FALLÓ (en su propia transacción, porque la del reintento se deshizo): sin
+     * esto, una saga cuyo reintento siempre falla se reintentaría eternamente sin llegar nunca a EXPIRADA.
+     */
+    @WithTransaction
+    public Uni<Void> contarReintentoFallido(UUID comprobanteId, PoliticaReintentoSaga.Plazos plazos, String causa) {
+        return sagaInstanceRepository.findById(comprobanteId).onItem().transformToUni(saga -> {
+            if (saga == null || !saga.getState().esReintentable()) {
+                return Uni.createFrom().voidItem();
+            }
+            return sagaInstanceRepository.registrarReintento(comprobanteId, saga.getState())
+                .onItem().transformToUni(actualizada -> actualizada == null
+                    ? Uni.createFrom().voidItem()
+                    : sagaStepRepository.persist(SagaStep.nota(comprobanteId, CodigoError.SAGA_REINTENTO_FALLIDO.codigo(),
+                        Mensajes.de(CodigoError.SAGA_REINTENTO_FALLIDO, saga.getReintentos() + 1, plazos.maxReintentos(),
+                            causa))).replaceWithVoid());
+        });
+    }
+
+    private Uni<Boolean> aplicar(PoliticaReintentoSaga.Accion accion, SagaInstance saga, PoliticaReintentoSaga.Plazos plazos) {
+        UUID id = saga.getId();
+        if (accion == PoliticaReintentoSaga.Accion.REINTENTAR) {
+            return sagaInstanceRepository.registrarReintento(id, saga.getState())
+                .onItem().transformToUni(actualizada -> {
+                    if (actualizada == null) {
+                        return Uni.createFrom().item(false);
+                    }
+                    // No se usa actualizada.getReintentos(): tras el UPDATE masivo, findById devuelve la instancia ya
+                    // cargada en esta sesión (caché de primer nivel) con el contador viejo.
+                    String nota = Mensajes.de(CodigoError.SAGA_REINTENTO_AUTOMATICO, saga.getReintentos() + 1,
+                        plazos.maxReintentos(), saga.getState());
+                    return sagaStepRepository.persist(SagaStep.nota(id, CodigoError.SAGA_REINTENTO_AUTOMATICO.codigo(), nota))
+                        .chain(() -> retryLastCommand(id)).replaceWith(true);
+                });
+        }
+        String motivo = Mensajes.de(CodigoError.SAGA_EXPIRADA, saga.getState(), plazos.maxReintentos());
+        return sagaInstanceRepository.updateState(id, SagaState.EXPIRADA, motivo, saga.getState())
+            .onItem().transformToUni(actualizada -> actualizada == null
+                ? Uni.createFrom().item(false)
+                : sagaStepRepository.persist(SagaStep.nota(id, CodigoError.SAGA_EXPIRADA.codigo(), motivo)).replaceWith(true));
+    }
+
     // --- Camino feliz -----------------------------------------------------
 
     private Uni<Void> onComprobanteFirmado(ComprobanteFirmadoEventMessage event) {
-        return sagaInstanceRepository.updateState(event.comprobanteId(), SagaState.FIRMADO, null, SagaState.CREADO)
+        return sagaInstanceRepository.updateState(event.comprobanteId(), SagaState.FIRMADO, null, SagaState.CREADO,
+                SagaState.EXPIRADA)
             .onItem().transformToUni(saga -> {
                 if (saga == null) {
                     return Uni.createFrom().voidItem();
@@ -170,7 +254,7 @@ public class SagaOrchestratorService {
 
     private Uni<Void> onSriAutorizado(SriResultadoEventMessage event) {
         return sagaInstanceRepository.updateState(event.comprobanteId(), SagaState.AUTORIZADO, null,
-                SagaState.FIRMADO)
+                SagaState.FIRMADO, SagaState.EXPIRADA)
             .onItem().transformToUni(saga -> {
                 if (saga == null) {
                     return Uni.createFrom().voidItem();
@@ -184,7 +268,12 @@ public class SagaOrchestratorService {
                 // consume directo, este orquestador no tiene que hacer nada más
                 // para que el correo salga.
                 return emit(event.comprobanteId(), MessagingConstants.COMANDO_MARCAR_AUTORIZADO,
-                    MessagingConstants.COMPROBANTE_COMMANDS_TOPIC, command);
+                    MessagingConstants.COMPROBANTE_COMMANDS_TOPIC, command)
+                    // Sin correo del receptor no habrá notificación: la saga termina aquí en vez de esperar para siempre.
+                    .chain(() -> saga.isNotificacionEsperada()
+                        ? Uni.createFrom().voidItem()
+                        : sagaInstanceRepository.updateState(event.comprobanteId(),
+                            SagaState.AUTORIZADO_SIN_NOTIFICACION, null, SagaState.AUTORIZADO).replaceWithVoid());
             });
     }
 
@@ -206,7 +295,7 @@ public class SagaOrchestratorService {
 
     private Uni<Void> onFirmaFallida(UUID comprobanteId, String motivoError) {
         return sagaInstanceRepository.updateState(comprobanteId, SagaState.FIRMA_FALLIDA, motivoError,
-                SagaState.CREADO)
+                SagaState.CREADO, SagaState.EXPIRADA)
             .onItem().transformToUni(saga -> {
                 if (saga == null) {
                     return Uni.createFrom().voidItem();
@@ -221,7 +310,7 @@ public class SagaOrchestratorService {
 
     private Uni<Void> onSriRechazo(SriResultadoEventMessage event, SagaState estadoDestino, String tipoComando) {
         return sagaInstanceRepository.updateState(event.comprobanteId(), estadoDestino, event.motivoRechazo(),
-                SagaState.FIRMADO)
+                SagaState.FIRMADO, SagaState.EXPIRADA)
             .onItem().transformToUni(saga -> {
                 if (saga == null) {
                     return Uni.createFrom().voidItem();

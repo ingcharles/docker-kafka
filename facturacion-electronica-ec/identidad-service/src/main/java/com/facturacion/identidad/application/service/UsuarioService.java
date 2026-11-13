@@ -33,10 +33,11 @@ import com.facturacion.identidad.domain.repository.UsuarioRepository;
 import com.facturacion.identidad.infrastructure.crypto.JwtService;
 import com.facturacion.identidad.infrastructure.persistence.mapper.UsuarioEmpresaRolMapper;
 import com.facturacion.identidad.infrastructure.persistence.mapper.UsuarioMapper;
-import com.facturacion.identidad.shared.exception.ConflictoException;
+import com.facturacion.commons.exception.ConflictoException;
+import com.facturacion.commons.reactive.TrabajoBloqueante;
 import com.facturacion.identidad.shared.exception.CredencialesInvalidasException;
 import com.facturacion.identidad.shared.exception.EmailDuplicadoException;
-import com.facturacion.identidad.shared.exception.NotFoundException;
+import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.identidad.shared.exception.RolInsuficienteException;
 
 /**
@@ -68,38 +69,56 @@ public class UsuarioService {
         this.jwtService = jwtService;
     }
 
+    /** Hash de una contraseña que nadie conoce: sirve para gastar el mismo tiempo cuando el correo no existe. */
+    private static final String HASH_DESCARTABLE = BcryptUtil.bcryptHash("contraseña-descartable-sin-cuenta");
+
+    /** El correo se guarda y se busca sin espacios y en minúsculas: "Ana@X.com" y "ana@x.com" son la misma cuenta. */
+    static String normalizarEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(java.util.Locale.ROOT);
+    }
+
     @WithTransaction
     public Uni<UsuarioResponse> crear(@Valid CrearUsuarioRequest request) {
-        return usuarioRepository.existsByEmail(request.getEmail())
+        String email = normalizarEmail(request.getEmail());
+        return usuarioRepository.existsByEmail(email)
             .onItem().transformToUni(existe -> {
                 if (Boolean.TRUE.equals(existe)) {
-                    return Uni.createFrom().failure(new EmailDuplicadoException(request.getEmail()));
+                    return Uni.createFrom().failure(new EmailDuplicadoException(email));
                 }
-                Instant ahora = Instant.now();
-                Usuario usuario = new Usuario();
-                usuario.setId(UUID.randomUUID());
-                usuario.setEmail(request.getEmail());
-                usuario.setPasswordHash(BcryptUtil.bcryptHash(request.getPassword()));
-                usuario.setNombres(request.getNombres());
-                usuario.setApellidos(request.getApellidos());
-                usuario.setActivo(true);
-                usuario.setCreadoEn(ahora);
-                usuario.setActualizadoEn(ahora);
-                return usuarioRepository.persist(usuario).map(mapper::toResponse);
+                // bcrypt es CPU-bound (~100 ms): fuera del event loop, y de vuelta al contexto antes de tocar la BD.
+                return TrabajoBloqueante.ejecutar(() -> BcryptUtil.bcryptHash(request.getPassword()))
+                    .onItem().transformToUni(hash -> {
+                        Instant ahora = Instant.now();
+                        Usuario usuario = new Usuario();
+                        usuario.setId(UUID.randomUUID());
+                        usuario.setEmail(email);
+                        usuario.setPasswordHash(hash);
+                        usuario.setNombres(request.getNombres());
+                        usuario.setApellidos(request.getApellidos());
+                        usuario.setActivo(true);
+                        usuario.setCreadoEn(ahora);
+                        usuario.setActualizadoEn(ahora);
+                        return usuarioRepository.persist(usuario).map(mapper::toResponse);
+                    });
             });
     }
 
     @WithSession
     public Uni<TokenResponse> login(@Valid LoginRequest request) {
-        return usuarioRepository.findByEmail(request.getEmail())
+        return usuarioRepository.findByEmail(normalizarEmail(request.getEmail()))
             .onItem().transformToUni(usuario -> {
-                if (usuario == null || !usuario.isActivo()
-                        || !BcryptUtil.matches(request.getPassword(), usuario.getPasswordHash())) {
-                    return Uni.createFrom().failure(
-                        new CredencialesInvalidasException("Email o contraseña incorrectos"));
-                }
-                String token = jwtService.generarTokenSesion(usuario.getId(), usuario.getEmail());
-                return Uni.createFrom().item(new TokenResponse(token));
+                // Con un correo que no existe también se calcula un bcrypt (contra un hash descartable): si no, la
+                // respuesta tardaría menos y delataría qué correos tienen cuenta.
+                String hash = usuario == null ? HASH_DESCARTABLE : usuario.getPasswordHash();
+                return TrabajoBloqueante.ejecutar(() -> BcryptUtil.matches(request.getPassword(), hash))
+                    .onItem().transformToUni(passwordCorrecta -> {
+                        if (usuario == null || !usuario.isActivo() || !passwordCorrecta) {
+                            return Uni.createFrom().<TokenResponse>failure(
+                                new CredencialesInvalidasException("Email o contraseña incorrectos"));
+                        }
+                        String token = jwtService.generarTokenSesion(usuario.getId(), usuario.getEmail());
+                        return Uni.createFrom().item(new TokenResponse(token));
+                    });
             });
     }
 
@@ -128,13 +147,20 @@ public class UsuarioService {
         return usuarioRepository.findById(usuarioId)
             .onItem().ifNull().failWith(() -> new NotFoundException("Usuario no encontrado: " + usuarioId))
             .onItem().transformToUni(usuario -> {
-                if (!BcryptUtil.matches(request.getPasswordActual(), usuario.getPasswordHash())) {
-                    return Uni.createFrom().failure(
-                        new CredencialesInvalidasException("La contraseña actual no es correcta"));
-                }
-                usuario.setPasswordHash(BcryptUtil.bcryptHash(request.getPasswordNueva()));
-                usuario.setActualizadoEn(Instant.now());
-                return usuarioRepository.update(usuario);
+                return TrabajoBloqueante.ejecutar(
+                        () -> BcryptUtil.matches(request.getPasswordActual(), usuario.getPasswordHash()))
+                    .onItem().transformToUni(coincide -> {
+                        if (!coincide) {
+                            return Uni.createFrom().<Usuario>failure(
+                                new CredencialesInvalidasException("La contraseña actual no es correcta"));
+                        }
+                        return TrabajoBloqueante.ejecutar(() -> BcryptUtil.bcryptHash(request.getPasswordNueva()))
+                            .onItem().transformToUni(nuevoHash -> {
+                                usuario.setPasswordHash(nuevoHash);
+                                usuario.setActualizadoEn(Instant.now());
+                                return usuarioRepository.update(usuario);
+                            });
+                    });
             })
             .replaceWithVoid();
     }
@@ -159,18 +185,51 @@ public class UsuarioService {
                 return empresaRolRepository.findByUsuarioIdAndRuc(usuarioId, request.getRuc());
             })
             .onItem().transformToUni(existente -> {
+                // Ya asociado: no se toca el rol. Cambiarlo es cosa de un ADMIN (PATCH /empresas/{ruc}/usuarios/{id}); si
+                // este endpoint lo permitiera, un LECTURA podría volver a llamarlo y ascenderse a ADMIN.
                 if (existente != null) {
-                    existente.setRol(rol);
-                    return empresaRolRepository.update(existente);
+                    return Uni.createFrom().item(existente);
                 }
-                UsuarioEmpresaRol nueva = new UsuarioEmpresaRol();
-                nueva.setId(UUID.randomUUID());
-                nueva.setUsuarioId(usuarioId);
-                nueva.setRuc(request.getRuc());
-                nueva.setRol(rol);
-                nueva.setCreadoEn(Instant.now());
-                return empresaRolRepository.persist(nueva);
+                // Asociarse por cuenta propia solo vale para una empresa sin miembros. Si ya tiene, acceso abierto a
+                // cualquier usuario registrado equivaldría a poder volverse ADMIN de la empresa de otro.
+                return empresaRolRepository.findByRuc(request.getRuc()).onItem().transformToUni(miembros -> {
+                    if (!miembros.isEmpty()) {
+                        return Uni.<UsuarioEmpresaRol>createFrom().failure(
+                            RolInsuficienteException.empresaYaTieneAdministradores(request.getRuc()));
+                    }
+                    return empresaRolRepository.persist(nuevaAsociacion(usuarioId, request.getRuc(), rol));
+                });
             })
+            .map(empresaRolMapper::toResponse);
+    }
+
+    private static UsuarioEmpresaRol nuevaAsociacion(UUID usuarioId, String ruc, Rol rol) {
+        UsuarioEmpresaRol nueva = new UsuarioEmpresaRol();
+        nueva.setId(UUID.randomUUID());
+        nueva.setUsuarioId(usuarioId);
+        nueva.setRuc(ruc);
+        nueva.setRol(rol);
+        nueva.setCreadoEn(Instant.now());
+        return nueva;
+    }
+
+    /**
+     * Un ADMIN del ruc da acceso a un usuario ya registrado (por su correo). Es la forma de sumar gente a una
+     * empresa que ya tiene dueño: reemplaza a la autoasociación abierta.
+     */
+    @WithTransaction
+    public Uni<EmpresaRolResponse> agregarMiembro(UUID solicitanteId, String ruc, String email, String rolTexto) {
+        Rol rol = Rol.valueOf(rolTexto);
+        return exigirAdmin(solicitanteId, ruc)
+            .onItem().transformToUni(ignorado -> usuarioRepository.findByEmail(normalizarEmail(email)))
+            .onItem().ifNull().failWith(
+                () -> new NotFoundException("No hay ningún usuario registrado con el correo " + email))
+            .onItem().transformToUni(usuario -> empresaRolRepository.findByUsuarioIdAndRuc(usuario.getId(), ruc)
+                .onItem().transformToUni(existente -> existente != null
+                    ? Uni.<UsuarioEmpresaRol>createFrom().failure(new ConflictoException("El usuario " + email
+                        + " ya tiene acceso al ruc " + ruc + " (para cambiarle el rol: PATCH /empresas/" + ruc
+                        + "/usuarios/" + usuario.getId() + ")"))
+                    : empresaRolRepository.persist(nuevaAsociacion(usuario.getId(), ruc, rol))))
             .map(empresaRolMapper::toResponse);
     }
 

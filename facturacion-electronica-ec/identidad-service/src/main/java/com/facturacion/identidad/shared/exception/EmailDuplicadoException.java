@@ -1,8 +1,12 @@
 package com.facturacion.identidad.shared.exception;
 
-public class EmailDuplicadoException extends RuntimeException {
+import com.facturacion.commons.exception.ApiException;
+import com.facturacion.identidad.shared.error.IdentidadError;
+
+/** Ya existe un usuario con ese email. 409, {@link IdentidadError#EMAIL_DUPLICADO}. */
+public class EmailDuplicadoException extends ApiException {
 
     public EmailDuplicadoException(String email) {
-        super("Ya existe un usuario registrado con el email " + email);
+        super(IdentidadError.EMAIL_DUPLICADO, email);
     }
 }

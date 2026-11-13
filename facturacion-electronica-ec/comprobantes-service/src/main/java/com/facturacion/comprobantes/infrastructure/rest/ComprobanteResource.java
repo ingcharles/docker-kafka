@@ -35,13 +35,14 @@ import com.facturacion.comprobantes.application.dto.CrearNotaCreditoRequest;
 import com.facturacion.comprobantes.application.dto.CrearNotaDebitoRequest;
 import com.facturacion.comprobantes.application.dto.CrearRetencionRequest;
 import com.facturacion.comprobantes.application.dto.EmpresaRequest;
+import com.facturacion.comprobantes.application.service.ComprobanteConsultaService;
 import com.facturacion.comprobantes.application.service.ComprobanteService;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
-import com.facturacion.comprobantes.infrastructure.security.TokenPrincipal;
-import com.facturacion.comprobantes.shared.exception.SinPermisoException;
-import com.facturacion.comprobantes.shared.requests.PageRequest;
-import com.facturacion.comprobantes.shared.responses.PagedResponse;
+import com.facturacion.commons.security.TokenPrincipal;
+import com.facturacion.commons.exception.SinPermisoException;
+import com.facturacion.commons.paging.PageRequest;
+import com.facturacion.commons.paging.PagedResponse;
 
 /**
  * Superficie de observabilidad y de creación — igual que en ecommerce/,
@@ -57,11 +58,14 @@ import com.facturacion.comprobantes.shared.responses.PagedResponse;
 public class ComprobanteResource {
 
     private final ComprobanteService comprobanteService;
+    private final ComprobanteConsultaService consultaService;
     private final TokenPrincipal tokenPrincipal;
 
     @Inject
-    public ComprobanteResource(ComprobanteService comprobanteService, TokenPrincipal tokenPrincipal) {
+    public ComprobanteResource(ComprobanteService comprobanteService, ComprobanteConsultaService consultaService,
+            TokenPrincipal tokenPrincipal) {
         this.comprobanteService = comprobanteService;
+        this.consultaService = consultaService;
         this.tokenPrincipal = tokenPrincipal;
     }
 
@@ -73,7 +77,8 @@ public class ComprobanteResource {
      * {@code tokenPrincipal.getEstablecimiento() == null}) no se ve afectada.
      */
     private void validarAlcance(EmpresaRequest empresa) {
-        if (!tokenPrincipal.getRuc().equals(empresa.getRuc())) {
+        tokenPrincipal.exigirEscritura();
+        if (!tokenPrincipal.esDeLaEmpresa(empresa.getRuc())) {
             throw new SinPermisoException(
                 "La api-key usada es para el ruc " + tokenPrincipal.getRuc() + ", no para " + empresa.getRuc());
         }
@@ -199,7 +204,7 @@ public class ComprobanteResource {
     @APIResponse(responseCode = "404", description = "Comprobante no encontrado")
     public Uni<Response> obtenerPorId(
             @Parameter(description = "Id del comprobante", required = true) @PathParam("id") UUID id) {
-        return comprobanteService.obtenerPorId(id).map(response -> Response.ok(response).build());
+        return consultaService.obtenerPorId(id, tokenPrincipal.getRuc()).map(response -> Response.ok(response).build());
     }
 
     @GET
@@ -208,7 +213,13 @@ public class ComprobanteResource {
     @APIResponse(responseCode = "200", description = "Listado")
     public Uni<Response> listar(@Valid @BeanParam PageRequest pageRequest,
             @QueryParam("estado") EstadoComprobante estado, @QueryParam("empresaRuc") String empresaRuc) {
-        return comprobanteService.listarPaginado(pageRequest.getPage(), pageRequest.getLimit(), estado, empresaRuc)
+        // El listado es siempre de la empresa de la api-key; pedir el de otro RUC es un error, no un resultado vacío.
+        if (empresaRuc != null && !tokenPrincipal.esDeLaEmpresa(empresaRuc)) {
+            throw new SinPermisoException("La api-key usada es para el ruc " + tokenPrincipal.getRuc()
+                + ", no para " + empresaRuc);
+        }
+        return consultaService.listarPaginado(pageRequest.getPage(), pageRequest.getLimit(), estado,
+                tokenPrincipal.getRuc())
             .map((PagedResponse<ComprobanteResponse> paged) -> Response.ok(paged).build());
     }
 
@@ -223,7 +234,7 @@ public class ComprobanteResource {
             @Parameter(description = "Id del comprobante", required = true) @PathParam("id") UUID id,
             @Parameter(description = "generado | firmado | autorizado")
             @QueryParam("tipo") @jakarta.ws.rs.DefaultValue("generado") String tipo) {
-        return comprobanteService.obtenerDominioPorId(id).map((Comprobante c) -> {
+        return consultaService.obtenerDominioPorId(id, tokenPrincipal.getRuc()).map((Comprobante c) -> {
             String xml = switch (tipo) {
                 case "firmado" -> c.getXmlFirmado();
                 case "autorizado" -> c.getXmlAutorizado();
@@ -245,7 +256,7 @@ public class ComprobanteResource {
     @APIResponse(responseCode = "404", description = "Comprobante no encontrado, o todavía no está autorizado")
     public Uni<Response> obtenerRide(
             @Parameter(description = "Id del comprobante", required = true) @PathParam("id") UUID id) {
-        return comprobanteService.obtenerDominioPorId(id).map((Comprobante c) -> {
+        return consultaService.obtenerDominioPorId(id, tokenPrincipal.getRuc()).map((Comprobante c) -> {
             if (c.getRidePdf() == null) {
                 return Response.status(Response.Status.NOT_FOUND).build();
             }

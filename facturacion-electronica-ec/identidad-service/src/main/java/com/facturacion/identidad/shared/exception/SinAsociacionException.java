@@ -1,8 +1,12 @@
 package com.facturacion.identidad.shared.exception;
 
-public class SinAsociacionException extends RuntimeException {
+import com.facturacion.commons.exception.ApiException;
+import com.facturacion.identidad.shared.error.IdentidadError;
+
+/** El usuario no está asociado al ruc con el que intenta operar. 403, {@link IdentidadError#SIN_ASOCIACION}. */
+public class SinAsociacionException extends ApiException {
 
     public SinAsociacionException(String ruc) {
-        super("El usuario no está asociado al ruc " + ruc + " — asóciate primero vía POST /usuarios/me/empresas");
+        super(IdentidadError.SIN_ASOCIACION, ruc);
     }
 }

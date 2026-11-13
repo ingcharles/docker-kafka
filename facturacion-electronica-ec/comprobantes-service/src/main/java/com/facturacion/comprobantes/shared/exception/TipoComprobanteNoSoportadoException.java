@@ -1,11 +1,16 @@
 package com.facturacion.comprobantes.shared.exception;
 
+import com.facturacion.commons.exception.ApiException;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 
-/** Los otros 5 tipos (fuera de Factura) todavía no tienen un GeneradorXmlComprobante registrado — ver ARQUITECTURA.md. */
-public class TipoComprobanteNoSoportadoException extends RuntimeException {
+/**
+ * No hay un {@code GeneradorXmlComprobante} registrado para ese tipo — ver ARQUITECTURA.md. 400 con el código
+ * {@link CodigoError#TIPO_COMPROBANTE_NO_SOPORTADO}; la respuesta la arma el {@code ApiExceptionMapper} del jar común.
+ */
+public class TipoComprobanteNoSoportadoException extends ApiException {
 
     public TipoComprobanteNoSoportadoException(TipoComprobante tipo) {
-        super("El tipo de comprobante " + tipo + " todavía no está soportado en esta versión");
+        super(CodigoError.TIPO_COMPROBANTE_NO_SOPORTADO, tipo);
     }
 }

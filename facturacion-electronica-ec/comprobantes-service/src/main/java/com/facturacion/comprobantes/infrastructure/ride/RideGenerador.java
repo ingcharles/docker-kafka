@@ -2,9 +2,7 @@ package com.facturacion.comprobantes.infrastructure.ride;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -18,8 +16,10 @@ import org.apache.pdfbox.pdmodel.graphics.color.PDDeviceRGB;
 
 import jakarta.enterprise.context.ApplicationScoped;
 
+import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
+import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha;
 
 /**
  * RIDE (Representación Impresa de Documento Electrónico) en PDF — Anexo 2 de
@@ -50,7 +50,7 @@ public class RideGenerador {
      *                  {@code null} o no tiene un formato hex válido, no se dibuja ninguna
      *                  barra de acento (comportamiento por defecto, sin cambios).
      */
-    public byte[] generar(Comprobante c, String colorRide) {
+    public byte[] generar(Comprobante c, String colorRide, CatalogosSriAFecha catalogos) {
         try (PDDocument documento = new PDDocument()) {
             PDPage pagina = new PDPage(PDRectangle.A4);
             documento.addPage(pagina);
@@ -97,7 +97,7 @@ public class RideGenerador {
                 }
                 if (c.getFechaAutorizacion() != null) {
                     y = escribir(cs, fuenteNormal, 9, MARGEN, y - 2, "Fecha autorización: "
-                        + FORMATO_FECHA_HORA.format(c.getFechaAutorizacion().atZone(ZoneOffset.of("-05:00"))));
+                        + FORMATO_FECHA_HORA.format(c.getFechaAutorizacion().atZone(ZonaHoraria.ECUADOR)));
                 }
 
                 y -= 16;
@@ -112,7 +112,7 @@ public class RideGenerador {
                     y -= 2;
                 }
                 y = escribir(cs, fuenteNormal, 10, MARGEN, y,
-                    "Fecha de emisión: " + FORMATO_FECHA.format(c.getFechaEmision().atZone(ZoneOffset.of("-05:00"))));
+                    "Fecha de emisión: " + FORMATO_FECHA.format(c.getFechaEmision().atZone(ZonaHoraria.ECUADOR)));
 
                 y -= 16;
                 y = escribirEncabezadoTabla(cs, fuenteNegrita, y);
@@ -121,7 +121,7 @@ public class RideGenerador {
                 }
 
                 y = escribirInfoAdicional(cs, fuenteNegrita, fuenteNormal, y, c);
-                y = escribirFormasPago(cs, fuenteNegrita, fuenteNormal, y, c);
+                y = escribirFormasPago(cs, fuenteNegrita, fuenteNormal, y, c, catalogos);
 
                 y -= 16;
                 y = escribir(cs, fuenteNormal, 10, 350, y, "Subtotal sin impuestos: " + moneda(c.getSubtotalSinImpuestos()));
@@ -188,7 +188,7 @@ public class RideGenerador {
      * de Remisión, Retención).
      */
     private float escribirFormasPago(PDPageContentStream cs, PDFont fuenteNegrita, PDFont fuenteNormal, float y,
-            Comprobante c) throws IOException {
+            Comprobante c, CatalogosSriAFecha catalogos) throws IOException {
         if (c.getPagos() == null || c.getPagos().isEmpty()) {
             return y;
         }
@@ -196,24 +196,9 @@ public class RideGenerador {
         y = escribir(cs, fuenteNegrita, 10, MARGEN, y, "Forma de pago");
         for (var pago : c.getPagos()) {
             y = escribir(cs, fuenteNormal, 9, MARGEN, y - 2,
-                pago.formaPago() + " - " + descripcionFormaPago(pago.formaPago()) + ": " + moneda(pago.total()));
+                pago.formaPago() + " - " + catalogos.descripcionFormaPago(pago.formaPago()) + ": " + moneda(pago.total()));
         }
         return y;
-    }
-
-    /** Tabla 24 de la ficha técnica (catálogo de formas de pago del Anexo Transaccional Simplificado). */
-    private String descripcionFormaPago(String codigo) {
-        return switch (codigo) {
-            case "01" -> "SIN UTILIZACION DEL SISTEMA FINANCIERO";
-            case "15" -> "COMPENSACION DE DEUDAS";
-            case "16" -> "TARJETA DE DEBITO";
-            case "17" -> "DINERO ELECTRONICO";
-            case "18" -> "TARJETA PREPAGO";
-            case "19" -> "TARJETA DE CREDITO";
-            case "20" -> "OTROS CON UTILIZACION DEL SISTEMA FINANCIERO";
-            case "21" -> "ENDOSO DE TITULOS";
-            default -> "FORMA DE PAGO " + codigo;
-        };
     }
 
     private float escribirEncabezadoTabla(PDPageContentStream cs, PDFont fuente, float y) throws IOException {

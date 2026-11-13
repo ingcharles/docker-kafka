@@ -21,6 +21,7 @@ import io.smallrye.mutiny.Uni;
 
 import com.facturacion.sri.application.service.SriConectorService;
 import com.facturacion.sri.domain.model.entity.EnvioSri;
+import com.facturacion.commons.security.TokenPrincipal;
 
 /**
  * Superficie de observabilidad — ver el estado del envío/autorización de un
@@ -33,10 +34,12 @@ import com.facturacion.sri.domain.model.entity.EnvioSri;
 public class EnvioSriResource {
 
     private final SriConectorService sriConectorService;
+    private final TokenPrincipal tokenPrincipal;
 
     @Inject
-    public EnvioSriResource(SriConectorService sriConectorService) {
+    public EnvioSriResource(SriConectorService sriConectorService, TokenPrincipal tokenPrincipal) {
         this.sriConectorService = sriConectorService;
+        this.tokenPrincipal = tokenPrincipal;
     }
 
     @GET
@@ -47,7 +50,8 @@ public class EnvioSriResource {
     public Uni<Response> obtenerPorComprobanteId(
             @Parameter(description = "Id del comprobante en comprobantes-service", required = true)
             @PathParam("comprobanteId") UUID comprobanteId) {
-        return sriConectorService.obtenerPorComprobanteId(comprobanteId).map(response -> Response.ok(response).build());
+        return sriConectorService.obtenerPorComprobanteId(comprobanteId, tokenPrincipal.getRuc())
+            .map(response -> Response.ok(response).build());
     }
 
     @GET
@@ -58,7 +62,8 @@ public class EnvioSriResource {
     public Uni<Response> obtenerPorClaveAcceso(
             @Parameter(description = "Clave de acceso de 49 dígitos", required = true)
             @PathParam("claveAcceso") String claveAcceso) {
-        return sriConectorService.obtenerPorClaveAcceso(claveAcceso).map(response -> Response.ok(response).build());
+        return sriConectorService.obtenerPorClaveAcceso(claveAcceso, tokenPrincipal.getRuc())
+            .map(response -> Response.ok(response).build());
     }
 
     @GET
@@ -73,7 +78,7 @@ public class EnvioSriResource {
             @PathParam("comprobanteId") UUID comprobanteId,
             @Parameter(description = "firmado | autorizado")
             @QueryParam("tipo") @jakarta.ws.rs.DefaultValue("firmado") String tipo) {
-        return sriConectorService.obtenerDominioPorComprobanteId(comprobanteId).map((EnvioSri envio) -> {
+        return sriConectorService.obtenerDominioPorComprobanteId(comprobanteId, tokenPrincipal.getRuc()).map((EnvioSri envio) -> {
             String xml = "autorizado".equals(tipo) ? envio.getXmlAutorizado() : envio.getXmlFirmado();
             if (xml == null) {
                 return Response.status(Response.Status.NOT_FOUND).build();

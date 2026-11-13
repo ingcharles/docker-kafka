@@ -2,6 +2,7 @@ package com.facturacion.sri.application.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import jakarta.enterprise.context.ApplicationScoped;
@@ -34,7 +35,7 @@ import com.facturacion.sri.infrastructure.soap.RecepcionResultado;
 import com.facturacion.sri.infrastructure.soap.SriAutorizacionClient;
 import com.facturacion.sri.infrastructure.soap.SriRecepcionClient;
 import com.facturacion.sri.shared.constant.MessagingConstants;
-import com.facturacion.sri.shared.exception.NotFoundException;
+import com.facturacion.commons.exception.NotFoundException;
 
 /**
  * Dueño del agregado EnvioSri. {@link #procesarComando} arranca el flujo
@@ -210,26 +211,38 @@ public class SriConectorService {
     }
 
     @io.quarkus.hibernate.reactive.panache.common.WithSession
-    public Uni<EnvioSri> obtenerDominioPorComprobanteId(UUID comprobanteId) {
+    public Uni<EnvioSri> obtenerDominioPorComprobanteId(UUID comprobanteId, String empresaRuc) {
         return envioSriRepository.findByComprobanteId(comprobanteId)
+            .onItem().transform(envio -> soloDeLaEmpresa(envio, empresaRuc))
             .onItem().ifNull().failWith(() ->
                 new NotFoundException("No hay ningún envío al SRI para el comprobante " + comprobanteId));
     }
 
     @io.quarkus.hibernate.reactive.panache.common.WithSession
-    public Uni<EnvioSriResponse> obtenerPorComprobanteId(UUID comprobanteId) {
+    public Uni<EnvioSriResponse> obtenerPorComprobanteId(UUID comprobanteId, String empresaRuc) {
         return envioSriRepository.findByComprobanteId(comprobanteId)
+            .onItem().transform(envio -> soloDeLaEmpresa(envio, empresaRuc))
             .onItem().ifNull().failWith(() ->
                 new NotFoundException("No hay ningún envío al SRI para el comprobante " + comprobanteId))
             .map(mapper::toResponse);
     }
 
     @io.quarkus.hibernate.reactive.panache.common.WithSession
-    public Uni<EnvioSriResponse> obtenerPorClaveAcceso(String claveAcceso) {
+    public Uni<EnvioSriResponse> obtenerPorClaveAcceso(String claveAcceso, String empresaRuc) {
         return envioSriRepository.findByClaveAcceso(claveAcceso)
+            .onItem().transform(envio -> soloDeLaEmpresa(envio, empresaRuc))
             .onItem().ifNull().failWith(() ->
                 new NotFoundException("No hay ningún envío al SRI con clave de acceso " + claveAcceso))
             .map(mapper::toResponse);
+    }
+
+    /**
+     * Un envío de otra empresa se trata como inexistente (404): la api-key solo ve lo de su propio RUC y no se
+     * revela que el comprobante existe.
+     */
+    private static EnvioSri soloDeLaEmpresa(EnvioSri envio, String empresaRuc) {
+        // empresa_ruc es nullable (envíos anteriores a V2__ruc_envio_sri): Objects.equals evita el NPE → 404.
+        return envio != null && Objects.equals(envio.getEmpresaRuc(), empresaRuc) ? envio : null;
     }
 
     private String writeValueAsString(Object value) {

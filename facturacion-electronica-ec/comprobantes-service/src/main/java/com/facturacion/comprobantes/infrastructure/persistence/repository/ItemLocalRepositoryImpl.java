@@ -39,7 +39,6 @@ public class ItemLocalRepositoryImpl implements ItemLocalRepository {
                 existente.descripcion = domain.getDescripcion();
                 existente.codigoImpuesto = domain.getCodigoImpuesto();
                 existente.codigoPorcentaje = domain.getCodigoPorcentaje();
-                existente.tarifaIva = domain.getTarifaIva();
                 existente.tieneIce = domain.isTieneIce();
                 existente.codigoPorcentajeIce = domain.getCodigoPorcentajeIce();
                 existente.tarifaIce = domain.getTarifaIce();

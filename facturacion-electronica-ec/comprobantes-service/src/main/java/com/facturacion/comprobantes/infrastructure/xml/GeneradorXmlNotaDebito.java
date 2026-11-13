@@ -1,7 +1,6 @@
 package com.facturacion.comprobantes.infrastructure.xml;
 
 import java.math.BigDecimal;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
 import jakarta.enterprise.context.ApplicationScoped;
@@ -9,6 +8,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
@@ -82,7 +82,7 @@ public class GeneradorXmlNotaDebito implements GeneradorXmlComprobante {
     private Element construirInfoNotaDebito(Document doc, Comprobante c) {
         Element info = doc.createElement("infoNotaDebito");
         XmlComprobanteUtil.texto(doc, info, "fechaEmision",
-            FORMATO_FECHA.format(c.getFechaEmision().atZone(ZoneOffset.of("-05:00"))));
+            FORMATO_FECHA.format(c.getFechaEmision().atZone(ZonaHoraria.ECUADOR)));
         XmlComprobanteUtil.texto(doc, info, "dirEstablecimiento", XmlComprobanteUtil.direccionEstablecimiento(c));
         XmlComprobanteUtil.texto(doc, info, "tipoIdentificacionComprador", c.getCompradorTipoIdentificacion());
         XmlComprobanteUtil.texto(doc, info, "razonSocialComprador", c.getCompradorRazonSocial());
@@ -94,7 +94,7 @@ public class GeneradorXmlNotaDebito implements GeneradorXmlComprobante {
         XmlComprobanteUtil.texto(doc, info, "codDocModificado", c.getDocModificadoTipo());
         XmlComprobanteUtil.texto(doc, info, "numDocModificado", c.getDocModificadoNumero());
         XmlComprobanteUtil.texto(doc, info, "fechaEmisionDocSustento",
-            FORMATO_FECHA.format(c.getDocModificadoFecha().atZone(ZoneOffset.of("-05:00"))));
+            FORMATO_FECHA.format(c.getDocModificadoFecha().atZone(ZonaHoraria.ECUADOR)));
         XmlComprobanteUtil.texto(doc, info, "totalSinImpuestos", XmlComprobanteUtil.montoTexto(c.getSubtotalSinImpuestos()));
         info.appendChild(construirImpuestos(doc, c));
         XmlComprobanteUtil.texto(doc, info, "valorTotal", XmlComprobanteUtil.montoTexto(c.getImporteTotal()));

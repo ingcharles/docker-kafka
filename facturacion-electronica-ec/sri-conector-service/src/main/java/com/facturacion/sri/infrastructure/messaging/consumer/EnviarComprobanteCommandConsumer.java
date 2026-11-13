@@ -38,6 +38,12 @@ public class EnviarComprobanteCommandConsumer {
     @Incoming("sri-comandos-in")
     @WithTransaction
     public Uni<Void> onCommand(EnviarComprobanteCommand command) {
+        // Un comando sin identificadores no se puede procesar ni dejar rastro en la base: se rechaza con un motivo
+        // claro y SmallRye lo envía al DLQ, en vez de fallar con un error de restricción de la base.
+        if (command == null || command.eventId() == null || command.comprobanteId() == null) {
+            return Uni.createFrom().failure(new IllegalArgumentException(
+                "Comando de envío al SRI inválido: falta eventId o comprobanteId (" + command + ")"));
+        }
         return processedMessageRepository.alreadyProcessed(command.eventId())
             .onItem().transformToUni(processed -> {
                 if (Boolean.TRUE.equals(processed)) {

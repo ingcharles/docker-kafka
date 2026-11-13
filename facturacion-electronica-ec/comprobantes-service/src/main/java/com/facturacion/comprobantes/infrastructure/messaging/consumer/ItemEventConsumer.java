@@ -37,7 +37,6 @@ public class ItemEventConsumer {
         item.setDescripcion(evento.descripcion());
         item.setCodigoImpuesto(evento.codigoImpuesto());
         item.setCodigoPorcentaje(evento.codigoPorcentaje());
-        item.setTarifaIva(evento.tarifaIva());
         item.setTieneIce(evento.tieneIce());
         item.setCodigoPorcentajeIce(evento.codigoPorcentajeIce());
         item.setTarifaIce(evento.tarifaIce());
