@@ -14,8 +14,10 @@ import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.exception.ConflictoException;
+import com.facturacion.commons.exception.NotFoundException;
+import com.facturacion.commons.reactive.TrabajoBloqueante;
 import com.facturacion.identidad.application.dto.ActualizarPerfilRequest;
-import com.facturacion.identidad.application.dto.AsociarEmpresaRequest;
 import com.facturacion.identidad.application.dto.CambiarPasswordRequest;
 import com.facturacion.identidad.application.dto.CrearUsuarioRequest;
 import com.facturacion.identidad.application.dto.EmpresaRolResponse;
@@ -23,21 +25,16 @@ import com.facturacion.identidad.application.dto.LoginRequest;
 import com.facturacion.identidad.application.dto.MiembroEmpresaResponse;
 import com.facturacion.identidad.application.dto.TokenResponse;
 import com.facturacion.identidad.application.dto.UsuarioResponse;
-import com.facturacion.identidad.domain.model.entity.EmpresaLocal;
+import com.facturacion.identidad.application.mapper.UsuarioEmpresaRolResponseMapper;
+import com.facturacion.identidad.application.mapper.UsuarioResponseMapper;
 import com.facturacion.identidad.domain.model.entity.Usuario;
 import com.facturacion.identidad.domain.model.entity.UsuarioEmpresaRol;
 import com.facturacion.identidad.domain.model.enums.Rol;
-import com.facturacion.identidad.domain.repository.EmpresaLocalRepository;
+import com.facturacion.identidad.domain.port.EmisorTokens;
 import com.facturacion.identidad.domain.repository.UsuarioEmpresaRolRepository;
 import com.facturacion.identidad.domain.repository.UsuarioRepository;
-import com.facturacion.identidad.infrastructure.crypto.JwtService;
-import com.facturacion.identidad.infrastructure.persistence.mapper.UsuarioEmpresaRolMapper;
-import com.facturacion.identidad.infrastructure.persistence.mapper.UsuarioMapper;
-import com.facturacion.commons.exception.ConflictoException;
-import com.facturacion.commons.reactive.TrabajoBloqueante;
 import com.facturacion.identidad.shared.exception.CredencialesInvalidasException;
 import com.facturacion.identidad.shared.exception.EmailDuplicadoException;
-import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.identidad.shared.exception.RolInsuficienteException;
 
 /**
@@ -52,21 +49,21 @@ public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final UsuarioEmpresaRolRepository empresaRolRepository;
-    private final EmpresaLocalRepository empresaLocalRepository;
-    private final UsuarioMapper mapper;
-    private final UsuarioEmpresaRolMapper empresaRolMapper;
-    private final JwtService jwtService;
+    private final UsuarioResponseMapper mapper;
+    private final UsuarioEmpresaRolResponseMapper empresaRolMapper;
+    private final EmisorTokens jwtService;
+    private final ApiKeyService apiKeyService;
 
     @Inject
     public UsuarioService(UsuarioRepository usuarioRepository, UsuarioEmpresaRolRepository empresaRolRepository,
-            EmpresaLocalRepository empresaLocalRepository, UsuarioMapper mapper,
-            UsuarioEmpresaRolMapper empresaRolMapper, JwtService jwtService) {
+            UsuarioResponseMapper mapper,
+            UsuarioEmpresaRolResponseMapper empresaRolMapper, EmisorTokens jwtService, ApiKeyService apiKeyService) {
         this.usuarioRepository = usuarioRepository;
         this.empresaRolRepository = empresaRolRepository;
-        this.empresaLocalRepository = empresaLocalRepository;
         this.mapper = mapper;
         this.empresaRolMapper = empresaRolMapper;
         this.jwtService = jwtService;
+        this.apiKeyService = apiKeyService;
     }
 
     /** Hash de una contraseña que nadie conoce: sirve para gastar el mismo tiempo cuando el correo no existe. */
@@ -104,7 +101,7 @@ public class UsuarioService {
     }
 
     @WithSession
-    public Uni<TokenResponse> login(@Valid LoginRequest request) {
+    public Uni<TokenResponse> iniciarSesion(@Valid LoginRequest request) {
         return usuarioRepository.findByEmail(normalizarEmail(request.getEmail()))
             .onItem().transformToUni(usuario -> {
                 // Con un correo que no existe también se calcula un bcrypt (contra un hash descartable): si no, la
@@ -165,45 +162,7 @@ public class UsuarioService {
             .replaceWithVoid();
     }
 
-    /**
-     * Sin flujo de invitación/aprobación — cualquier usuario autenticado
-     * puede pedir asociarse a cualquier ruc con cualquier rol, siempre que
-     * ese ruc corresponda a un Empresa real y activo (ver {@link EmpresaLocal}
-     * — copia local alimentada por {@code facturacion.empresa.eventos.v1}).
-     * No verifica *titularidad* real sobre la empresa, solo que exista.
-     * Si ya existía la asociación, actualiza el rol.
-     */
-    @WithTransaction
-    public Uni<EmpresaRolResponse> asociarEmpresa(UUID usuarioId, @Valid AsociarEmpresaRequest request) {
-        Rol rol = Rol.valueOf(request.getRol());
-        return empresaLocalRepository.findByRuc(request.getRuc())
-            .onItem().transformToUni(empresa -> {
-                if (empresa == null || !empresa.isActivo()) {
-                    return Uni.createFrom().failure(
-                        new NotFoundException("No existe una empresa activa con el ruc " + request.getRuc()));
-                }
-                return empresaRolRepository.findByUsuarioIdAndRuc(usuarioId, request.getRuc());
-            })
-            .onItem().transformToUni(existente -> {
-                // Ya asociado: no se toca el rol. Cambiarlo es cosa de un ADMIN (PATCH /empresas/{ruc}/usuarios/{id}); si
-                // este endpoint lo permitiera, un LECTURA podría volver a llamarlo y ascenderse a ADMIN.
-                if (existente != null) {
-                    return Uni.createFrom().item(existente);
-                }
-                // Asociarse por cuenta propia solo vale para una empresa sin miembros. Si ya tiene, acceso abierto a
-                // cualquier usuario registrado equivaldría a poder volverse ADMIN de la empresa de otro.
-                return empresaRolRepository.findByRuc(request.getRuc()).onItem().transformToUni(miembros -> {
-                    if (!miembros.isEmpty()) {
-                        return Uni.<UsuarioEmpresaRol>createFrom().failure(
-                            RolInsuficienteException.empresaYaTieneAdministradores(request.getRuc()));
-                    }
-                    return empresaRolRepository.persist(nuevaAsociacion(usuarioId, request.getRuc(), rol));
-                });
-            })
-            .map(empresaRolMapper::toResponse);
-    }
-
-    private static UsuarioEmpresaRol nuevaAsociacion(UUID usuarioId, String ruc, Rol rol) {
+    private static UsuarioEmpresaRol crearAsociacion(UUID usuarioId, String ruc, Rol rol) {
         UsuarioEmpresaRol nueva = new UsuarioEmpresaRol();
         nueva.setId(UUID.randomUUID());
         nueva.setUsuarioId(usuarioId);
@@ -215,7 +174,7 @@ public class UsuarioService {
 
     /**
      * Un ADMIN del ruc da acceso a un usuario ya registrado (por su correo). Es la forma de sumar gente a una
-     * empresa que ya tiene dueño: reemplaza a la autoasociación abierta.
+     * empresa que ya tiene dueño: es la única vía de acceso además del alta de la empresa (el creador queda ADMIN).
      */
     @WithTransaction
     public Uni<EmpresaRolResponse> agregarMiembro(UUID solicitanteId, String ruc, String email, String rolTexto) {
@@ -229,7 +188,7 @@ public class UsuarioService {
                     ? Uni.<UsuarioEmpresaRol>createFrom().failure(new ConflictoException("El usuario " + email
                         + " ya tiene acceso al ruc " + ruc + " (para cambiarle el rol: PATCH /empresas/" + ruc
                         + "/usuarios/" + usuario.getId() + ")"))
-                    : empresaRolRepository.persist(nuevaAsociacion(usuario.getId(), ruc, rol))))
+                    : empresaRolRepository.persist(crearAsociacion(usuario.getId(), ruc, rol))))
             .map(empresaRolMapper::toResponse);
     }
 
@@ -240,7 +199,7 @@ public class UsuarioService {
     }
 
     /**
-     * El propio usuario abandona un ruc al que se había autoasociado — misma
+     * El propio usuario abandona un ruc al que tiene acceso — misma
      * protección de {@link #asegurarNoUltimoAdmin} que la revocación hecha
      * por un ADMIN ({@link #revocarMiembro}): no puede irse si es el único
      * ADMIN que le queda a esa empresa.
@@ -250,14 +209,14 @@ public class UsuarioService {
         return empresaRolRepository.findByUsuarioIdAndRuc(usuarioId, ruc)
             .onItem().ifNull().failWith(() -> new NotFoundException("No estás asociado al ruc " + ruc))
             .onItem().transformToUni(existente -> asegurarNoUltimoAdmin(ruc, existente, null)
-                .chain(() -> empresaRolRepository.delete(existente)));
+                .chain(() -> empresaRolRepository.delete(existente))
+                .chain(() -> apiKeyService.revocarDeUsuarioEnRuc(usuarioId, ruc)));
     }
 
     /**
      * Gestión de miembros de una empresa — solo un ADMIN de ese ruc puede
      * ver, cambiar el rol de, o revocar a otros usuarios asociados a él
-     * (cierra el hueco de "cualquiera se autoasocia con cualquier rol y
-     * nadie más puede gestionarlo" documentado en {@link #asociarEmpresa}).
+     * (no hay autoasociación: el acceso lo da el creador de la empresa o un ADMIN, ver {@link #agregarMiembro}).
      */
     @WithSession
     public Uni<List<MiembroEmpresaResponse>> listarMiembros(UUID solicitanteId, String ruc) {
@@ -290,8 +249,13 @@ public class UsuarioService {
                 () -> new NotFoundException("El usuario " + miembroId + " no está asociado al ruc " + ruc))
             .onItem().transformToUni(existente -> asegurarNoUltimoAdmin(ruc, existente, nuevoRol)
                 .chain(() -> {
+                    // Las api-keys llevan el rol de cuando se emitieron: si el rol cambia hay que invalidarlas,
+                    // para que quien baja de ADMIN a LECTURA no conserve el acceso anterior.
+                    boolean cambia = existente.getRol() != nuevoRol;
                     existente.setRol(nuevoRol);
-                    return empresaRolRepository.update(existente);
+                    return empresaRolRepository.update(existente)
+                        .call(() -> cambia ? apiKeyService.revocarDeUsuarioEnRuc(miembroId, ruc)
+                            : Uni.createFrom().voidItem());
                 }))
             .map(empresaRolMapper::toResponse);
     }
@@ -303,7 +267,8 @@ public class UsuarioService {
             .onItem().ifNull().failWith(
                 () -> new NotFoundException("El usuario " + miembroId + " no está asociado al ruc " + ruc))
             .onItem().transformToUni(existente -> asegurarNoUltimoAdmin(ruc, existente, null)
-                .chain(() -> empresaRolRepository.delete(existente)));
+                .chain(() -> empresaRolRepository.delete(existente))
+                .chain(() -> apiKeyService.revocarDeUsuarioEnRuc(miembroId, ruc)));
     }
 
     /** 403 si el usuario autenticado no es ADMIN de ese ruc — mismo criterio que las demás excepciones de este servicio. */

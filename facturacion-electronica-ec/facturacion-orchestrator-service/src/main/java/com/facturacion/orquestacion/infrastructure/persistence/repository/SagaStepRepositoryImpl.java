@@ -38,6 +38,14 @@ public class SagaStepRepositoryImpl implements SagaStepRepository {
     }
 
     @Override
+    public Uni<SagaStep> findUltimaNota(UUID sagaId, String codigo) {
+        return repository.find("sagaId = ?1 and status = 'NOTA' and stepName = ?2", Sort.descending("createdAt"), sagaId,
+                codigo)
+            .firstResult()
+            .map(entity -> entity == null ? null : mapper.toDomain(entity));
+    }
+
+    @Override
     public Uni<SagaStep> findLastSent(UUID sagaId) {
         return repository.find("sagaId = ?1 and status = 'SENT'", Sort.descending("createdAt"), sagaId)
             .firstResult()

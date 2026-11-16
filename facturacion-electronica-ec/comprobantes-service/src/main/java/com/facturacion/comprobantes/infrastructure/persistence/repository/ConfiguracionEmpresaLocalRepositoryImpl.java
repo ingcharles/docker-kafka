@@ -8,10 +8,10 @@ import jakarta.inject.Inject;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.comprobantes.domain.model.entity.ConfiguracionEmpresaLocal;
 import com.facturacion.comprobantes.domain.repository.ConfiguracionEmpresaLocalRepository;
 import com.facturacion.comprobantes.infrastructure.persistence.entity.ConfiguracionEmpresaLocalEntity;
 import com.facturacion.comprobantes.infrastructure.persistence.mapper.ConfiguracionEmpresaLocalMapper;
-import com.facturacion.comprobantes.domain.model.entity.ConfiguracionEmpresaLocal;
 
 @ApplicationScoped
 public class ConfiguracionEmpresaLocalRepositoryImpl implements ConfiguracionEmpresaLocalRepository {

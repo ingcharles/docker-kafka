@@ -14,6 +14,7 @@ import jakarta.inject.Inject;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.comprobantes.application.dto.DetalleComprobanteRequest;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
@@ -24,7 +25,6 @@ import com.facturacion.comprobantes.domain.model.vo.Impuesto;
 import com.facturacion.comprobantes.domain.repository.ItemLocalRepository;
 import com.facturacion.comprobantes.domain.service.CatalogosValidador;
 import com.facturacion.comprobantes.shared.error.CodigoError;
-import com.facturacion.commons.exception.ErrorNegocioException;
 
 /**
  * Arma las líneas de detalle de los comprobantes con ítems (factura, nota de crédito, liquidación de compra): trae en

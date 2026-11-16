@@ -41,7 +41,8 @@ services:
         facturacion.notificacion.comandos.v1.dlq:3:1,
         facturacion.notificacion.eventos.v1:6:1,
         facturacion.notificacion.eventos.v1.dlq:3:1,
-        facturacion.orquestacion.eventos.v1:3:1
+        facturacion.orquestacion.eventos.v1:3:1,
+        facturacion.apikey.revocaciones.v1:1:1:cleanup.policy=compact;min.cleanable.dirty.ratio=0.1
     networks:
       - kafka_net_ext
 
@@ -55,11 +56,12 @@ services:
         condition: service_completed_successfully
     environment:
       FIRMA_DB_PASSWORD: ${FIRMA_DB_PASSWORD:?FIRMA_DB_PASSWORD is required}
-      FIRMA_DB_REACTIVE_URL: postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
-      FIRMA_DB_JDBC_URL: jdbc:postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      FIRMA_DB_REACTIVE_URL: postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
+      FIRMA_DB_JDBC_URL: jdbc:postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
       KAFKA_BOOTSTRAP_SERVERS: broker:9092
       FIRMA_CIFRADO_CLAVE_MAESTRA: ${FIRMA_CIFRADO_CLAVE_MAESTRA:?FIRMA_CIFRADO_CLAVE_MAESTRA is required}
-      IDENTIDAD_JWT_SECRET: ${IDENTIDAD_JWT_SECRET:?IDENTIDAD_JWT_SECRET is required}
+      IDENTIDAD_JWT_CLAVE_PUBLICA: ${IDENTIDAD_JWT_CLAVE_PUBLICA:?IDENTIDAD_JWT_CLAVE_PUBLICA is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
     ports:
       - "${FIRMA_SERVICE_PORT:-8091}:8080"
     networks:
@@ -76,10 +78,11 @@ services:
         condition: service_completed_successfully
     environment:
       INVENTARIO_DB_PASSWORD: ${INVENTARIO_DB_PASSWORD:?INVENTARIO_DB_PASSWORD is required}
-      INVENTARIO_DB_REACTIVE_URL: postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
-      INVENTARIO_DB_JDBC_URL: jdbc:postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      INVENTARIO_DB_REACTIVE_URL: postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
+      INVENTARIO_DB_JDBC_URL: jdbc:postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
       KAFKA_BOOTSTRAP_SERVERS: broker:9092
-      IDENTIDAD_JWT_SECRET: ${IDENTIDAD_JWT_SECRET:?IDENTIDAD_JWT_SECRET is required}
+      IDENTIDAD_JWT_CLAVE_PUBLICA: ${IDENTIDAD_JWT_CLAVE_PUBLICA:?IDENTIDAD_JWT_CLAVE_PUBLICA is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
     ports:
       - "${INVENTARIO_SERVICE_PORT:-8092}:8080"
     networks:
@@ -96,12 +99,13 @@ services:
         condition: service_completed_successfully
     environment:
       COMPROBANTES_DB_PASSWORD: ${COMPROBANTES_DB_PASSWORD:?COMPROBANTES_DB_PASSWORD is required}
-      COMPROBANTES_DB_REACTIVE_URL: postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
-      COMPROBANTES_DB_JDBC_URL: jdbc:postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      COMPROBANTES_DB_REACTIVE_URL: postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
+      COMPROBANTES_DB_JDBC_URL: jdbc:postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
       # Token para MODIFICAR los catálogos del SRI por PUT /catalogos (son globales, no por empresa). Vacío = escritura deshabilitada.
       CATALOGOS_ADMIN_TOKEN: ${CATALOGOS_ADMIN_TOKEN:-}
       KAFKA_BOOTSTRAP_SERVERS: broker:9092
-      IDENTIDAD_JWT_SECRET: ${IDENTIDAD_JWT_SECRET:?IDENTIDAD_JWT_SECRET is required}
+      IDENTIDAD_JWT_CLAVE_PUBLICA: ${IDENTIDAD_JWT_CLAVE_PUBLICA:?IDENTIDAD_JWT_CLAVE_PUBLICA is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
     ports:
       - "${COMPROBANTES_SERVICE_PORT:-8093}:8080"
     networks:
@@ -118,10 +122,11 @@ services:
         condition: service_completed_successfully
     environment:
       SRI_DB_PASSWORD: ${SRI_DB_PASSWORD:?SRI_DB_PASSWORD is required}
-      SRI_DB_REACTIVE_URL: postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
-      SRI_DB_JDBC_URL: jdbc:postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      SRI_DB_REACTIVE_URL: postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
+      SRI_DB_JDBC_URL: jdbc:postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
       KAFKA_BOOTSTRAP_SERVERS: broker:9092
-      IDENTIDAD_JWT_SECRET: ${IDENTIDAD_JWT_SECRET:?IDENTIDAD_JWT_SECRET is required}
+      IDENTIDAD_JWT_CLAVE_PUBLICA: ${IDENTIDAD_JWT_CLAVE_PUBLICA:?IDENTIDAD_JWT_CLAVE_PUBLICA is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
     ports:
       - "${SRI_SERVICE_PORT:-8094}:8080"
     networks:
@@ -138,15 +143,16 @@ services:
         condition: service_completed_successfully
     environment:
       NOTIFICACION_DB_PASSWORD: ${NOTIFICACION_DB_PASSWORD:?NOTIFICACION_DB_PASSWORD is required}
-      NOTIFICACION_DB_REACTIVE_URL: postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
-      NOTIFICACION_DB_JDBC_URL: jdbc:postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      NOTIFICACION_DB_REACTIVE_URL: postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
+      NOTIFICACION_DB_JDBC_URL: jdbc:postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
       KAFKA_BOOTSTRAP_SERVERS: broker:9092
       SMTP_HOST: ${SMTP_HOST:?SMTP_HOST is required}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:?SMTP_USERNAME is required}
       SMTP_PASSWORD: ${SMTP_PASSWORD:?SMTP_PASSWORD is required}
       SMTP_FROM: ${SMTP_FROM:?SMTP_FROM is required}
-      IDENTIDAD_JWT_SECRET: ${IDENTIDAD_JWT_SECRET:?IDENTIDAD_JWT_SECRET is required}
+      IDENTIDAD_JWT_CLAVE_PUBLICA: ${IDENTIDAD_JWT_CLAVE_PUBLICA:?IDENTIDAD_JWT_CLAVE_PUBLICA is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
     ports:
       - "${NOTIFICACION_SERVICE_PORT:-8095}:8080"
     networks:
@@ -163,10 +169,12 @@ services:
         condition: service_completed_successfully
     environment:
       ORQUESTACION_DB_PASSWORD: ${ORQUESTACION_DB_PASSWORD:?ORQUESTACION_DB_PASSWORD is required}
-      ORQUESTACION_DB_REACTIVE_URL: postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
-      ORQUESTACION_DB_JDBC_URL: jdbc:postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
+      INVENTARIO_DESCUENTO_HABILITADO: ${INVENTARIO_DESCUENTO_HABILITADO:-true}
+      ORQUESTACION_DB_REACTIVE_URL: postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
+      ORQUESTACION_DB_JDBC_URL: jdbc:postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
       KAFKA_BOOTSTRAP_SERVERS: broker:9092
-      IDENTIDAD_JWT_SECRET: ${IDENTIDAD_JWT_SECRET:?IDENTIDAD_JWT_SECRET is required}
+      IDENTIDAD_JWT_CLAVE_PUBLICA: ${IDENTIDAD_JWT_CLAVE_PUBLICA:?IDENTIDAD_JWT_CLAVE_PUBLICA is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
     ports:
       - "${ORQUESTACION_SERVICE_PORT:-8096}:8080"
     networks:
@@ -183,9 +191,11 @@ services:
         condition: service_completed_successfully
     environment:
       IDENTIDAD_DB_PASSWORD: ${IDENTIDAD_DB_PASSWORD:?IDENTIDAD_DB_PASSWORD is required}
-      IDENTIDAD_DB_REACTIVE_URL: postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
-      IDENTIDAD_DB_JDBC_URL: jdbc:postgresql://facturacion-db:5432/${POSTGRES_DB:-facturacion}
-      IDENTIDAD_JWT_SECRET: ${IDENTIDAD_JWT_SECRET:?IDENTIDAD_JWT_SECRET is required}
+      IDENTIDAD_DB_REACTIVE_URL: postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
+      IDENTIDAD_DB_JDBC_URL: jdbc:postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
+      IDENTIDAD_JWT_CLAVE_PRIVADA: ${IDENTIDAD_JWT_CLAVE_PRIVADA:?IDENTIDAD_JWT_CLAVE_PRIVADA is required}
+      IDENTIDAD_JWT_CLAVE_PUBLICA: ${IDENTIDAD_JWT_CLAVE_PUBLICA:?IDENTIDAD_JWT_CLAVE_PUBLICA is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
       KAFKA_BOOTSTRAP_SERVERS: broker:9092
     ports:
       - "${IDENTIDAD_SERVICE_PORT:-8097}:8080"

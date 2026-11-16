@@ -5,7 +5,6 @@ import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Arrays;
-
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -13,6 +12,8 @@ import javax.crypto.spec.SecretKeySpec;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+
+import com.facturacion.firma.domain.port.Cifrador;
 
 /**
  * Cifrado en reposo (AES-256-GCM) para el contenido del .p12 y su
@@ -28,7 +29,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
  * hace falta un KDF con costo computacional como PBKDF2/Argon2.
  */
 @ApplicationScoped
-public class CifradoService {
+public class CifradoService implements Cifrador {
 
     private static final String ALGORITMO = "AES/GCM/NoPadding";
     private static final int TAMANO_IV_BYTES = 12;

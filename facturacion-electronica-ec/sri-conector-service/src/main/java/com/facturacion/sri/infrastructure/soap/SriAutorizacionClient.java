@@ -8,18 +8,20 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 
+import jakarta.enterprise.context.ApplicationScoped;
+
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-import jakarta.enterprise.context.ApplicationScoped;
-
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 
 import com.facturacion.sri.domain.model.enums.AmbienteSri;
+import com.facturacion.sri.domain.port.AutorizacionResultado;
+import com.facturacion.sri.domain.port.AutorizacionSri;
 
 /**
  * Cliente real del Web Service de Autorización del SRI —
@@ -30,7 +32,7 @@ import com.facturacion.sri.domain.model.enums.AmbienteSri;
  * documentado en la ficha técnica v2.33).
  */
 @ApplicationScoped
-public class SriAutorizacionClient {
+public class SriAutorizacionClient implements AutorizacionSri {
 
     private static final Logger LOG = Logger.getLogger(SriAutorizacionClient.class);
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
@@ -91,9 +93,9 @@ public class SriAutorizacionClient {
         }
 
         Element autorizacion = (Element) autorizaciones.item(0);
-        String estado = SoapXmlUtil.hijoTexto(autorizacion, "estado");
-        String numeroAutorizacion = SoapXmlUtil.hijoTexto(autorizacion, "numeroAutorizacion");
-        Instant fechaAutorizacion = SoapXmlUtil.parsearFechaSri(SoapXmlUtil.hijoTexto(autorizacion, "fechaAutorizacion"));
+        String estado = SoapXmlUtil.obtenerTextoHijo(autorizacion, "estado");
+        String numeroAutorizacion = SoapXmlUtil.obtenerTextoHijo(autorizacion, "numeroAutorizacion");
+        Instant fechaAutorizacion = SoapXmlUtil.parsearFechaSri(SoapXmlUtil.obtenerTextoHijo(autorizacion, "fechaAutorizacion"));
         // El <comprobante> interno llega como texto (ver el porqué en
         // desanidarComprobante) — se desanida antes de guardar para que
         // xml_autorizado quede como XML legible, sin &lt;/&gt;.
@@ -106,7 +108,7 @@ public class SriAutorizacionClient {
             NodeList nodosMensaje = autorizacion.getElementsByTagName("mensaje");
             for (int i = 0; i < nodosMensaje.getLength(); i++) {
                 Element mensaje = (Element) nodosMensaje.item(i);
-                String texto = SoapXmlUtil.hijoTexto(mensaje, "mensaje");
+                String texto = SoapXmlUtil.obtenerTextoHijo(mensaje, "mensaje");
                 if (texto != null) {
                     if (mensajes.length() > 0) {
                         mensajes.append(" | ");

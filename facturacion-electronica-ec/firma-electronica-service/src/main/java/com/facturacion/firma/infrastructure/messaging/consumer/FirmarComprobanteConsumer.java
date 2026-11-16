@@ -9,11 +9,11 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.facturacion.firma.application.event.ComprobanteFirmadoEventMessage;
 import com.facturacion.firma.application.event.FirmarComprobanteCommand;
@@ -27,8 +27,7 @@ import com.facturacion.firma.shared.constant.MessagingConstants;
 /**
  * Firma el XML de un comprobante con el certificado activo de la empresa
  * indicado, e informa el resultado (éxito o fallo) de vuelta al orquestador
- * vía outbox. Idempotente gracias al inbox — mismo patrón que
- * {@code OrderCommandConsumer} en ecommerce/.
+ * vía outbox. Idempotente gracias al inbox.
  */
 @ApplicationScoped
 public class FirmarComprobanteConsumer {
@@ -52,7 +51,7 @@ public class FirmarComprobanteConsumer {
 
     @Incoming("firma-comandos-in")
     @WithTransaction
-    public Uni<Void> onCommand(FirmarComprobanteCommand command) {
+    public Uni<Void> procesarComando(FirmarComprobanteCommand command) {
         // Un comando sin identificadores no se puede procesar ni dejar rastro en la base (el outbox exige el id del
         // comprobante): se rechaza con un motivo claro y SmallRye lo envía al DLQ, en vez de fallar con un error de
         // restricción de la base.
@@ -86,11 +85,11 @@ public class FirmarComprobanteConsumer {
         ComprobanteFirmadoEventMessage mensaje = new ComprobanteFirmadoEventMessage(
             UUID.randomUUID(), command.comprobanteId(), tipoEvento, xmlFirmado, motivoError, Instant.now());
         OutboxEventEntity evento = OutboxEventEntity.of(command.comprobanteId(), tipoEvento,
-            MessagingConstants.FIRMA_EVENTS_TOPIC, writeValueAsString(mensaje));
+            MessagingConstants.FIRMA_EVENTS_TOPIC, serializarAJson(mensaje));
         return outboxRepository.persist(evento).replaceWithVoid();
     }
 
-    private String writeValueAsString(Object value) {
+    private String serializarAJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {

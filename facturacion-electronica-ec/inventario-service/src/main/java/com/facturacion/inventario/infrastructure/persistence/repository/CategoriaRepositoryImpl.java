@@ -10,8 +10,8 @@ import jakarta.inject.Inject;
 import io.quarkus.panache.common.Page;
 import io.smallrye.mutiny.Uni;
 
-import com.facturacion.inventario.domain.model.entity.Categoria;
 import com.facturacion.commons.paging.PageResult;
+import com.facturacion.inventario.domain.model.entity.Categoria;
 import com.facturacion.inventario.domain.repository.CategoriaRepository;
 import com.facturacion.inventario.infrastructure.persistence.entity.CategoriaEntity;
 import com.facturacion.inventario.infrastructure.persistence.mapper.CategoriaMapper;

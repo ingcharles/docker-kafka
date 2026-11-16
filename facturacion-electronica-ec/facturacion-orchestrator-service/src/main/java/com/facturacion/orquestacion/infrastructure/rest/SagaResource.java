@@ -22,11 +22,12 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.rest.Respuestas;
+import com.facturacion.commons.paging.PageRequest;
+import com.facturacion.commons.security.TokenPrincipal;
 import com.facturacion.orquestacion.application.service.SagaOrchestratorService;
 import com.facturacion.orquestacion.application.service.SagaQueryService;
 import com.facturacion.orquestacion.domain.model.enums.SagaState;
-import com.facturacion.commons.security.TokenPrincipal;
-import com.facturacion.commons.paging.PageRequest;
 
 /**
  * Superficie de operación/observabilidad de la saga — permite leer la
@@ -79,11 +80,11 @@ public class SagaResource {
             + "decida si es un reintento genuino o si no hace falta nada.")
     @APIResponse(responseCode = "202", description = "Reintento aceptado")
     @APIResponse(responseCode = "404", description = "No hay saga para ese comprobante")
-    public Uni<Response> retry(
+    public Uni<Response> reintentar(
             @Parameter(description = "Id del comprobante", required = true) @PathParam("comprobanteId") UUID comprobanteId) {
         tokenPrincipal.exigirEscritura();
         return sagaQueryService.getByComprobanteId(comprobanteId, tokenPrincipal.getRuc())
-            .chain(() -> sagaOrchestratorService.retryLastCommand(comprobanteId))
-            .map(v -> Response.accepted().build());
+            .chain(() -> sagaOrchestratorService.reintentarUltimoComando(comprobanteId))
+            .map(v -> Respuestas.aceptado());
     }
 }

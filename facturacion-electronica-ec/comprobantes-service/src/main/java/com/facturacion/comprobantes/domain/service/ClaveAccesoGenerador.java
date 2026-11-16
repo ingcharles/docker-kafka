@@ -4,9 +4,9 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.ThreadLocalRandom;
 
-import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 import com.facturacion.comprobantes.domain.model.enums.AmbienteSri;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
+import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 
 /**
  * Clave de acceso de 49 dígitos (Tabla 1 de la ficha técnica del SRI) y su
@@ -72,7 +72,7 @@ public final class ClaveAccesoGenerador {
         return String.format("%08d", valor);
     }
 
-    public static LocalDate hoyEnEcuador() {
+    public static LocalDate obtenerFechaActualEcuador() {
         return LocalDate.now(ZonaHoraria.ECUADOR);
     }
 }

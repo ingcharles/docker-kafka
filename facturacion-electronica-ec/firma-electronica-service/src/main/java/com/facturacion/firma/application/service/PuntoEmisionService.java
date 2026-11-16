@@ -9,29 +9,29 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.firma.application.dto.ActualizarPuntoEmisionRequest;
 import com.facturacion.firma.application.dto.CrearPuntoEmisionRequest;
 import com.facturacion.firma.application.dto.PuntoEmisionResponse;
 import com.facturacion.firma.application.event.EstablecimientoPuntoEmisionEventMessage;
+import com.facturacion.firma.application.mapper.PuntoEmisionResponseMapper;
 import com.facturacion.firma.domain.model.entity.Empresa;
 import com.facturacion.firma.domain.model.entity.Establecimiento;
 import com.facturacion.firma.domain.model.entity.PuntoEmision;
+import com.facturacion.firma.domain.port.EventoSaliente;
+import com.facturacion.firma.domain.port.EventosSalientes;
 import com.facturacion.firma.domain.repository.EmpresaRepository;
 import com.facturacion.firma.domain.repository.EstablecimientoRepository;
 import com.facturacion.firma.domain.repository.PuntoEmisionRepository;
-import com.facturacion.firma.infrastructure.outbox.OutboxEventEntity;
-import com.facturacion.firma.infrastructure.outbox.OutboxEventRepository;
-import com.facturacion.firma.infrastructure.persistence.mapper.PuntoEmisionMapper;
 import com.facturacion.firma.shared.constant.MessagingConstants;
 import com.facturacion.firma.shared.exception.CodigoDuplicadoException;
-import com.facturacion.commons.exception.NotFoundException;
 
 /** CRUD de puntos de emisión de un {@link Establecimiento} — ver {@link EstablecimientoService}. */
 @ApplicationScoped
@@ -40,19 +40,19 @@ public class PuntoEmisionService {
     private final PuntoEmisionRepository repository;
     private final EstablecimientoRepository establecimientoRepository;
     private final EmpresaRepository empresaRepository;
-    private final PuntoEmisionMapper mapper;
-    private final OutboxEventRepository outboxRepository;
+    private final PuntoEmisionResponseMapper mapper;
+    private final EventosSalientes salientes;
     private final ObjectMapper objectMapper;
 
     @Inject
     public PuntoEmisionService(PuntoEmisionRepository repository, EstablecimientoRepository establecimientoRepository,
-            EmpresaRepository empresaRepository, PuntoEmisionMapper mapper, OutboxEventRepository outboxRepository,
+            EmpresaRepository empresaRepository, PuntoEmisionResponseMapper mapper, EventosSalientes salientes,
             ObjectMapper objectMapper) {
         this.repository = repository;
         this.establecimientoRepository = establecimientoRepository;
         this.empresaRepository = empresaRepository;
         this.mapper = mapper;
-        this.outboxRepository = outboxRepository;
+        this.salientes = salientes;
         this.objectMapper = objectMapper;
     }
 
@@ -135,13 +135,13 @@ public class PuntoEmisionService {
             : MessagingConstants.EVENT_TYPE_PUNTO_EMISION_ACTUALIZADO;
         Uni<PuntoEmision> guardado = esNuevo ? repository.persist(puntoEmision) : repository.update(puntoEmision);
         return guardado
-            .chain(persistido -> outboxRepository
-                .persist(construirEventoOutbox(empresa.getRuc(), establecimiento.getCodigo(), persistido, tipoEvento))
+            .chain(persistido -> salientes
+                .registrar(construirEventoOutbox(empresa.getRuc(), establecimiento.getCodigo(), persistido, tipoEvento))
                 .replaceWith(persistido))
             .map(mapper::toResponse);
     }
 
-    private OutboxEventEntity construirEventoOutbox(String ruc, String establecimientoCodigo,
+    private EventoSaliente construirEventoOutbox(String ruc, String establecimientoCodigo,
             PuntoEmision puntoEmision, String tipoEvento) {
         EstablecimientoPuntoEmisionEventMessage mensaje = new EstablecimientoPuntoEmisionEventMessage(
             UUID.randomUUID(),
@@ -154,11 +154,11 @@ public class PuntoEmisionService {
             puntoEmision.getDescripcion(),
             puntoEmision.isActivo(),
             Instant.now());
-        return OutboxEventEntity.of(puntoEmision.getId(), tipoEvento,
-            MessagingConstants.ESTABLECIMIENTO_PUNTO_EMISION_EVENTS_TOPIC, writeValueAsString(mensaje));
+        return new EventoSaliente(puntoEmision.getId(), tipoEvento,
+            MessagingConstants.ESTABLECIMIENTO_PUNTO_EMISION_EVENTS_TOPIC, serializarAJson(mensaje));
     }
 
-    private String writeValueAsString(Object value) {
+    private String serializarAJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {

@@ -13,13 +13,13 @@ import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.inventario.application.dto.ImagenItemResponse;
+import com.facturacion.inventario.application.mapper.ImagenItemResponseMapper;
 import com.facturacion.inventario.domain.model.entity.ImagenItem;
 import com.facturacion.inventario.domain.repository.ImagenItemRepository;
 import com.facturacion.inventario.domain.repository.ItemRepository;
-import com.facturacion.inventario.infrastructure.persistence.mapper.ImagenItemMapper;
 import com.facturacion.inventario.shared.exception.ImagenInvalidaException;
-import com.facturacion.commons.exception.NotFoundException;
 
 /**
  * Imágenes de productos y servicios. El contenido se guarda directamente en
@@ -48,11 +48,11 @@ public class ImagenService {
 
     private final ItemRepository itemRepository;
     private final ImagenItemRepository imagenRepository;
-    private final ImagenItemMapper mapper;
+    private final ImagenItemResponseMapper mapper;
 
     @Inject
     public ImagenService(ItemRepository itemRepository, ImagenItemRepository imagenRepository,
-            ImagenItemMapper mapper) {
+            ImagenItemResponseMapper mapper) {
         this.itemRepository = itemRepository;
         this.imagenRepository = imagenRepository;
         this.mapper = mapper;

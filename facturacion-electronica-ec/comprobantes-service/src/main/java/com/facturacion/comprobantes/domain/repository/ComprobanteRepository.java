@@ -4,10 +4,10 @@ import java.util.UUID;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.paging.PageResult;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
-import com.facturacion.commons.paging.PageResult;
 
 public interface ComprobanteRepository {
 
@@ -26,5 +26,5 @@ public interface ComprobanteRepository {
      * ruc+tipo+establecimiento+puntoEmision, de forma atómica — el SRI
      * exige que sea consecutivo y sin huecos (Tabla 1, campo "N° del comprobante").
      */
-    Uni<Long> siguienteSecuencial(String ruc, TipoComprobante tipo, String establecimiento, String puntoEmision);
+    Uni<Long> obtenerSiguienteSecuencial(String ruc, TipoComprobante tipo, String establecimiento, String puntoEmision);
 }

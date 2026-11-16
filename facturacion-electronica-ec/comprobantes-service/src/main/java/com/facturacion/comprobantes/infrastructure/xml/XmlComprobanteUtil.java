@@ -7,7 +7,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
@@ -37,7 +36,7 @@ final class XmlComprobanteUtil {
     private XmlComprobanteUtil() {
     }
 
-    static Document nuevoDocumento() throws Exception {
+    static Document crearDocumento() throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         DocumentBuilder builder = factory.newDocumentBuilder();
         return builder.newDocument();
@@ -54,13 +53,13 @@ final class XmlComprobanteUtil {
         return out.toString(StandardCharsets.UTF_8);
     }
 
-    static void texto(Document doc, Element padre, String etiqueta, String valor) {
+    static void agregarTexto(Document doc, Element padre, String etiqueta, String valor) {
         Element elemento = doc.createElement(etiqueta);
         elemento.setTextContent(valor);
         padre.appendChild(elemento);
     }
 
-    static String montoTexto(BigDecimal monto) {
+    static String formatearMonto(BigDecimal monto) {
         return monto.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
     }
 
@@ -74,24 +73,24 @@ final class XmlComprobanteUtil {
     /** {@code <detalle>} completo (código, descripción, cantidad, precio, descuento, impuestos) — Factura/Nota de Crédito/Liquidación de Compra comparten esta forma. */
     static Element construirDetalle(Document doc, DetalleComprobante d) {
         Element detalle = doc.createElement("detalle");
-        texto(doc, detalle, "codigoPrincipal", d.getCodigoPrincipal());
+        agregarTexto(doc, detalle, "codigoPrincipal", d.getCodigoPrincipal());
         if (d.getCodigoAuxiliar() != null && !d.getCodigoAuxiliar().isBlank()) {
-            texto(doc, detalle, "codigoAuxiliar", d.getCodigoAuxiliar());
+            agregarTexto(doc, detalle, "codigoAuxiliar", d.getCodigoAuxiliar());
         }
-        texto(doc, detalle, "descripcion", d.getDescripcion());
-        texto(doc, detalle, "cantidad", d.getCantidad().toPlainString());
-        texto(doc, detalle, "precioUnitario", montoTexto(d.getPrecioUnitario()));
-        texto(doc, detalle, "descuento", montoTexto(d.getDescuento() == null ? BigDecimal.ZERO : d.getDescuento()));
-        texto(doc, detalle, "precioTotalSinImpuesto", montoTexto(d.precioTotalSinImpuesto()));
+        agregarTexto(doc, detalle, "descripcion", d.getDescripcion());
+        agregarTexto(doc, detalle, "cantidad", d.getCantidad().toPlainString());
+        agregarTexto(doc, detalle, "precioUnitario", formatearMonto(d.getPrecioUnitario()));
+        agregarTexto(doc, detalle, "descuento", formatearMonto(d.getDescuento() == null ? BigDecimal.ZERO : d.getDescuento()));
+        agregarTexto(doc, detalle, "precioTotalSinImpuesto", formatearMonto(d.precioTotalSinImpuesto()));
 
         Element impuestos = doc.createElement("impuestos");
         for (Impuesto imp : d.getImpuestos()) {
             Element impuesto = doc.createElement("impuesto");
-            texto(doc, impuesto, "codigo", imp.codigo());
-            texto(doc, impuesto, "codigoPorcentaje", imp.codigoPorcentaje());
-            texto(doc, impuesto, "tarifa", imp.tarifa().toPlainString());
-            texto(doc, impuesto, "baseImponible", montoTexto(imp.baseImponible()));
-            texto(doc, impuesto, "valor", montoTexto(imp.valor()));
+            agregarTexto(doc, impuesto, "codigo", imp.codigo());
+            agregarTexto(doc, impuesto, "codigoPorcentaje", imp.codigoPorcentaje());
+            agregarTexto(doc, impuesto, "tarifa", imp.tarifa().toPlainString());
+            agregarTexto(doc, impuesto, "baseImponible", formatearMonto(imp.baseImponible()));
+            agregarTexto(doc, impuesto, "valor", formatearMonto(imp.valor()));
             impuestos.appendChild(impuesto);
         }
         detalle.appendChild(impuestos);
@@ -152,13 +151,13 @@ final class XmlComprobanteUtil {
         Element pagosEl = doc.createElement("pagos");
         for (Pago pago : pagos) {
             Element pagoEl = doc.createElement("pago");
-            texto(doc, pagoEl, "formaPago", pago.formaPago());
-            texto(doc, pagoEl, "total", montoTexto(pago.total()));
+            agregarTexto(doc, pagoEl, "formaPago", pago.formaPago());
+            agregarTexto(doc, pagoEl, "total", formatearMonto(pago.total()));
             if (pago.plazo() != null && !pago.plazo().isBlank()) {
-                texto(doc, pagoEl, "plazo", pago.plazo());
+                agregarTexto(doc, pagoEl, "plazo", pago.plazo());
             }
             if (pago.unidadTiempo() != null && !pago.unidadTiempo().isBlank()) {
-                texto(doc, pagoEl, "unidadTiempo", pago.unidadTiempo());
+                agregarTexto(doc, pagoEl, "unidadTiempo", pago.unidadTiempo());
             }
             pagosEl.appendChild(pagoEl);
         }

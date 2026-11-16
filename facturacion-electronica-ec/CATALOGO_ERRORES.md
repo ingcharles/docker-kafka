@@ -95,6 +95,7 @@ Toda respuesta de error de los microservicios tiene el mismo cuerpo (`ApiErrorRe
 | Código | HTTP | Mensaje (`{n}` = parámetro) |
 |---|---|---|
 | `FIR-400-001` | 400 | {0} |
+| `FIR-400-002` | 400 | {0} |
 | `FIR-409-001` | 409 | {0} |
 | `FIR-409-002` | 409 | Ya existe una empresa registrada con el RUC {0} |
 
@@ -104,8 +105,7 @@ Toda respuesta de error de los microservicios tiene el mismo cuerpo (`ApiErrorRe
 |---|---|---|
 | `IDE-401-001` | 401 | {0} |
 | `IDE-403-001` | 403 | Se requiere el rol ADMIN sobre el ruc {0} para gestionar sus miembros |
-| `IDE-403-002` | 403 | La empresa {0} ya tiene administradores: pide a uno de ellos que te agregue (POST /empresas/{0}/usuarios). |
-| `IDE-403-003` | 403 | El usuario no está asociado al ruc {0} — asóciate primero vía POST /usuarios/me/empresas |
+| `IDE-403-003` | 403 | El usuario no está asociado al ruc {0} — pide a un ADMIN de esa empresa que te agregue (POST /empresas/{0}/usuarios) |
 | `IDE-409-001` | 409 | Ya existe un usuario registrado con el email {0} |
 
 ## facturacion-orchestrator-service — `ORQ` (sin respuesta HTTP)

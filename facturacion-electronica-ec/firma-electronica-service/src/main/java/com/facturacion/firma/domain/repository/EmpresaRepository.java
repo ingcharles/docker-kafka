@@ -4,14 +4,17 @@ import java.util.UUID;
 
 import io.smallrye.mutiny.Uni;
 
-import com.facturacion.firma.domain.model.entity.Empresa;
 import com.facturacion.commons.paging.PageResult;
+import com.facturacion.firma.domain.model.entity.Empresa;
 
 public interface EmpresaRepository {
 
     Uni<Empresa> persist(Empresa empresa);
 
     Uni<Empresa> update(Empresa empresa);
+
+    /** Guarda (o quita, con {@code null}) el logo; no toca ningún otro dato de la empresa. */
+    Uni<Void> actualizarLogo(UUID id, byte[] logo, String tipo);
 
     Uni<Empresa> findById(UUID id);
 

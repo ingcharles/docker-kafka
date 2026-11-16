@@ -54,4 +54,12 @@ public class ApiKeyRepositoryImpl implements ApiKeyRepository {
         return repository.update("revocada = true, revocadaEn = ?1 where id = ?2 and usuarioId = ?3 and revocada = false",
             Instant.now(), id, usuarioId);
     }
+
+    @Override
+    public Uni<List<ApiKey>> findVigentesByUsuarioIdAndRuc(UUID usuarioId, String ruc) {
+        return repository.<ApiKeyEntity>find(
+                "usuarioId = ?1 and ruc = ?2 and revocada = false and fechaExpiracion > ?3", usuarioId, ruc, Instant.now())
+            .list()
+            .map(entities -> entities.stream().map(mapper::toDomain).collect(Collectors.toList()));
+    }
 }

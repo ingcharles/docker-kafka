@@ -10,14 +10,14 @@ import jakarta.inject.Inject;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.exception.NotFoundException;
+import com.facturacion.commons.paging.PageResult;
+import com.facturacion.commons.paging.PagedResponse;
 import com.facturacion.comprobantes.application.dto.ComprobanteResponse;
+import com.facturacion.comprobantes.application.mapper.ComprobanteResponseMapper;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
-import com.facturacion.commons.paging.PageResult;
 import com.facturacion.comprobantes.domain.repository.ComprobanteRepository;
-import com.facturacion.comprobantes.infrastructure.persistence.mapper.ComprobanteMapper;
-import com.facturacion.commons.exception.NotFoundException;
-import com.facturacion.commons.paging.PagedResponse;
 
 /**
  * Lado de consulta de los comprobantes (separado de la emisión, que es otra responsabilidad). Todas las consultas
@@ -28,10 +28,10 @@ import com.facturacion.commons.paging.PagedResponse;
 public class ComprobanteConsultaService {
 
     private final ComprobanteRepository comprobanteRepository;
-    private final ComprobanteMapper mapper;
+    private final ComprobanteResponseMapper mapper;
 
     @Inject
-    public ComprobanteConsultaService(ComprobanteRepository comprobanteRepository, ComprobanteMapper mapper) {
+    public ComprobanteConsultaService(ComprobanteRepository comprobanteRepository, ComprobanteResponseMapper mapper) {
         this.comprobanteRepository = comprobanteRepository;
         this.mapper = mapper;
     }
@@ -44,7 +44,7 @@ public class ComprobanteConsultaService {
     @WithSession
     public Uni<Comprobante> obtenerDominioPorId(UUID id, String empresaRuc) {
         return comprobanteRepository.findById(id)
-            .onItem().transform(c -> soloDeLaEmpresa(c, empresaRuc))
+            .onItem().transform(c -> filtrarPorEmpresa(c, empresaRuc))
             .onItem().ifNull().failWith(() -> new NotFoundException("Comprobante no encontrado: " + id));
     }
 
@@ -61,7 +61,7 @@ public class ComprobanteConsultaService {
             });
     }
 
-    private static Comprobante soloDeLaEmpresa(Comprobante comprobante, String empresaRuc) {
+    private static Comprobante filtrarPorEmpresa(Comprobante comprobante, String empresaRuc) {
         return comprobante != null && comprobante.getEmpresaRuc().equals(empresaRuc) ? comprobante : null;
     }
 }

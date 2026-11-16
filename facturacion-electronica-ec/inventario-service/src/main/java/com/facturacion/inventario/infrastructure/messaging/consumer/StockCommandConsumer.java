@@ -10,11 +10,11 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.facturacion.inventario.application.event.StockCommandMessage;
 import com.facturacion.inventario.application.event.StockEventMessage;
@@ -29,8 +29,7 @@ import com.facturacion.inventario.shared.constant.MessagingConstants;
  * Aplica los tres comandos que {@code facturacion-orchestrator-service}
  * envía a lo largo del ciclo de vida de un comprobante: RESERVAR (al
  * crearlo), CONFIRMAR (al autorizarse en el SRI) y LIBERAR (al rechazarse o
- * cancelarse). Idempotente gracias al inbox — mismo patrón que
- * {@code OrderCommandConsumer} en ecommerce/.
+ * cancelarse). Idempotente gracias al inbox.
  */
 @ApplicationScoped
 public class StockCommandConsumer {
@@ -54,7 +53,7 @@ public class StockCommandConsumer {
 
     @Incoming("inventario-comandos-in")
     @WithTransaction
-    public Uni<Void> onCommand(StockCommandMessage command) {
+    public Uni<Void> procesarComando(StockCommandMessage command) {
         return processedMessageRepository.alreadyProcessed(command.eventId())
             .onItem().transformToUni(processed -> {
                 if (Boolean.TRUE.equals(processed)) {
@@ -96,11 +95,11 @@ public class StockCommandConsumer {
         StockEventMessage mensaje = new StockEventMessage(UUID.randomUUID(), comprobanteId, eventType,
             itemsInsuficientes, Instant.now());
         OutboxEventEntity evento = OutboxEventEntity.of(comprobanteId, eventType,
-            MessagingConstants.INVENTARIO_EVENTS_TOPIC, writeValueAsString(mensaje));
+            MessagingConstants.INVENTARIO_EVENTS_TOPIC, serializarAJson(mensaje));
         return outboxRepository.persist(evento).replaceWithVoid();
     }
 
-    private String writeValueAsString(Object value) {
+    private String serializarAJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {

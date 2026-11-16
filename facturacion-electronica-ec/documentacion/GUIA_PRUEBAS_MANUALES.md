@@ -1,6 +1,6 @@
 # Guía de pruebas manuales — flujo completo por API
 
-JSON listo para pegar en Swagger UI (botón "Try it out") o en `curl`, cubriendo los
+JSON listo para pegar en `curl` o Postman (o en Swagger UI, solo en desarrollo), cubriendo los
 7 servicios en el orden real en que se usan. **Asume un ambiente vacío** (recién
 levantado, o recién reseteado con la sección 8) — las secciones están ordenadas
 para que, leyéndolas de arriba hacia abajo, cada paso ya tenga lo que necesita del
@@ -19,7 +19,7 @@ creada por otra persona/sesión, ve a la sección 2.1 en vez de repetir la 1.3.
 | notificacion-service | 8095 | `/notificaciones/api/v1` |
 | facturacion-orchestrator-service | 8096 | `/sagas/api/v1` |
 
-Swagger UI de cada uno: `http://localhost:<puerto><prefijo>/q/swagger-ui`.
+Swagger UI (`http://localhost:<puerto><prefijo>/q/swagger-ui`) solo existe al correr en modo desarrollo (`mvn quarkus:dev`) o en pruebas; en las imágenes Docker (perfil de producción) está apagado, y el documento OpenAPI también. Con las imágenes, usa `curl` o Postman con los ejemplos de abajo.
 
 RUC de ejemplo usado en todos los bodies de abajo — no necesita existir de
 antemano, lo crea el propio paso 1.3:
@@ -59,8 +59,8 @@ del anterior; en un ambiente vacío no hay atajos.
   "password": "Passw0rd!123"
 }
 ```
-Respuesta: `{ "token": "<TOKEN_SESION>" }`. En Swagger, pega `<TOKEN_SESION>` en el
-botón **Authorize** (sin la palabra "Bearer").
+Respuesta: `{ "token": "<TOKEN_SESION>" }`. Se envía como `Authorization: Bearer <TOKEN_SESION>` (en Swagger,
+solo en desarrollo, pégalo en el botón **Authorize** sin la palabra "Bearer").
 
 ### 1.3 Crear la empresa
 `POST http://localhost:8091/empresas/api/v1` (auth: **token de sesión** del 1.2 — es
@@ -121,8 +121,11 @@ token de sesión, no funciona contra `identidad-service` salvo `/api-keys`.
 ### 1.5 Subir el certificado de firma
 `POST http://localhost:8091/empresas/api/v1/{empresaId}/certificado` (auth:
 api-key) es `multipart/form-data` (campos: `archivo` el `.p12`, `contrasena` la
-del certificado) — pruébalo desde Swagger UI directamente, no aplica un body
-JSON.
+del certificado), no un body JSON. Con `curl`:
+```
+curl -X POST -H "Authorization: Bearer <API_KEY>" -F "archivo=@certificado.p12" -F "contrasena=<CLAVE>" \
+  http://localhost:8091/empresas/api/v1/{empresaId}/certificado
+```
 
 **Obligatorio antes de emitir cualquier comprobante**: sin un certificado activo,
 la saga se queda atascada en `FIRMADO` (o cae directo a `FIRMA_FALLIDA`) porque
@@ -139,23 +142,17 @@ Nada de esta sección es parte del camino obligatorio de la sección 1 — es pa
 gestionar tu cuenta, unirte a una empresa que ya existe, o administrar quién más
 tiene acceso a la tuya.
 
-### 2.1 Asociarte a una empresa que ya existe (y todavía no tiene miembros)
-Úsalo en vez de 1.3 solo si la empresa **ya existe pero ningún usuario está asociado a ella**
-(p. ej. quedó huérfana). Si la empresa todavía no existe, esto da `404` — créala primero con 1.3.
-Si la empresa **ya tiene miembros**, da `403`: pídele a un ADMIN de ese ruc que te agregue con 2.4
-(`POST /empresas/{ruc}/usuarios`). Si ya estás asociado, devuelve tu asociación sin cambiar tu rol.
+### 2.1 Acceso a una empresa
+No existe la autoasociación. El acceso a un ruc se obtiene de dos formas:
 
-`POST http://localhost:8097/identidad/api/v1/usuarios/me/empresas` (auth: token de sesión)
-```json
-{
-  "ruc": "1722039953001",
-  "rol": "ADMIN"
-}
-```
+- **Si tú das de alta la empresa** (paso 1.3, con tu token de sesión), quedas como `ADMIN` de ella automáticamente.
+- **Si la empresa ya existe**, un `ADMIN` de ese ruc te agrega con 2.4 (`POST /empresas/{ruc}/usuarios`, por tu correo y el rol).
+
+Mientras no tengas acceso, pedir una api-key o gestionar el ruc responde `403`.
 
 ### 2.2 Listar / revocar api-keys
 `GET http://localhost:8097/identidad/api/v1/api-keys` (auth: token de sesión)
-`DELETE http://localhost:8097/identidad/api/v1/api-keys/{id}` (auth: token de sesión)
+`DELETE http://localhost:8097/identidad/api/v1/api-keys/{id}` (auth: token de sesión) — la revocación es **inmediata en todos los servicios** (se publica en `facturacion.apikey.revocaciones.v1`): la siguiente llamada con esa key responde `401` "La api-key fue revocada". Revocar dos veces la misma key responde igual (`204`).
 
 ### 2.3 Perfil y empresas asociadas
 `GET http://localhost:8097/identidad/api/v1/usuarios/me` (auth: token de sesión) — datos del usuario autenticado.
@@ -171,15 +168,14 @@ Si la empresa **ya tiene miembros**, da `403`: pídele a un ADMIN de ese ruc que
 { "passwordActual": "Passw0rd!123", "passwordNueva": "NuevaPassw0rd!456" }
 ```
 
-`DELETE http://localhost:8097/identidad/api/v1/usuarios/me/empresas/{ruc}` (auth: token de sesión) — abandonar un ruc al que te habías autoasociado; `404` si no estabas asociado, `409` si eres el único `ADMIN` que le queda.
+`DELETE http://localhost:8097/identidad/api/v1/usuarios/me/empresas/{ruc}` (auth: token de sesión) — abandonar un ruc al que tienes acceso; `404` si no estabas asociado, `409` si eres el único `ADMIN` que le queda.
 
 ### 2.4 Gestión de miembros de una empresa (solo ADMIN)
-Cualquier usuario puede autoasociarse a un ruc con `POST /usuarios/me/empresas`
-(2.1) — estos 3 endpoints son la otra mitad: le dan a un **ADMIN ya
-existente** de ese ruc visibilidad y control sobre quién más tiene acceso.
-No es un flujo de invitación/aprobación (no hay estado pendiente ni se
-notifica a nadie): el ADMIN actúa directamente sobre asociaciones que el
-propio usuario ya creó. Ninguno de los 3 deja a un ruc sin ningún `ADMIN`
+Estos endpoints son la única vía de acceso a una empresa que ya existe: un **ADMIN
+existente** de ese ruc da acceso a un usuario ya registrado y controla quién más lo
+tiene. No es un flujo de invitación/aprobación (no hay estado pendiente ni se notifica
+a nadie). Quitar el acceso a un miembro, o cambiarle el rol, **revoca también sus
+api-keys vigentes de ese ruc**. Ninguno de los 3 deja a un ruc sin ningún `ADMIN`
 (`409` si lo intentas, incluso contigo mismo).
 
 `POST http://localhost:8097/identidad/api/v1/empresas/{ruc}/usuarios` (auth: token de sesión, debes ser `ADMIN` de `{ruc}`) — da acceso a un usuario **ya registrado**, por su correo (`404` si no existe, `409` si ya tiene acceso):
@@ -288,6 +284,8 @@ Las 7 claves con consumidor real hoy:
 `DELETE .../configuracion/{clave}` — volver al default
 
 ### 3.5 Certificado — consultar / revocar
+> Un certificado vencido no firma: al subir un `.p12` ya vencido responde `400`; si vence con la empresa en uso, pasa a `EXPIRADO` (cada hora y al intentar firmar) y la saga cae en `FIRMA_FALLIDA` con el motivo "venció el …". Se corrige subiendo uno vigente.
+
 `GET http://localhost:8091/empresas/api/v1/{empresaId}/certificado` (auth: api-key)
 — metadata del certificado activo (emisor, vigencia, etc.); nunca devuelve el
 contenido del `.p12` ni la contraseña. `404` si la empresa no tiene uno activo.
@@ -299,6 +297,18 @@ implícitamente el anterior al reemplazarlo, este endpoint es para cuando no hay
 reemplazo todavía. `404` si no tenía uno activo. ⚠️ Úsalo con cuidado sobre una
 empresa que ya está emitiendo comprobantes reales — sin certificado activo,
 firma-electronica-service no puede firmar el siguiente XML.
+
+### 3.6 Logo de la empresa (para el RIDE)
+`POST http://localhost:8091/empresas/api/v1/{empresaId}/logo` (auth: api-key `ADMIN`) es `multipart/form-data`
+(campo `archivo`: imagen PNG o JPEG, máx. 200 KB); responde `201` con `{ "tipo": "image/png", "tamanoBytes": 4244 }` y `Location` al `GET` del mismo recurso. Con `curl`:
+```
+curl -X POST -H "Authorization: Bearer <API_KEY>" -F "archivo=@logo.png;type=image/png" \
+  http://localhost:8091/empresas/api/v1/{empresaId}/logo
+```
+`GET .../{empresaId}/logo` devuelve la imagen; `DELETE .../{empresaId}/logo` la quita. Se guarda en la tabla `empresa`
+y aparece en el recuadro del emisor del RIDE de los comprobantes que se **autoricen después** de subirla; `400` si no es
+PNG/JPEG o pesa más de 200 KB.
+
 
 ---
 
@@ -363,7 +373,7 @@ Guarda el `id` de la respuesta — es el `itemId` opcional de la sección 5.
 }
 ```
 
-> **Tarifa de IVA:** el ítem guarda solo `codigoImpuesto` + `codigoPorcentaje` (Tabla 16/17). La tarifa ya no se manda, no se guarda
+> **Tarifa de IVA:** el ítem guarda solo `codigoImpuesto` + `codigoPorcentaje` (Tabla 16/17). La tarifa no se manda ni se guarda
 > ni aparece en la respuesta: se resuelve al **facturar**, desde el catálogo de `comprobantes-service` (sección 9). Un
 > `codigoPorcentaje` inexistente se detecta al emitir la factura, no al crear el ítem. `tieneIce=true` exige
 > `codigoPorcentajeIce` y `tarifaIce`.
@@ -389,8 +399,9 @@ Guarda el `id` de la respuesta — es el `itemId` opcional de la sección 5.
 ### 4.5 Imágenes de un ítem
 `POST http://localhost:8092/inventario/api/v1/items/{id}/imagenes` es
 `multipart/form-data` (campos: `archivo` la imagen JPEG/PNG/WEBP/GIF máx. 5 MB,
-`esPrincipal` boolean, `orden` entero) — pruébalo desde Swagger UI, no aplica
-JSON. Si `esPrincipal=true`, desmarca cualquier otra imagen principal del mismo ítem.
+`esPrincipal` boolean, `orden` entero), no un body JSON. Con `curl`:
+`curl -X POST -H "Authorization: Bearer <API_KEY>" -F "archivo=@foto.png" -F "esPrincipal=true" -F "orden=0" .../items/{id}/imagenes`.
+Si `esPrincipal=true`, desmarca cualquier otra imagen principal del mismo ítem.
 
 `GET http://localhost:8092/inventario/api/v1/items/{id}/imagenes` — listar (solo metadata)
 `GET http://localhost:8092/inventario/api/v1/imagenes/{id}/contenido` — descargar los bytes
@@ -435,6 +446,14 @@ solo del catálogo — si prefieres no depender de inventario-service, quita
 `itemId` y manda el bloque `impuestos` a mano (ver el comentario en cada ejemplo).
 
 ### 5.1 Factura
+
+> **Descuento de inventario (bandera `INVENTARIO_DESCUENTO_HABILITADO` del orquestador, por defecto `true`).** Con la
+> bandera encendida, una **factura** cuyas líneas llevan `itemId` de un `PRODUCTO` reserva su stock antes de firmar: si no
+> alcanza, el comprobante queda en `STOCK_INSUFICIENTE` (el `motivoRechazo` lista los ítems) y no se firma ni se envía al
+> SRI; si el SRI autoriza se descuenta del kardex, y si rechaza (o la firma falla) la reserva se libera. Por eso el
+> producto debe tener existencias (`cantidadInicial` o una entrada de kardex, 4.6). Los `SERVICIO` y las líneas sin
+> `itemId` no descuentan. Con la bandera en `false` el inventario no interviene.
+
 `POST http://localhost:8093/comprobantes/api/v1/facturas`
 ```json
 {
@@ -982,5 +1001,5 @@ Ajustes (variables de entorno del servicio): `SAGA_WATCHDOG_HABILITADO`, `SAGA_W
 `SAGA_WATCHDOG_PLAZO_SRI` (PT15M), `SAGA_WATCHDOG_MAX_REINTENTOS` (3). Ver ARQUITECTURA.md 4.1.
 
 Otros estados terminales que verás en `GET /sagas`: `AUTORIZADO_SIN_NOTIFICACION` (el comprobante se autorizó pero no tiene correo del
-receptor, así que no habrá notificación — antes esas sagas se quedaban en `AUTORIZADO`) y `EXPIRADA` (el watchdog agotó los reintentos).
+receptor, así que no habrá notificación) `STOCK_NO_DISPONIBLE` (con el descuento de inventario habilitado, no había stock: el comprobante queda en `STOCK_INSUFICIENTE`) y `EXPIRADA` (el watchdog agotó los reintentos).
 Cada saga se reintenta en su propia transacción: si una falla, queda una nota `ORQ-003` en su bitácora y cuenta como intento, sin afectar a las demás.

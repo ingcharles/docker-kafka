@@ -15,7 +15,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import com.facturacion.comprobantes.application.dto.ComprobanteResponse;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.AmbienteSri;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
@@ -29,13 +28,12 @@ import com.facturacion.comprobantes.infrastructure.persistence.entity.Comprobant
  * {@code detalles} sí se mapea automáticamente (vía {@link DetalleComprobanteMapper}),
  * pero la referencia inversa {@code DetalleComprobanteEntity.comprobante} no
  * es algo que MapStruct pueda inferir a partir de los nombres de los campos
- * — {@link #linkDetallesToComprobante} la completa manualmente justo
- * después del mapeo principal, mismo patrón que {@code OrderMapper} en
- * ecommerce/order-service para {@code OrderItemEntity.order}.
+ * — {@link #vincularDetallesAComprobante} la completa manualmente justo
+ * después del mapeo principal.
  * <p>
  * {@code pagos} (dominio, lista de {@link Pago}) <-> {@code pagos} (entidad, filas de
  * {@code comprobante_pago}) se construye a mano: cada fila lleva su {@code orden} y la
- * referencia inversa se completa en {@link #linkDetallesToComprobante}. {@code camposAdicionales}
+ * referencia inversa se completa en {@link #vincularDetallesAComprobante}. {@code camposAdicionales}
  * <-> {@code camposAdicionalesJson} sigue serializándose como JSON.
  */
 @Mapper(componentModel = MappingConstants.ComponentModel.CDI,
@@ -51,8 +49,6 @@ public interface ComprobanteMapper {
     @Mapping(target = "pagos", expression = "java(leerPagos(entity.pagos))")
     @Mapping(target = "camposAdicionales", expression = "java(leerCamposAdicionales(entity.camposAdicionalesJson))")
     Comprobante toDomain(ComprobanteEntity entity);
-
-    ComprobanteResponse toResponse(Comprobante domain);
 
     default List<ComprobantePagoEntity> escribirPagos(List<Pago> pagos) {
         List<ComprobantePagoEntity> filas = new ArrayList<>();
@@ -107,7 +103,7 @@ public interface ComprobanteMapper {
     }
 
     @AfterMapping
-    default void linkDetallesToComprobante(@MappingTarget ComprobanteEntity entity) {
+    default void vincularDetallesAComprobante(@MappingTarget ComprobanteEntity entity) {
         if (entity.detalles != null) {
             entity.detalles.forEach(detalle -> detalle.comprobante = entity);
         }

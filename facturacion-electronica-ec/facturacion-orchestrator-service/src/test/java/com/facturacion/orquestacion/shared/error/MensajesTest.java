@@ -1,7 +1,5 @@
 package com.facturacion.orquestacion.shared.error;
 
-import com.facturacion.commons.error.Mensajes;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -13,6 +11,8 @@ import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
+import com.facturacion.commons.error.Mensajes;
+
 /** Garantiza que enum de códigos y mensajes.properties no se desfasan. */
 class MensajesTest {
 
@@ -20,7 +20,7 @@ class MensajesTest {
     void cadaCodigoTieneSuMensaje() {
         for (CodigoError codigo : CodigoError.values()) {
             assertTrue(Mensajes.existe(codigo.claveMensaje()), codigo + " no tiene clave en mensajes.properties");
-            assertFalse(Mensajes.de(codigo).isBlank(), codigo + " tiene mensaje vacío");
+            assertFalse(Mensajes.obtenerTexto(codigo).isBlank(), codigo + " tiene mensaje vacío");
         }
     }
 
@@ -28,7 +28,7 @@ class MensajesTest {
     void mensajesNoUsadosNoSeAcumulan() {
         Set<String> usadas = Arrays.stream(CodigoError.values()).map(CodigoError::claveMensaje)
             .collect(Collectors.toSet());
-        Set<String> sobrantes = new HashSet<>(Mensajes.claves());
+        Set<String> sobrantes = new HashSet<>(Mensajes.listarClaves());
         sobrantes.removeAll(usadas);
         assertTrue(sobrantes.isEmpty(), "Claves sin código de error: " + sobrantes);
     }
@@ -36,6 +36,6 @@ class MensajesTest {
     @Test
     void losParametrosReemplazanLosMarcadores() {
         assertEquals("Reintento automático 2 de 3: sin respuesta en estado FIRMADO, se vuelve a publicar el último comando.",
-            Mensajes.de(CodigoError.SAGA_REINTENTO_AUTOMATICO, 2, 3, "FIRMADO"));
+            Mensajes.obtenerTexto(CodigoError.SAGA_REINTENTO_AUTOMATICO, 2, 3, "FIRMADO"));
     }
 }

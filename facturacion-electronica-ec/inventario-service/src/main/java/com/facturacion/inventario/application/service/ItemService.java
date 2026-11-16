@@ -10,33 +10,33 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.facturacion.commons.exception.NotFoundException;
+import com.facturacion.commons.paging.PageResult;
+import com.facturacion.commons.paging.PagedResponse;
 import com.facturacion.inventario.application.dto.ActualizarItemRequest;
 import com.facturacion.inventario.application.dto.CrearItemRequest;
 import com.facturacion.inventario.application.dto.ItemResponse;
 import com.facturacion.inventario.application.dto.RegistrarEntradaKardexRequest;
 import com.facturacion.inventario.application.event.ItemEventMessage;
+import com.facturacion.inventario.application.mapper.ItemResponseMapper;
 import com.facturacion.inventario.domain.model.entity.Categoria;
 import com.facturacion.inventario.domain.model.entity.Item;
 import com.facturacion.inventario.domain.model.enums.TipoCategoria;
 import com.facturacion.inventario.domain.model.enums.TipoItem;
-import com.facturacion.commons.paging.PageResult;
+import com.facturacion.inventario.domain.port.EventoSaliente;
+import com.facturacion.inventario.domain.port.EventosSalientes;
 import com.facturacion.inventario.domain.repository.CategoriaRepository;
 import com.facturacion.inventario.domain.repository.ItemRepository;
 import com.facturacion.inventario.domain.service.ImpuestosValidador;
-import com.facturacion.inventario.infrastructure.outbox.OutboxEventEntity;
-import com.facturacion.inventario.infrastructure.outbox.OutboxEventRepository;
-import com.facturacion.inventario.infrastructure.persistence.mapper.ItemMapper;
 import com.facturacion.inventario.shared.constant.MessagingConstants;
 import com.facturacion.inventario.shared.exception.CategoriaIncompatibleException;
-import com.facturacion.commons.exception.NotFoundException;
-import com.facturacion.commons.paging.PagedResponse;
 
 /**
  * {@code Item.tipo} existe como campo propio — deliberadamente no se deriva
@@ -61,19 +61,19 @@ public class ItemService {
 
     private final ItemRepository repository;
     private final CategoriaRepository categoriaRepository;
-    private final ItemMapper mapper;
+    private final ItemResponseMapper mapper;
     private final KardexService kardexService;
-    private final OutboxEventRepository outboxRepository;
+    private final EventosSalientes salientes;
     private final ObjectMapper objectMapper;
 
     @Inject
     public ItemService(ItemRepository repository, CategoriaRepository categoriaRepository,
-            ItemMapper mapper, KardexService kardexService, OutboxEventRepository outboxRepository, ObjectMapper objectMapper) {
+            ItemResponseMapper mapper, KardexService kardexService, EventosSalientes salientes, ObjectMapper objectMapper) {
         this.repository = repository;
         this.categoriaRepository = categoriaRepository;
         this.mapper = mapper;
         this.kardexService = kardexService;
-        this.outboxRepository = outboxRepository;
+        this.salientes = salientes;
         this.objectMapper = objectMapper;
     }
 
@@ -170,12 +170,12 @@ public class ItemService {
             item.getTarifaIce(),
             item.isActivo(),
             Instant.now());
-        OutboxEventEntity evento = OutboxEventEntity.of(item.getId(), eventType,
-            MessagingConstants.ITEM_EVENTS_TOPIC, writeValueAsString(mensaje));
-        return outboxRepository.persist(evento).replaceWithVoid();
+        EventoSaliente evento = new EventoSaliente(item.getId(), eventType,
+            MessagingConstants.ITEM_EVENTS_TOPIC, serializarAJson(mensaje));
+        return salientes.registrar(evento).replaceWithVoid();
     }
 
-    private String writeValueAsString(Object value) {
+    private String serializarAJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {

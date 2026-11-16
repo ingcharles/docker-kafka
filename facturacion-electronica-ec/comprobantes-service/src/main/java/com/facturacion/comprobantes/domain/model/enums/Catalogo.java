@@ -32,7 +32,7 @@ public enum Catalogo {
         return Arrays.stream(values()).map(Catalogo::nombre).toList();
     }
 
-    public static Optional<Catalogo> deNombre(String nombre) {
+    public static Optional<Catalogo> buscarPorNombre(String nombre) {
         return Arrays.stream(values()).filter(c -> c.nombre.equals(nombre)).findFirst();
     }
 }

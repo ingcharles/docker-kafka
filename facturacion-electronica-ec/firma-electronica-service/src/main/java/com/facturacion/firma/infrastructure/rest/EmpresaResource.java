@@ -16,7 +16,6 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
-
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -31,6 +30,12 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.vertx.core.Vertx;
 
+import com.facturacion.commons.rest.Respuestas;
+import com.facturacion.commons.exception.SinPermisoException;
+import com.facturacion.commons.paging.PageRequest;
+import com.facturacion.commons.paging.PagedResponse;
+import com.facturacion.commons.security.PermiteSesion;
+import com.facturacion.commons.security.TokenPrincipal;
 import com.facturacion.firma.application.dto.ActualizarEmpresaRequest;
 import com.facturacion.firma.application.dto.CertificadoMetadataResponse;
 import com.facturacion.firma.application.dto.ConfiguracionEmpresaResponse;
@@ -38,15 +43,12 @@ import com.facturacion.firma.application.dto.CrearEmpresaRequest;
 import com.facturacion.firma.application.dto.EmpresaResponse;
 import com.facturacion.firma.application.dto.EstablecerConfiguracionRequest;
 import com.facturacion.firma.application.dto.SubirCertificadoRequest;
+import com.facturacion.firma.application.dto.SubirLogoRequest;
+import com.facturacion.firma.application.service.LogoEmpresaService;
 import com.facturacion.firma.application.service.CertificadoService;
 import com.facturacion.firma.application.service.ConfiguracionEmpresaService;
 import com.facturacion.firma.application.service.EmpresaService;
-import com.facturacion.commons.security.PermiteSesion;
 import com.facturacion.firma.infrastructure.security.AccesoEmpresa;
-import com.facturacion.commons.security.TokenPrincipal;
-import com.facturacion.commons.exception.SinPermisoException;
-import com.facturacion.commons.paging.PageRequest;
-import com.facturacion.commons.paging.PagedResponse;
 
 /**
  * CRUD de empresas (multi-tenant) y carga del certificado de firma
@@ -66,16 +68,18 @@ public class EmpresaResource {
     private final ConfiguracionEmpresaService configuracionService;
     private final TokenPrincipal tokenPrincipal;
     private final AccesoEmpresa acceso;
+    private final LogoEmpresaService logoService;
 
     @Inject
     public EmpresaResource(EmpresaService empresaService, CertificadoService certificadoService,
             ConfiguracionEmpresaService configuracionService, TokenPrincipal tokenPrincipal,
-            AccesoEmpresa acceso) {
+            AccesoEmpresa acceso, LogoEmpresaService logoService) {
         this.empresaService = empresaService;
         this.certificadoService = certificadoService;
         this.configuracionService = configuracionService;
         this.tokenPrincipal = tokenPrincipal;
         this.acceso = acceso;
+        this.logoService = logoService;
     }
 
     /**
@@ -110,7 +114,7 @@ public class EmpresaResource {
         return empresaService.crearEmpresa(request, tokenPrincipal.getUsuarioId())
             .map(response -> {
                 URI location = uriInfo.getAbsolutePathBuilder().path(response.getId().toString()).build();
-                return Response.created(location).entity(response).build();
+                return Respuestas.creado(location, response);
             });
     }
 
@@ -124,7 +128,7 @@ public class EmpresaResource {
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id,
             @Valid ActualizarEmpresaRequest request) {
         return acceso.exigirEmpresaAdmin(id).chain(() -> empresaService.actualizarEmpresa(id, request))
-            .map(response -> Response.ok(response).build());
+            .map(response -> Respuestas.actualizado(response));
     }
 
     @GET
@@ -158,7 +162,8 @@ public class EmpresaResource {
     @APIResponse(responseCode = "404", description = "Empresa no encontrada")
     public Uni<Response> subirCertificado(
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id,
-            @Valid @BeanParam SubirCertificadoRequest form) {
+            @Valid @BeanParam SubirCertificadoRequest form,
+            @Context UriInfo uriInfo) {
         // Leer el archivo subido es IO bloqueante — se corre en el worker
         // pool, y se vuelve al contexto de Vert.x antes de que
         // certificadoService.subirCertificado (que abre una sesión de
@@ -175,7 +180,7 @@ public class EmpresaResource {
                 .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run())))
             .onItem().transformToUni(contenido ->
                 certificadoService.subirCertificado(id, contenido, form.contrasena))
-            .map(response -> Response.status(Response.Status.CREATED).entity(response).build());
+            .map(response -> Respuestas.creado(uriInfo.getAbsolutePath(), response));
     }
 
     @GET
@@ -199,7 +204,53 @@ public class EmpresaResource {
     public Uni<Response> revocarCertificado(
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id) {
         return acceso.exigirEmpresaAdmin(id).chain(() -> certificadoService.revocarActivo(id))
-            .map(ignorado -> Response.noContent().build());
+            .map(ignorado -> Respuestas.sinContenido());
+    }
+
+    @POST
+    @Path("/{id}/logo")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    @Operation(summary = "Subir el logo de la empresa (PNG o JPEG, hasta 200 KB)",
+        description = "Se guarda en la tabla empresa y aparece en el recuadro del emisor del RIDE de los comprobantes que se "
+            + "autoricen a partir de ese momento. Reemplaza el logo anterior.")
+    @APIResponse(responseCode = "201", description = "Logo guardado: devuelve el tipo detectado y el tamaño")
+    @APIResponse(responseCode = "400", description = "No es un PNG/JPEG o pesa más de 200 KB")
+    @APIResponse(responseCode = "404", description = "Empresa no encontrada")
+    public Uni<Response> subirLogo(
+            @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id,
+            @Valid @BeanParam SubirLogoRequest form,
+            @Context UriInfo uriInfo) {
+        io.vertx.core.Context callingContext = Vertx.currentContext();
+        // Igual que el certificado: el archivo se lee en el worker pool y se vuelve al contexto de Vert.x para Hibernate.
+        return acceso.exigirEmpresaAdmin(id)
+            .chain(() -> Uni.createFrom().item(() -> leerArchivoLogo(form))
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run())))
+            .onItem().transformToUni(contenido -> logoService.subir(id, contenido))
+            .map(logo -> Respuestas.creado(uriInfo.getAbsolutePath(), logo));
+    }
+
+    @GET
+    @Path("/{id}/logo")
+    @Produces({"image/png", "image/jpeg"})
+    @Operation(summary = "Obtener el logo de la empresa")
+    @APIResponse(responseCode = "200", description = "La imagen")
+    @APIResponse(responseCode = "404", description = "La empresa no tiene logo")
+    public Uni<Response> obtenerLogo(
+            @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id) {
+        return acceso.exigirEmpresa(id).chain(() -> logoService.obtener(id))
+            .map(logo -> Response.ok(logo.contenido()).type(logo.tipo()).build());
+    }
+
+    @DELETE
+    @Path("/{id}/logo")
+    @Operation(summary = "Quitar el logo de la empresa", description = "Los RIDE siguientes salen sin logo.")
+    @APIResponse(responseCode = "204", description = "Logo quitado")
+    @APIResponse(responseCode = "404", description = "La empresa no tiene logo")
+    public Uni<Response> eliminarLogo(
+            @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id) {
+        return acceso.exigirEmpresaAdmin(id).chain(() -> logoService.eliminar(id))
+            .map(ignorado -> Respuestas.sinContenido());
     }
 
     @POST
@@ -230,7 +281,7 @@ public class EmpresaResource {
             @Parameter(description = "Clave del ajuste", required = true) @PathParam("clave") String clave,
             @Valid EstablecerConfiguracionRequest request) {
         return acceso.exigirEmpresaAdmin(id).chain(() -> configuracionService.actualizar(id, clave, request.getValor()))
-            .map(response -> Response.ok(response).build());
+            .map(response -> Respuestas.actualizado(response));
     }
 
     @GET
@@ -264,7 +315,15 @@ public class EmpresaResource {
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id,
             @Parameter(description = "Clave del ajuste", required = true) @PathParam("clave") String clave) {
         return acceso.exigirEmpresaAdmin(id).chain(() -> configuracionService.eliminar(id, clave))
-            .map(ignorado -> Response.noContent().build());
+            .map(ignorado -> Respuestas.sinContenido());
+    }
+
+    private byte[] leerArchivoLogo(SubirLogoRequest form) {
+        try {
+            return Files.readAllBytes(form.archivo.uploadedFile());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("No se pudo leer el archivo del logo subido", e);
+        }
     }
 
     private byte[] leerArchivo(SubirCertificadoRequest form) {

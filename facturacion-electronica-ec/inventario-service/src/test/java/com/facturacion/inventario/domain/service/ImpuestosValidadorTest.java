@@ -9,8 +9,8 @@ import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 
-import com.facturacion.inventario.shared.error.CodigoError;
 import com.facturacion.commons.exception.ErrorNegocioException;
+import com.facturacion.inventario.shared.error.CodigoError;
 
 class ImpuestosValidadorTest {
 

@@ -17,12 +17,12 @@ public class ApiExceptionMapper implements ExceptionMapper<ApiException> {
 
     @Override
     public Response toResponse(ApiException exception) {
-        ApiErrorResponse cuerpo = cuerpo(exception);
+        ApiErrorResponse cuerpo = construirCuerpo(exception);
         return Response.status(cuerpo.getStatus()).entity(cuerpo).build();
     }
 
     /** Cuerpo de la respuesta, separado de {@link Response} para poder probarlo sin runtime JAX-RS. */
-    static ApiErrorResponse cuerpo(ApiException exception) {
+    static ApiErrorResponse construirCuerpo(ApiException exception) {
         Response.Status estado = Response.Status.fromStatusCode(exception.getError().estadoHttp());
         if (estado == null) {
             estado = Response.Status.INTERNAL_SERVER_ERROR;

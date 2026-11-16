@@ -8,8 +8,8 @@ import java.math.BigDecimal;
 
 import org.junit.jupiter.api.Test;
 
-import com.facturacion.comprobantes.shared.error.CodigoError;
 import com.facturacion.commons.exception.ErrorNegocioException;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 
 class ConsumidorFinalMontoTest {
 

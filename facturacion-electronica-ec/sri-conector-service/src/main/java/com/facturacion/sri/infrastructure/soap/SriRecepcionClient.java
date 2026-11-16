@@ -8,18 +8,20 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
 
+import jakarta.enterprise.context.ApplicationScoped;
+
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-import jakarta.enterprise.context.ApplicationScoped;
-
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 
 import com.facturacion.sri.domain.model.enums.AmbienteSri;
+import com.facturacion.sri.domain.port.RecepcionResultado;
+import com.facturacion.sri.domain.port.RecepcionSri;
 
 /**
  * Cliente real (no simulado) del Web Service de Recepción del SRI —
@@ -36,7 +38,7 @@ import com.facturacion.sri.domain.model.enums.AmbienteSri;
  * (JDK puro en vez de una librería externa).
  */
 @ApplicationScoped
-public class SriRecepcionClient {
+public class SriRecepcionClient implements RecepcionSri {
 
     private static final Logger LOG = Logger.getLogger(SriRecepcionClient.class);
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
@@ -94,16 +96,16 @@ public class SriRecepcionClient {
 
     static RecepcionResultado parsear(String cuerpoXml) throws Exception {
         Document doc = SoapXmlUtil.parsear(cuerpoXml);
-        String estado = SoapXmlUtil.textoDe(doc, "estado");
+        String estado = SoapXmlUtil.obtenerTexto(doc, "estado");
 
         StringBuilder mensajes = new StringBuilder();
         boolean claveYaRegistrada = false;
         NodeList nodosMensaje = doc.getElementsByTagName("mensaje");
         for (int i = 0; i < nodosMensaje.getLength(); i++) {
             Element mensaje = (Element) nodosMensaje.item(i);
-            String texto = SoapXmlUtil.hijoTexto(mensaje, "mensaje");
-            String infoAdicional = SoapXmlUtil.hijoTexto(mensaje, "informacionAdicional");
-            String identificador = SoapXmlUtil.hijoTexto(mensaje, "identificador");
+            String texto = SoapXmlUtil.obtenerTextoHijo(mensaje, "mensaje");
+            String infoAdicional = SoapXmlUtil.obtenerTextoHijo(mensaje, "informacionAdicional");
+            String identificador = SoapXmlUtil.obtenerTextoHijo(mensaje, "identificador");
             // Set.of(...).contains(null) lanza NullPointerException: un mensaje sin identificador es válido.
             claveYaRegistrada |= identificador != null && IDENTIFICADORES_YA_REGISTRADA.contains(identificador);
             if (texto != null) {

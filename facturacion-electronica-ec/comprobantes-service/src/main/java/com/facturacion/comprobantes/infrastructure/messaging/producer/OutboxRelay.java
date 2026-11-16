@@ -46,7 +46,7 @@ public class OutboxRelay {
 
     @Scheduled(every = "1s", delayed = "3s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     @WithTransaction
-    public Uni<Void> relay() {
+    public Uni<Void> publicarEventosPendientes() {
         return outboxRepository.findUnpublishedBatch(BATCH_SIZE)
             .onItem().transformToMulti(batch -> Multi.createFrom().iterable(batch))
             .onItem().transformToUniAndConcatenate(this::publish)

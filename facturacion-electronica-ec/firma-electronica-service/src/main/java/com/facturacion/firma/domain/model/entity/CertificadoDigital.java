@@ -106,6 +106,11 @@ public class CertificadoDigital {
         this.fechaExpiracionCertificado = fechaExpiracionCertificado;
     }
 
+    /** true si, en el instante dado, el certificado ya pasó su fecha de expiración (el SRI rechaza uno vencido). */
+    public boolean estaVencidoEn(Instant ahora) {
+        return fechaExpiracionCertificado != null && fechaExpiracionCertificado.isBefore(ahora);
+    }
+
     public EstadoCertificado getEstado() {
         return estado;
     }

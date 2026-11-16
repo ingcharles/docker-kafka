@@ -9,6 +9,7 @@ import com.facturacion.commons.error.ErrorCatalogo;
 public enum FirmaError implements ErrorCatalogo {
 
     CERTIFICADO_INVALIDO("FIR-400-001", 400, "certificado.invalido"),
+    LOGO_INVALIDO("FIR-400-002", 400, "logo.invalido"),
     CODIGO_DUPLICADO("FIR-409-001", 409, "codigo.duplicado"),
     RUC_DUPLICADO("FIR-409-002", 409, "empresa.ruc_duplicado");
 

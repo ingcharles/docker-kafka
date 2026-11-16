@@ -22,7 +22,7 @@ public final class Mensajes {
     private Mensajes() {
     }
 
-    public static String de(MensajeCatalogo entrada, Object... parametros) {
+    public static String obtenerTexto(MensajeCatalogo entrada, Object... parametros) {
         String texto = plantilla(entrada.claveMensaje());
         for (int i = 0; i < parametros.length; i++) {
             texto = texto.replace("{" + i + "}", String.valueOf(parametros[i]));
@@ -36,7 +36,7 @@ public final class Mensajes {
     }
 
     /** Todas las claves del {@code mensajes.properties} del servicio (vacío si no tiene). */
-    public static Set<String> claves() {
+    public static Set<String> listarClaves() {
         return SERVICIO == null ? Set.of() : SERVICIO.keySet();
     }
 

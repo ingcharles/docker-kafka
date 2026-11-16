@@ -22,7 +22,7 @@ class PoliticaReintentoSagaTest {
     private static final Plazos PLAZOS = new Plazos(Duration.ofMinutes(2), Duration.ofMinutes(15), 3);
 
     private static SagaInstance saga(SagaState estado, Duration inactiva, int reintentos) {
-        SagaInstance saga = SagaInstance.start(UUID.randomUUID(), "1722039953001", "x", "PRUEBAS", true);
+        SagaInstance saga = SagaInstance.iniciar(UUID.randomUUID(), "1722039953001", "x", "PRUEBAS", true);
         saga.setState(estado);
         saga.setUpdatedAt(AHORA.minus(inactiva));
         saga.setReintentos(reintentos);
@@ -55,6 +55,13 @@ class PoliticaReintentoSagaTest {
     }
 
     @Test
+    void losEstadosDeInventarioSeReintentanConElPlazoDeLaFirma() {
+        assertEquals(Accion.REINTENTAR, PoliticaReintentoSaga.decidir(saga(SagaState.STOCK_PENDIENTE, Duration.ofMinutes(2), 0), AHORA, PLAZOS));
+        assertEquals(Accion.REINTENTAR, PoliticaReintentoSaga.decidir(saga(SagaState.STOCK_RESERVADO, Duration.ofMinutes(2), 0), AHORA, PLAZOS));
+        assertEquals(Accion.ESPERAR, PoliticaReintentoSaga.decidir(saga(SagaState.STOCK_PENDIENTE, Duration.ofSeconds(30), 0), AHORA, PLAZOS));
+    }
+
+    @Test
     void nuncaTocaLosEstadosQueNoSonReintentables() {
         Duration mucho = Duration.ofDays(30);
         for (SagaState estado : SagaState.values()) {
@@ -65,17 +72,18 @@ class PoliticaReintentoSagaTest {
     }
 
     @Test
-    void soloCreadoYFirmadoEstanEsperandoRespuesta() {
-        assertEquals(List.of(SagaState.CREADO, SagaState.FIRMADO), SagaState.reintentables());
+    void soloLosEstadosQueEsperanRespuestaDeOtroServicioSeReintentan() {
+        assertEquals(List.of(SagaState.STOCK_PENDIENTE, SagaState.STOCK_RESERVADO, SagaState.CREADO, SagaState.FIRMADO),
+            SagaState.reintentables());
     }
 
     @Test
     void unaSagaSinCorreoTerminaEnAutorizadoSinNotificacionYElWatchdogNoLaToca() {
         assertTrue(SagaState.AUTORIZADO_SIN_NOTIFICACION.esTerminal());
         assertFalse(SagaState.AUTORIZADO_SIN_NOTIFICACION.esReintentable());
-        SagaInstance sinCorreo = SagaInstance.start(UUID.randomUUID(), "1722039953001", "x", "PRUEBAS", false);
+        SagaInstance sinCorreo = SagaInstance.iniciar(UUID.randomUUID(), "1722039953001", "x", "PRUEBAS", false);
         assertFalse(sinCorreo.isNotificacionEsperada());
-        assertTrue(SagaInstance.start(UUID.randomUUID(), "1722039953001", "x", "PRUEBAS", true).isNotificacionEsperada());
+        assertTrue(SagaInstance.iniciar(UUID.randomUUID(), "1722039953001", "x", "PRUEBAS", true).isNotificacionEsperada());
         sinCorreo.setState(SagaState.AUTORIZADO_SIN_NOTIFICACION);
         sinCorreo.setUpdatedAt(AHORA.minus(Duration.ofDays(30)));
         assertEquals(Accion.ESPERAR, PoliticaReintentoSaga.decidir(sinCorreo, AHORA, PLAZOS));

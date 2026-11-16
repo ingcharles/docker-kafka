@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import com.facturacion.comprobantes.domain.model.enums.Catalogo;
 import com.facturacion.comprobantes.domain.catalogo.CatalogoDef;
+import com.facturacion.comprobantes.domain.model.enums.Catalogo;
 
 /**
  * El SQL del upsert se genera a partir de la definición del catálogo; estos tests fijan su forma. Un bug real que

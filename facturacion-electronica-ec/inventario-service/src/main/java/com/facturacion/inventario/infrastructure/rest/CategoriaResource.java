@@ -13,7 +13,6 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
-
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -26,14 +25,15 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.rest.Respuestas;
+import com.facturacion.commons.paging.PageRequest;
+import com.facturacion.commons.paging.PagedResponse;
+import com.facturacion.commons.security.TokenPrincipal;
 import com.facturacion.inventario.application.dto.ActualizarCategoriaRequest;
 import com.facturacion.inventario.application.dto.CategoriaResponse;
 import com.facturacion.inventario.application.dto.CrearCategoriaRequest;
 import com.facturacion.inventario.application.service.CategoriaService;
 import com.facturacion.inventario.infrastructure.security.AccesoEmpresa;
-import com.facturacion.commons.security.TokenPrincipal;
-import com.facturacion.commons.paging.PageRequest;
-import com.facturacion.commons.paging.PagedResponse;
 
 @Path("")
 @Produces(MediaType.APPLICATION_JSON)
@@ -62,7 +62,7 @@ public class CategoriaResource {
         return categoriaService.crear(tokenPrincipal.getRuc(), request)
             .map(response -> {
                 URI location = uriInfo.getAbsolutePathBuilder().path(response.getId().toString()).build();
-                return Response.created(location).entity(response).build();
+                return Respuestas.creado(location, response);
             });
     }
 
@@ -76,7 +76,7 @@ public class CategoriaResource {
             @Parameter(description = "Id de la categoría", required = true) @PathParam("id") UUID id,
             @Valid ActualizarCategoriaRequest request) {
         return acceso.exigirCategoriaEscritura(id).chain(() -> categoriaService.actualizar(id, request))
-            .map(response -> Response.ok(response).build());
+            .map(response -> Respuestas.actualizado(response));
     }
 
     @GET

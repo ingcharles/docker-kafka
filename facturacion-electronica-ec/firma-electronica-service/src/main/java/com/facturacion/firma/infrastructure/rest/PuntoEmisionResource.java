@@ -13,7 +13,6 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
-
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -26,11 +25,12 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.rest.Respuestas;
 import com.facturacion.firma.application.dto.ActualizarPuntoEmisionRequest;
 import com.facturacion.firma.application.dto.CrearPuntoEmisionRequest;
-import com.facturacion.firma.infrastructure.security.AccesoEmpresa;
 import com.facturacion.firma.application.dto.PuntoEmisionResponse;
 import com.facturacion.firma.application.service.PuntoEmisionService;
+import com.facturacion.firma.infrastructure.security.AccesoEmpresa;
 
 /** CRUD de puntos de emisión de un establecimiento — ver {@link PuntoEmisionService}. */
 @Path("")
@@ -64,7 +64,7 @@ public class PuntoEmisionResource {
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("puntos-emision")
                     .path(response.getId().toString()).build();
-                return Response.created(location).entity(response).build();
+                return Respuestas.creado(location, response);
             });
     }
 
@@ -82,7 +82,7 @@ public class PuntoEmisionResource {
             @Valid ActualizarPuntoEmisionRequest request) {
         return acceso.exigirEstablecimientoAdmin(empresaId, establecimientoId)
             .chain(() -> puntoEmisionService.actualizar(empresaId, establecimientoId, id, request))
-            .map(response -> Response.ok(response).build());
+            .map(response -> Respuestas.actualizado(response));
     }
 
     @GET

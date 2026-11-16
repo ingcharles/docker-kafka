@@ -1,6 +1,7 @@
 package com.facturacion.orquestacion.application.event;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -22,5 +23,9 @@ public record ComprobanteEventMessage(
     String xmlGenerado,
     /** null en eventos anteriores a este campo: se asume true (comportamiento previo). */
     Boolean notificacionEsperada,
+    /** null en eventos anteriores a este campo. */
+    String tipoComprobante,
+    /** Líneas del detalle con ítem de inventario; null o vacío si no hay (eventos anteriores, o texto libre). */
+    List<ItemCantidad> items,
     Instant occurredAt) {
 }

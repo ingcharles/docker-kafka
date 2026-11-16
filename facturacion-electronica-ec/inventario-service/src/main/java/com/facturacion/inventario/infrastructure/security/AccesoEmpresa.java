@@ -1,7 +1,5 @@
 package com.facturacion.inventario.infrastructure.security;
 
-import com.facturacion.commons.security.TokenPrincipal;
-
 import java.util.UUID;
 
 import jakarta.enterprise.context.ApplicationScoped;
@@ -10,10 +8,11 @@ import jakarta.inject.Inject;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.exception.NotFoundException;
+import com.facturacion.commons.security.TokenPrincipal;
 import com.facturacion.inventario.domain.repository.CategoriaRepository;
 import com.facturacion.inventario.domain.repository.ImagenItemRepository;
 import com.facturacion.inventario.domain.repository.ItemRepository;
-import com.facturacion.commons.exception.NotFoundException;
 
 /**
  * Autorización por empresa en la frontera REST: una api-key solo opera sobre ítems (y sus imágenes y kardex) y

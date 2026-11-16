@@ -9,29 +9,29 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.Vertx;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.notificacion.application.dto.NotificacionEnviadaResponse;
 import com.facturacion.notificacion.application.event.ComprobanteEventMessage;
 import com.facturacion.notificacion.application.event.NotificacionResultadoEventMessage;
+import com.facturacion.notificacion.application.mapper.NotificacionEnviadaResponseMapper;
 import com.facturacion.notificacion.domain.model.entity.ConfiguracionEmpresaLocal;
-import com.facturacion.notificacion.domain.service.ClaveAcceso;
 import com.facturacion.notificacion.domain.model.entity.NotificacionEnviada;
 import com.facturacion.notificacion.domain.model.enums.EstadoNotificacion;
+import com.facturacion.notificacion.domain.port.CorreoSalida;
+import com.facturacion.notificacion.domain.port.EventoSaliente;
+import com.facturacion.notificacion.domain.port.EventosSalientes;
 import com.facturacion.notificacion.domain.repository.ConfiguracionEmpresaLocalRepository;
 import com.facturacion.notificacion.domain.repository.NotificacionEnviadaRepository;
-import com.facturacion.notificacion.infrastructure.mail.CorreoService;
-import com.facturacion.notificacion.infrastructure.outbox.OutboxEventEntity;
-import com.facturacion.notificacion.infrastructure.outbox.OutboxEventRepository;
-import com.facturacion.notificacion.infrastructure.persistence.mapper.NotificacionEnviadaMapper;
+import com.facturacion.notificacion.domain.service.ClaveAcceso;
 import com.facturacion.notificacion.shared.constant.MessagingConstants;
-import com.facturacion.commons.exception.NotFoundException;
 
 /**
  * Dueño del agregado NotificacionEnviada. {@link #procesarComprobanteAutorizado}
@@ -45,20 +45,20 @@ public class NotificacionService {
     private static final Logger LOG = Logger.getLogger(NotificacionService.class);
 
     private final NotificacionEnviadaRepository notificacionRepository;
-    private final CorreoService correoService;
+    private final CorreoSalida correoService;
     private final ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository;
-    private final OutboxEventRepository outboxRepository;
+    private final EventosSalientes salientes;
     private final ObjectMapper objectMapper;
-    private final NotificacionEnviadaMapper mapper;
+    private final NotificacionEnviadaResponseMapper mapper;
 
     @Inject
-    public NotificacionService(NotificacionEnviadaRepository notificacionRepository, CorreoService correoService,
+    public NotificacionService(NotificacionEnviadaRepository notificacionRepository, CorreoSalida correoService,
             ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository,
-            OutboxEventRepository outboxRepository, ObjectMapper objectMapper, NotificacionEnviadaMapper mapper) {
+            EventosSalientes salientes, ObjectMapper objectMapper, NotificacionEnviadaResponseMapper mapper) {
         this.notificacionRepository = notificacionRepository;
         this.correoService = correoService;
         this.configuracionEmpresaLocalRepository = configuracionEmpresaLocalRepository;
-        this.outboxRepository = outboxRepository;
+        this.salientes = salientes;
         this.objectMapper = objectMapper;
         this.mapper = mapper;
     }
@@ -76,7 +76,7 @@ public class NotificacionService {
 
         // Ajustes opcionales por empresa (configuracion_empresa en
         // firma-electronica-service, vía ConfiguracionEmpresaLocal) — null si
-        // nunca se configuraron, CorreoService usa su comportamiento por
+        // nunca se configuraron, CorreoSalida usa su comportamiento por
         // defecto en ese caso. Secuencial a propósito (no Uni.combine): dos
         // consultas Hibernate Reactive concurrentes sobre la misma sesión
         // reactiva rompen el procesamiento del result set ("Illegal pop()
@@ -118,8 +118,8 @@ public class NotificacionService {
             evento.comprobanteId(), eventType, evento.compradorCorreo(), motivoError, ahora);
 
         return notificacionRepository.persist(notificacion)
-            .chain(guardado -> outboxRepository.persist(OutboxEventEntity.of(evento.comprobanteId(), eventType,
-                MessagingConstants.NOTIFICACION_EVENTS_TOPIC, writeValueAsString(mensaje))))
+            .chain(guardado -> salientes.registrar(new EventoSaliente(evento.comprobanteId(), eventType,
+                MessagingConstants.NOTIFICACION_EVENTS_TOPIC, serializarAJson(mensaje))))
             .replaceWithVoid();
     }
 
@@ -134,7 +134,7 @@ public class NotificacionService {
             .map(mapper::toResponse);
     }
 
-    private String writeValueAsString(Object value) {
+    private String serializarAJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {

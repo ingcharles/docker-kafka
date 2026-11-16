@@ -5,18 +5,18 @@ import java.io.StringReader;
 import java.net.URL;
 import java.util.EnumMap;
 import java.util.Map;
-
 import javax.xml.XMLConstants;
 import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
 
-import org.xml.sax.SAXException;
-
 import jakarta.enterprise.context.ApplicationScoped;
 
+import org.xml.sax.SAXException;
+
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
+import com.facturacion.comprobantes.domain.port.ValidadorXml;
 
 /**
  * Valida el XML sin firmar de cada comprobante contra el XSD real y más
@@ -35,7 +35,7 @@ import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
  * {@link #validar}.
  */
 @ApplicationScoped
-public class XsdValidador {
+public class XsdValidador implements ValidadorXml {
 
     private final Map<TipoComprobante, Schema> schemasPorTipo = new EnumMap<>(TipoComprobante.class);
 

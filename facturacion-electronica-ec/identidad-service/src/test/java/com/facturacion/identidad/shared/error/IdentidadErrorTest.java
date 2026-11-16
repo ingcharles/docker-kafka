@@ -24,9 +24,9 @@ class IdentidadErrorTest {
     void cadaCodigoTieneSuMensajeYNoSobranClaves() {
         for (IdentidadError error : IdentidadError.values()) {
             assertTrue(Mensajes.existe(error.claveMensaje()), error + " no tiene clave en mensajes.properties");
-            assertFalse(Mensajes.de(error, "x").isBlank(), error + " tiene mensaje vacío");
+            assertFalse(Mensajes.obtenerTexto(error, "x").isBlank(), error + " tiene mensaje vacío");
         }
-        Set<String> sobrantes = new HashSet<>(Mensajes.claves());
+        Set<String> sobrantes = new HashSet<>(Mensajes.listarClaves());
         sobrantes.removeAll(
             Arrays.stream(IdentidadError.values()).map(IdentidadError::claveMensaje).collect(Collectors.toSet()));
         assertTrue(sobrantes.isEmpty(), "Claves sin código de error: " + sobrantes);
@@ -49,12 +49,9 @@ class IdentidadErrorTest {
 
         assertEquals("Se requiere el rol ADMIN sobre el ruc 1790000000001 para gestionar sus miembros",
             new RolInsuficienteException("1790000000001").getMessage());
-        assertEquals("La empresa 1790000000001 ya tiene administradores: pide a uno de ellos que te agregue "
-                + "(POST /empresas/1790000000001/usuarios).",
-            RolInsuficienteException.empresaYaTieneAdministradores("1790000000001").getMessage());
-        assertEquals(403, RolInsuficienteException.empresaYaTieneAdministradores("1").getError().estadoHttp());
 
-        assertEquals("El usuario no está asociado al ruc 1790000000001 — asóciate primero vía POST /usuarios/me/empresas",
+        assertEquals("El usuario no está asociado al ruc 1790000000001 — pide a un ADMIN de esa empresa que te agregue "
+                + "(POST /empresas/1790000000001/usuarios)",
             new SinAsociacionException("1790000000001").getMessage());
 
         CredencialesInvalidasException credenciales = new CredencialesInvalidasException("Email o contraseña incorrectos");

@@ -94,7 +94,7 @@ public class ConstructorNotaDebito implements ConstructorComprobante<CrearNotaDe
         comprobante.setImporteTotal(totalMotivos.add(totalImpuestos));
         comprobante.setDocModificadoTipo(request.getDocModificadoTipo());
         comprobante.setDocModificadoNumero(request.getDocModificadoNumero());
-        comprobante.setDocModificadoFecha(comun.parseFecha(request.getDocModificadoFecha()));
+        comprobante.setDocModificadoFecha(comun.convertirFecha(request.getDocModificadoFecha()));
         comprobante.setPagos(comun.pagos(request.getPagos(), comprobante.getImporteTotal(), true, catalogos));
         comprobante.setCamposAdicionales(comun.camposAdicionales(request.getCampoAdicional()));
         return Uni.createFrom().item(comprobante);

@@ -54,7 +54,7 @@ public class OutboxRelay {
 
     @Scheduled(every = "1s", delayed = "3s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     @WithTransaction
-    public Uni<Void> relay() {
+    public Uni<Void> publicarEventosPendientes() {
         return outboxRepository.findUnpublishedBatch(BATCH_SIZE)
             .onItem().transformToMulti(batch -> Multi.createFrom().iterable(batch))
             .onItem().transformToUniAndConcatenate(this::publish)
@@ -62,7 +62,7 @@ public class OutboxRelay {
             .replaceWithVoid();
     }
 
-    private Emitter<String> emitterPara(String topic) {
+    private Emitter<String> obtenerEmisorPara(String topic) {
         return MessagingConstants.ITEM_EVENTS_TOPIC.equals(topic) ? itemEventsEmitter : inventarioEventsEmitter;
     }
 
@@ -81,7 +81,7 @@ public class OutboxRelay {
                 delivered.completeExceptionally(reason);
                 return CompletableFuture.completedFuture(null);
             });
-        emitterPara(event.topic).send(message);
+        obtenerEmisorPara(event.topic).send(message);
 
         return Uni.createFrom().completionStage((CompletionStage<Void>) delivered)
             // Sin ack en 30 s (broker caído): se suelta la transacción y sus locks en vez de colgar el relay; se reintenta en el siguiente tick.

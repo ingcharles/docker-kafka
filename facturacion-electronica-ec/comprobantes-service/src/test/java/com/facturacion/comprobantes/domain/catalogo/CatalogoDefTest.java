@@ -14,9 +14,9 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.comprobantes.domain.model.enums.Catalogo;
 import com.facturacion.comprobantes.shared.error.CodigoError;
-import com.facturacion.commons.exception.ErrorNegocioException;
 
 class CatalogoDefTest {
 
@@ -51,7 +51,7 @@ class CatalogoDefTest {
         assertEquals(Catalogo.values().length, CatalogoDef.TODOS.size());
         assertEquals(CatalogoDef.TODOS.size(),
             new HashSet<>(CatalogoDef.TODOS.stream().map(CatalogoDef::nombre).toList()).size(), "nombres únicos");
-        CatalogoDef.TODOS.forEach(c -> assertFalse(c.claves().isEmpty(), c.nombre() + " sin clave"));
+        CatalogoDef.TODOS.forEach(c -> assertFalse(c.listarClaves().isEmpty(), c.nombre() + " sin clave"));
     }
 
     @Test

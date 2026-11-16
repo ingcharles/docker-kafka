@@ -1,9 +1,9 @@
 package com.facturacion.notificacion.infrastructure.messaging.consumer;
 
+import io.quarkus.kafka.client.serialization.ObjectMapperDeserializer;
+
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import io.quarkus.kafka.client.serialization.ObjectMapperDeserializer;
 
 import com.facturacion.notificacion.application.event.ComprobanteEventMessage;
 

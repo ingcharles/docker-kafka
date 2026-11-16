@@ -10,7 +10,6 @@ public enum IdentidadError implements ErrorCatalogo {
 
     CREDENCIALES_INVALIDAS("IDE-401-001", 401, "credenciales.invalidas"),
     ROL_INSUFICIENTE("IDE-403-001", 403, "membresia.rol_insuficiente"),
-    EMPRESA_CON_ADMINISTRADORES("IDE-403-002", 403, "membresia.empresa_con_administradores"),
     SIN_ASOCIACION("IDE-403-003", 403, "membresia.sin_asociacion"),
     EMAIL_DUPLICADO("IDE-409-001", 409, "usuario.email_duplicado");
 

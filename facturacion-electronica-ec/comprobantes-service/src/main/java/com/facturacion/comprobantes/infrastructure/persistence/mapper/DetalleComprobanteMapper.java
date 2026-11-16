@@ -24,8 +24,8 @@ import com.facturacion.comprobantes.infrastructure.persistence.entity.DetalleImp
  * (entidad, filas de {@code detalle_impuesto}) no es algo que MapStruct sepa
  * convertir solo: cada fila lleva su {@code orden} (la posición en la lista) y
  * una referencia inversa a la línea, así que se construye a mano — la
- * referencia inversa se completa en {@link #linkImpuestosToDetalle}, mismo
- * patrón que {@code ComprobanteMapper.linkDetallesToComprobante}.
+ * referencia inversa se completa en {@link #vincularImpuestosADetalle}, mismo
+ * patrón que {@code ComprobanteMapper.vincularDetallesAComprobante}.
  * <p>
  * El dominio guarda {@code docSustentoFecha} como texto dd/MM/aaaa (así va en
  * el XML del SRI); la columna es {@code date}, se convierte aquí.
@@ -64,7 +64,7 @@ public interface DetalleComprobanteMapper {
             fila.codigoRetencion = impuesto.codigoRetencion();
             fila.docSustentoCodigo = impuesto.docSustentoCodigo();
             fila.docSustentoNumero = impuesto.docSustentoNumero();
-            fila.docSustentoFecha = parseFechaSri(impuesto.docSustentoFecha());
+            fila.docSustentoFecha = convertirFechaSri(impuesto.docSustentoFecha());
             filas.add(fila);
         }
         return filas;
@@ -90,12 +90,12 @@ public interface DetalleComprobanteMapper {
         return impuestos;
     }
 
-    private static LocalDate parseFechaSri(String fecha) {
+    private static LocalDate convertirFechaSri(String fecha) {
         return fecha == null || fecha.isBlank() ? null : LocalDate.parse(fecha, FECHA_SRI);
     }
 
     @AfterMapping
-    default void linkImpuestosToDetalle(@MappingTarget DetalleComprobanteEntity entity) {
+    default void vincularImpuestosADetalle(@MappingTarget DetalleComprobanteEntity entity) {
         if (entity.impuestos != null) {
             entity.impuestos.forEach(impuesto -> impuesto.detalle = entity);
         }

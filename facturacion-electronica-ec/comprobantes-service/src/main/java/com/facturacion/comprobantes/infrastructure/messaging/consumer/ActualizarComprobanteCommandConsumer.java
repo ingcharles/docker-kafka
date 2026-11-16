@@ -37,7 +37,7 @@ public class ActualizarComprobanteCommandConsumer {
 
     @Incoming("comprobante-comandos-in")
     @WithTransaction
-    public Uni<Void> onCommand(ActualizarComprobanteCommand command) {
+    public Uni<Void> procesarComando(ActualizarComprobanteCommand command) {
         return processedMessageRepository.alreadyProcessed(command.eventId())
             .onItem().transformToUni(processed -> {
                 if (Boolean.TRUE.equals(processed)) {
@@ -46,6 +46,8 @@ public class ActualizarComprobanteCommandConsumer {
                     return Uni.createFrom().voidItem();
                 }
                 return actualizacionService.aplicarComando(command)
+                    .invoke(resultado -> LOG.infof("Comando %s (%s) del comprobante %s: %s", command.tipoComando(),
+                        command.eventId(), command.comprobanteId(), resultado))
                     .chain(() -> processedMessageRepository.persist(ProcessedMessageEntity.of(command.eventId())))
                     .replaceWithVoid();
             });

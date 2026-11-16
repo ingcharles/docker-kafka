@@ -23,9 +23,9 @@ class FirmaErrorTest {
     void cadaCodigoTieneSuMensajeYNoSobranClaves() {
         for (FirmaError error : FirmaError.values()) {
             assertTrue(Mensajes.existe(error.claveMensaje()), error + " no tiene clave en mensajes.properties");
-            assertFalse(Mensajes.de(error, "x").isBlank(), error + " tiene mensaje vacío");
+            assertFalse(Mensajes.obtenerTexto(error, "x").isBlank(), error + " tiene mensaje vacío");
         }
-        Set<String> sobrantes = new HashSet<>(Mensajes.claves());
+        Set<String> sobrantes = new HashSet<>(Mensajes.listarClaves());
         sobrantes.removeAll(Arrays.stream(FirmaError.values()).map(FirmaError::claveMensaje).collect(Collectors.toSet()));
         assertTrue(sobrantes.isEmpty(), "Claves sin código de error: " + sobrantes);
     }

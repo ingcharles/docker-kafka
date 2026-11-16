@@ -3,8 +3,8 @@ package com.facturacion.comprobantes.domain.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
-import com.facturacion.comprobantes.shared.error.CodigoError;
 import com.facturacion.commons.exception.ErrorNegocioException;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /**
  * El valor retenido de una línea de retención debe ser el que resulta de su base y su porcentaje:

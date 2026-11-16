@@ -6,7 +6,6 @@ import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
@@ -41,13 +40,13 @@ final class SoapXmlUtil {
     }
 
     /** Primer elemento con esa etiqueta en todo el documento (namespaces no importan acá: el SRI no los usa para calificar los hijos). */
-    static String textoDe(Document doc, String etiqueta) {
+    static String obtenerTexto(Document doc, String etiqueta) {
         NodeList nodos = doc.getElementsByTagName(etiqueta);
         return nodos.getLength() == 0 ? null : nodos.item(0).getTextContent().trim();
     }
 
     /** Texto del primer hijo directo de {@code padre} con esa etiqueta, o null si no existe. */
-    static String hijoTexto(Element padre, String etiqueta) {
+    static String obtenerTextoHijo(Element padre, String etiqueta) {
         NodeList hijos = padre.getElementsByTagName(etiqueta);
         for (int i = 0; i < hijos.getLength(); i++) {
             Node hijo = hijos.item(i);

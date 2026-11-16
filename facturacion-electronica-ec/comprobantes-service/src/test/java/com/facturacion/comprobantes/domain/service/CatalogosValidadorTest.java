@@ -12,6 +12,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.comprobantes.domain.model.enums.ImpuestoSri;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoIdentificacionSri;
@@ -23,7 +24,6 @@ import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha.SustentoR
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha.TarifaRow;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha.TipoIdentificacionRow;
 import com.facturacion.comprobantes.shared.error.CodigoError;
-import com.facturacion.commons.exception.ErrorNegocioException;
 
 class CatalogosValidadorTest {
 

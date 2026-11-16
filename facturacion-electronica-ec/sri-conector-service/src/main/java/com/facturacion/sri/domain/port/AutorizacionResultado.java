@@ -1,4 +1,4 @@
-package com.facturacion.sri.infrastructure.soap;
+package com.facturacion.sri.domain.port;
 
 import java.time.Instant;
 

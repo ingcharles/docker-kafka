@@ -19,4 +19,7 @@ public interface ApiKeyRepository {
 
     /** UPDATE atómico: marca revocada=true solo si pertenece al usuario dueño. Retorna filas afectadas (0 o 1). */
     Uni<Integer> revocar(UUID id, UUID usuarioId);
+
+    /** Api-keys del usuario para ese ruc que siguen vigentes (no revocadas y sin vencer). */
+    Uni<List<ApiKey>> findVigentesByUsuarioIdAndRuc(UUID usuarioId, String ruc);
 }

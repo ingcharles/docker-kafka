@@ -36,7 +36,7 @@ class CatalogoErroresTest {
 
     @Test
     void mensajesReemplazaLosParametrosSinReglasDeComillas() {
-        assertEquals("No existe 'x'", Mensajes.de(ErrorComun.RECURSO_NO_ENCONTRADO, "No existe 'x'"));
-        assertEquals("Falló la validación", Mensajes.de(ErrorComun.VALIDACION_FALLIDA));
+        assertEquals("No existe 'x'", Mensajes.obtenerTexto(ErrorComun.RECURSO_NO_ENCONTRADO, "No existe 'x'"));
+        assertEquals("Falló la validación", Mensajes.obtenerTexto(ErrorComun.VALIDACION_FALLIDA));
     }
 }

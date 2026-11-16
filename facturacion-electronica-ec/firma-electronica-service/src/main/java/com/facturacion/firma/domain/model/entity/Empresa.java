@@ -29,6 +29,9 @@ public class Empresa {
     private boolean activo;
     private Instant creadoEn;
     private Instant actualizadoEn;
+    /** Logo para el RIDE (PNG o JPEG) y su tipo MIME; null si la empresa no subió uno. */
+    private byte[] logo;
+    private String logoTipo;
 
     public Empresa() {
     }
@@ -183,6 +186,22 @@ public class Empresa {
 
     public void setCreadoEn(Instant creadoEn) {
         this.creadoEn = creadoEn;
+    }
+
+    public byte[] getLogo() {
+        return logo;
+    }
+
+    public void setLogo(byte[] logo) {
+        this.logo = logo;
+    }
+
+    public String getLogoTipo() {
+        return logoTipo;
+    }
+
+    public void setLogoTipo(String logoTipo) {
+        this.logoTipo = logoTipo;
     }
 
     public Instant getActualizadoEn() {

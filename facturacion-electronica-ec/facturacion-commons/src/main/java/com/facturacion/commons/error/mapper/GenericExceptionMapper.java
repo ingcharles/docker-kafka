@@ -1,11 +1,11 @@
 package com.facturacion.commons.error.mapper;
 
-import org.jboss.logging.Logger;
-
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
+
+import org.jboss.logging.Logger;
 
 import com.facturacion.commons.error.ApiErrorResponse;
 import com.facturacion.commons.error.ErrorComun;
@@ -28,7 +28,7 @@ public class GenericExceptionMapper implements ExceptionMapper<Exception> {
         }
         LOG.error("Excepción no manejada", exception);
         ApiErrorResponse body = new ApiErrorResponse(500, "Internal Server Error",
-            Mensajes.de(ErrorComun.ERROR_INTERNO), null, ErrorComun.ERROR_INTERNO.codigo());
+            Mensajes.obtenerTexto(ErrorComun.ERROR_INTERNO), null, ErrorComun.ERROR_INTERNO.codigo());
         return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(body).build();
     }
 }

@@ -10,7 +10,7 @@ import jakarta.validation.constraints.NotNull;
 /**
  * API genérica a propósito: no distingue si los ítems facturados son
  * productos o servicios (el SRI tampoco lo hace a este nivel) — cualquier
- * sistema externo (ecommerce, POS, un ERP) puede llamar esto con solo los
+ * sistema externo (una tienda en línea, un POS, un ERP) puede llamar esto con solo los
  * datos de la venta, sin conocer nada de inventario-service ni de
  * firma-electronica-service (ambos datos, empresa y detalle/impuestos,
  * viajan inline en este mismo request — ver ARQUITECTURA.md).

@@ -14,7 +14,6 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
-
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -27,6 +26,11 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.rest.Respuestas;
+import com.facturacion.commons.exception.SinPermisoException;
+import com.facturacion.commons.paging.PageRequest;
+import com.facturacion.commons.paging.PagedResponse;
+import com.facturacion.commons.security.TokenPrincipal;
 import com.facturacion.inventario.application.dto.ActualizarItemRequest;
 import com.facturacion.inventario.application.dto.CrearItemRequest;
 import com.facturacion.inventario.application.dto.ItemResponse;
@@ -37,10 +41,6 @@ import com.facturacion.inventario.application.service.ItemService;
 import com.facturacion.inventario.application.service.KardexService;
 import com.facturacion.inventario.domain.model.enums.TipoItem;
 import com.facturacion.inventario.infrastructure.security.AccesoEmpresa;
-import com.facturacion.commons.security.TokenPrincipal;
-import com.facturacion.commons.exception.SinPermisoException;
-import com.facturacion.commons.paging.PageRequest;
-import com.facturacion.commons.paging.PagedResponse;
 
 /**
  * Catálogo unificado de productos y servicios. Las operaciones sobre
@@ -83,7 +83,7 @@ public class ItemResource {
         return itemService.crear(request)
             .map(response -> {
                 URI location = uriInfo.getAbsolutePathBuilder().path(response.getId().toString()).build();
-                return Response.created(location).entity(response).build();
+                return Respuestas.creado(location, response);
             });
     }
 
@@ -97,7 +97,7 @@ public class ItemResource {
             @Parameter(description = "Id del ítem", required = true) @PathParam("id") UUID id,
             @Valid ActualizarItemRequest request) {
         return acceso.exigirItemEscritura(id).chain(() -> itemService.actualizar(id, request))
-            .map(response -> Response.ok(response).build());
+            .map(response -> Respuestas.actualizado(response));
     }
 
     @GET
@@ -140,7 +140,7 @@ public class ItemResource {
             @Parameter(description = "Id del ítem", required = true) @PathParam("id") UUID id,
             @Valid RegistrarEntradaKardexRequest request) {
         return acceso.exigirItemEscritura(id).chain(() -> kardexService.registrarEntrada(id, request))
-            .map(response -> Response.status(Response.Status.CREATED).entity(response).build());
+            .map(response -> Respuestas.creado(response));
     }
 
     @POST
@@ -156,7 +156,7 @@ public class ItemResource {
             @Parameter(description = "Id del ítem", required = true) @PathParam("id") UUID id,
             @Valid RegistrarAjusteKardexRequest request) {
         return acceso.exigirItemEscritura(id).chain(() -> kardexService.registrarAjuste(id, request))
-            .map(response -> Response.status(Response.Status.CREATED).entity(response).build());
+            .map(response -> Respuestas.creado(response));
     }
 
     @GET

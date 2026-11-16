@@ -13,10 +13,10 @@ import jakarta.inject.Inject;
 import io.quarkus.panache.common.Page;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.paging.PageResult;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
-import com.facturacion.commons.paging.PageResult;
 import com.facturacion.comprobantes.domain.repository.ComprobanteRepository;
 import com.facturacion.comprobantes.infrastructure.persistence.entity.ComprobanteEntity;
 import com.facturacion.comprobantes.infrastructure.persistence.entity.SecuencialComprobanteEntity;
@@ -96,7 +96,7 @@ public class ComprobanteRepositoryImpl implements ComprobanteRepository {
     }
 
     @Override
-    public Uni<Long> siguienteSecuencial(String ruc, TipoComprobante tipo, String establecimiento,
+    public Uni<Long> obtenerSiguienteSecuencial(String ruc, TipoComprobante tipo, String establecimiento,
             String puntoEmision) {
         return secuencialRepository.update(
                 "ultimoSecuencial = ultimoSecuencial + 1 "

@@ -2,8 +2,8 @@ package com.facturacion.inventario.domain.service;
 
 import java.math.BigDecimal;
 
-import com.facturacion.inventario.shared.error.CodigoError;
 import com.facturacion.commons.exception.ErrorNegocioException;
+import com.facturacion.inventario.shared.error.CodigoError;
 
 /**
  * Coherencia de la clasificación tributaria de un ítem. Lanza {@link ErrorNegocioException} con su

@@ -16,6 +16,7 @@ package com.facturacion.comprobantes.domain.model.enums;
  * {@code xml_firmado} es correcto y esperado; lo que sería un bug es guardar solo eso sin el
  * envoltorio {@code <autorizacion>} con sus metadatos.
  * NO_AUTORIZADO: {@code motivo_rechazo} guardado — se corrige y se reenvía con la misma clave de acceso.
+ * STOCK_INSUFICIENTE: con el descuento de inventario habilitado, el orquestador no pudo reservar el stock de alguna línea; {@code motivo_rechazo} dice cuáles. Terminal: se emite un comprobante nuevo cuando haya stock.
  * NOTIFICADO: ya se envió por correo al receptor — estado terminal feliz.
  * ANULADO: fuera de alcance de esta versión (requiere el flujo de anulación formal del SRI, ver ARQUITECTURA.md) — el valor existe para no tener que migrar el enum más adelante.
  */
@@ -26,7 +27,9 @@ public enum EstadoComprobante {
     AUTORIZADO,
     NO_AUTORIZADO,
     NOTIFICADO,
-    ANULADO;
+    ANULADO,
+    /** El inventario no tenía stock para alguna línea (solo si el descuento de inventario está habilitado): terminal. */
+    STOCK_INSUFICIENTE;
 
     /**
      * Si el comprobante puede pasar de este estado a {@code destino}. El ciclo de vida solo avanza: BORRADOR →
@@ -35,10 +38,10 @@ public enum EstadoComprobante {
      */
     public boolean puedePasarA(EstadoComprobante destino) {
         return switch (this) {
-            case BORRADOR -> destino == FIRMADO || destino == FIRMA_FALLIDA;
+            case BORRADOR -> destino == FIRMADO || destino == FIRMA_FALLIDA || destino == STOCK_INSUFICIENTE;
             case FIRMADO -> destino == AUTORIZADO || destino == NO_AUTORIZADO;
             case AUTORIZADO -> destino == NOTIFICADO;
-            case FIRMA_FALLIDA, NO_AUTORIZADO, NOTIFICADO, ANULADO -> false;
+            case FIRMA_FALLIDA, NO_AUTORIZADO, NOTIFICADO, ANULADO, STOCK_INSUFICIENTE -> false;
         };
     }
 

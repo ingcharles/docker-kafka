@@ -5,10 +5,10 @@ import java.math.RoundingMode;
 import java.util.List;
 import java.util.Set;
 
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.comprobantes.domain.model.enums.FormaPagoSri;
 import com.facturacion.comprobantes.domain.model.vo.Pago;
 import com.facturacion.comprobantes.shared.error.CodigoError;
-import com.facturacion.commons.exception.ErrorNegocioException;
 
 /**
  * Reglas de negocio de {@code <pagos>} que el XSD del SRI no cubre (el XSD solo exige un código {@code 01}–{@code 21},
@@ -72,10 +72,10 @@ public final class PagosValidador {
                 }
             }
 
-            suma = suma.add(aDosDecimales(pago.total()));
+            suma = suma.add(redondearADosDecimales(pago.total()));
         }
 
-        BigDecimal esperado = aDosDecimales(importeTotal);
+        BigDecimal esperado = redondearADosDecimales(importeTotal);
         if (suma.compareTo(esperado) != 0) {
             throw new ErrorNegocioException(CodigoError.PAGOS_NO_CUADRAN, suma.toPlainString(),
                 esperado.toPlainString());
@@ -115,7 +115,7 @@ public final class PagosValidador {
         return "pagos[" + indice + "]";
     }
 
-    private static BigDecimal aDosDecimales(BigDecimal monto) {
+    private static BigDecimal redondearADosDecimales(BigDecimal monto) {
         return monto.setScale(2, RoundingMode.HALF_UP);
     }
 

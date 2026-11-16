@@ -12,8 +12,8 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.Provider;
 
-import com.facturacion.identidad.infrastructure.crypto.JwtService;
 import com.facturacion.commons.exception.TokenInvalidoException;
+import com.facturacion.identidad.infrastructure.crypto.JwtService;
 
 /**
  * Exige {@code Authorization: Bearer <token de sesión>} en cualquier

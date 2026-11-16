@@ -15,9 +15,9 @@ import io.quarkus.panache.common.Page;
 import io.quarkus.panache.common.Sort;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.paging.PageResult;
 import com.facturacion.orquestacion.domain.model.entity.SagaInstance;
 import com.facturacion.orquestacion.domain.model.enums.SagaState;
-import com.facturacion.commons.paging.PageResult;
 import com.facturacion.orquestacion.domain.repository.SagaInstanceRepository;
 import com.facturacion.orquestacion.infrastructure.persistence.entity.SagaInstanceEntity;
 import com.facturacion.orquestacion.infrastructure.persistence.mapper.SagaInstanceMapper;
@@ -63,7 +63,7 @@ public class SagaInstanceRepositoryImpl implements SagaInstanceRepository {
     }
 
     @Override
-    public Uni<SagaInstance> updateState(UUID comprobanteId, SagaState to, String failureReason,
+    public Uni<SagaInstance> transicionarEstado(UUID comprobanteId, SagaState to, String failureReason,
             SagaState... allowedFrom) {
         List<String> allowedNames = new ArrayList<>();
         for (SagaState state : allowedFrom) {

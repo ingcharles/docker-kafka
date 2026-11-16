@@ -11,31 +11,31 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
+import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.Vertx;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.sri.application.dto.EnvioSriResponse;
 import com.facturacion.sri.application.event.EnviarComprobanteCommand;
 import com.facturacion.sri.application.event.SriResultadoEventMessage;
+import com.facturacion.sri.application.mapper.EnvioSriResponseMapper;
 import com.facturacion.sri.domain.model.entity.ConfiguracionEmpresaLocal;
 import com.facturacion.sri.domain.model.entity.EnvioSri;
 import com.facturacion.sri.domain.model.enums.AmbienteSri;
 import com.facturacion.sri.domain.model.enums.EstadoEnvioSri;
+import com.facturacion.sri.domain.port.AutorizacionResultado;
+import com.facturacion.sri.domain.port.AutorizacionSri;
+import com.facturacion.sri.domain.port.EventoSaliente;
+import com.facturacion.sri.domain.port.EventosSalientes;
+import com.facturacion.sri.domain.port.RecepcionResultado;
+import com.facturacion.sri.domain.port.RecepcionSri;
 import com.facturacion.sri.domain.repository.ConfiguracionEmpresaLocalRepository;
 import com.facturacion.sri.domain.repository.EnvioSriRepository;
-import com.facturacion.sri.infrastructure.outbox.OutboxEventEntity;
-import com.facturacion.sri.infrastructure.outbox.OutboxEventRepository;
-import com.facturacion.sri.infrastructure.persistence.mapper.EnvioSriMapper;
-import com.facturacion.sri.infrastructure.soap.AutorizacionResultado;
-import com.facturacion.sri.infrastructure.soap.RecepcionResultado;
-import com.facturacion.sri.infrastructure.soap.SriAutorizacionClient;
-import com.facturacion.sri.infrastructure.soap.SriRecepcionClient;
 import com.facturacion.sri.shared.constant.MessagingConstants;
-import com.facturacion.commons.exception.NotFoundException;
 
 /**
  * Dueño del agregado EnvioSri. {@link #procesarComando} arranca el flujo
@@ -52,47 +52,52 @@ public class SriConectorService {
     private static final Logger LOG = Logger.getLogger(SriConectorService.class);
 
     private final EnvioSriRepository envioSriRepository;
-    private final SriRecepcionClient recepcionClient;
-    private final SriAutorizacionClient autorizacionClient;
+    private final RecepcionSri recepcionClient;
+    private final AutorizacionSri autorizacionClient;
     private final ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository;
-    private final OutboxEventRepository outboxRepository;
+    private final EventosSalientes salientes;
     private final ObjectMapper objectMapper;
-    private final EnvioSriMapper mapper;
+    private final EnvioSriResponseMapper mapper;
 
     @ConfigProperty(name = "sri.autorizacion.poll.max-intentos")
     int maxIntentosAutorizacion;
 
     @Inject
-    public SriConectorService(EnvioSriRepository envioSriRepository, SriRecepcionClient recepcionClient,
-            SriAutorizacionClient autorizacionClient,
+    public SriConectorService(EnvioSriRepository envioSriRepository, RecepcionSri recepcionClient,
+            AutorizacionSri autorizacionClient,
             ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository,
-            OutboxEventRepository outboxRepository, ObjectMapper objectMapper, EnvioSriMapper mapper) {
+            EventosSalientes salientes, ObjectMapper objectMapper, EnvioSriResponseMapper mapper) {
         this.envioSriRepository = envioSriRepository;
         this.recepcionClient = recepcionClient;
         this.autorizacionClient = autorizacionClient;
         this.configuracionEmpresaLocalRepository = configuracionEmpresaLocalRepository;
-        this.outboxRepository = outboxRepository;
+        this.salientes = salientes;
         this.objectMapper = objectMapper;
         this.mapper = mapper;
     }
 
     /**
-     * Llama a Recepción (I/O bloqueante en el pool de workers) y solo
-     * después toca Hibernate Reactive — hop-back al contexto de Vert.x del
-     * llamador, mismo patrón que {@code FirmaXadesService.firmarXml} en
-     * firma-electronica-service (ver feedback_quarkus_reactive_kafka_gotchas).
+     * Llama a Recepción (I/O bloqueante en el pool de workers) SIN sesión ni transacción de BD abiertas: el SRI puede
+     * tardar decenas de segundos y, con la transacción abierta, cada comando en vuelo retendría una conexión del pool
+     * (unas pocas llamadas lentas lo agotarían). Tres pasos: leer la configuración de la empresa en una sesión corta,
+     * llamar al SRI sin BD, y guardar el resultado en una transacción corta (hop-back al contexto de Vert.x del
+     * llamador antes de volver a tocar Hibernate Reactive, mismo patrón que {@code FirmaXadesService.firmarXml}).
+     * <p>
+     * Si el guardado falla tras haber enviado, el comando se reprocesa y el SRI contesta que la clave de acceso ya
+     * fue recibida; ese caso ya se trata como idempotente por la clave de acceso.
      */
-    @WithTransaction
     public Uni<Void> procesarComando(EnviarComprobanteCommand command) {
         io.vertx.core.Context callingContext = Vertx.currentContext();
         AmbienteSri ambiente = AmbienteSri.valueOf(command.ambiente());
-        return configuracionEmpresaLocalRepository.findByRucAndClave(command.empresaRuc(), "sri.recepcion.url")
+        return Panache.withSession(
+                () -> configuracionEmpresaLocalRepository.findByRucAndClave(command.empresaRuc(), "sri.recepcion.url"))
             .onItem().transformToUni(configuracion -> {
                 String urlOverride = configuracion == null ? null : configuracion.getValor();
                 return recepcionClient.validarComprobante(command.xmlFirmado(), ambiente, urlOverride);
             })
             .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
-            .onItem().transformToUni(resultado -> guardarResultadoRecepcion(command, ambiente, resultado));
+            .onItem().transformToUni(resultado -> Panache.withTransaction(
+                () -> guardarResultadoRecepcion(command, ambiente, resultado)));
     }
 
     private Uni<Void> guardarResultadoRecepcion(EnviarComprobanteCommand command, AmbienteSri ambiente,
@@ -120,8 +125,8 @@ public class SriConectorService {
             resultado.mensajes() != null ? " — " + resultado.mensajes() : "");
 
         return envioSriRepository.persist(envio)
-            .chain(guardado -> outboxRepository.persist(OutboxEventEntity.of(command.comprobanteId(), eventType,
-                MessagingConstants.SRI_EVENTS_TOPIC, writeValueAsString(mensaje))))
+            .chain(guardado -> salientes.registrar(new EventoSaliente(command.comprobanteId(), eventType,
+                MessagingConstants.SRI_EVENTS_TOPIC, serializarAJson(mensaje))))
             .replaceWithVoid();
     }
 
@@ -132,26 +137,27 @@ public class SriConectorService {
      * {@code ConfiguracionEmpresaLocal}) — si no hay ajuste, se usan los
      * valores globales de {@code application.properties}.
      */
-    @WithTransaction
     public Uni<Void> consultarAutorizacion(EnvioSri envio) {
         io.vertx.core.Context callingContext = Vertx.currentContext();
-        // Secuencial a propósito (no Uni.combine): dos consultas Hibernate
-        // Reactive concurrentes sobre la misma sesión reactiva rompen el
-        // procesamiento del result set ("Illegal pop() with non-matching
-        // JdbcValuesSourceProcessingState") — hay que encadenarlas, no
-        // correrlas en paralelo, aunque sean independientes entre sí (mismo
-        // bug ya encontrado y arreglado en ComprobanteService.emitir).
-        return configuracionEmpresaLocalRepository.findByRucAndClave(envio.getEmpresaRuc(), "sri.autorizacion.url")
-            .onItem().transformToUni(configuracionUrl -> configuracionEmpresaLocalRepository
-                .findByRucAndClave(envio.getEmpresaRuc(), "sri.autorizacion.poll.max-intentos")
-                .onItem().transformToUni(configuracionMaxIntentos -> {
-                    String urlOverride = configuracionUrl == null ? null : configuracionUrl.getValor();
-                    int maxIntentos = resolverMaxIntentos(configuracionMaxIntentos);
-                    return autorizacionClient.consultar(envio.getClaveAcceso(), envio.getAmbiente(), urlOverride)
-                        .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
-                        .onItem()
-                        .transformToUni(resultado -> aplicarResultadoAutorizacion(envio, resultado, maxIntentos));
-                }));
+        // Mismo esquema que procesarComando: la consulta al SRI no se hace con la transacción abierta. Las dos lecturas
+        // de configuración van encadenadas dentro de una sola sesión, a propósito (no Uni.combine): dos consultas
+        // Hibernate Reactive concurrentes sobre la misma sesión rompen el procesamiento del result set ("Illegal pop()
+        // with non-matching JdbcValuesSourceProcessingState"), mismo bug ya corregido en ComprobanteService.emitir.
+        return Panache.withSession(() -> configuracionEmpresaLocalRepository
+                .findByRucAndClave(envio.getEmpresaRuc(), "sri.autorizacion.url")
+                .onItem().transformToUni(configuracionUrl -> configuracionEmpresaLocalRepository
+                    .findByRucAndClave(envio.getEmpresaRuc(), "sri.autorizacion.poll.max-intentos")
+                    .map(configuracionMaxIntentos -> new AjustesConsulta(
+                        configuracionUrl == null ? null : configuracionUrl.getValor(),
+                        resolverMaxIntentos(configuracionMaxIntentos)))))
+            .onItem().transformToUni(ajustes -> autorizacionClient
+                .consultar(envio.getClaveAcceso(), envio.getAmbiente(), ajustes.urlOverride())
+                .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
+                .onItem().transformToUni(resultado -> Panache.withTransaction(
+                    () -> aplicarResultadoAutorizacion(envio, resultado, ajustes.maxIntentos()))));
+    }
+
+    private record AjustesConsulta(String urlOverride, int maxIntentos) {
     }
 
     /** {@code null}/no numérico → el default global (documentado en la migración de configuracion_empresa_local). */
@@ -200,8 +206,8 @@ public class SriConectorService {
         LOG.infof("Autorización SRI para %s: %s", envio.getClaveAcceso(), envio.getEstado());
 
         return envioSriRepository.update(envio)
-            .chain(guardado -> outboxRepository.persist(OutboxEventEntity.of(envio.getComprobanteId(), eventType,
-                MessagingConstants.SRI_EVENTS_TOPIC, writeValueAsString(mensaje))))
+            .chain(guardado -> salientes.registrar(new EventoSaliente(envio.getComprobanteId(), eventType,
+                MessagingConstants.SRI_EVENTS_TOPIC, serializarAJson(mensaje))))
             .replaceWithVoid();
     }
 
@@ -213,7 +219,7 @@ public class SriConectorService {
     @io.quarkus.hibernate.reactive.panache.common.WithSession
     public Uni<EnvioSri> obtenerDominioPorComprobanteId(UUID comprobanteId, String empresaRuc) {
         return envioSriRepository.findByComprobanteId(comprobanteId)
-            .onItem().transform(envio -> soloDeLaEmpresa(envio, empresaRuc))
+            .onItem().transform(envio -> filtrarPorEmpresa(envio, empresaRuc))
             .onItem().ifNull().failWith(() ->
                 new NotFoundException("No hay ningún envío al SRI para el comprobante " + comprobanteId));
     }
@@ -221,7 +227,7 @@ public class SriConectorService {
     @io.quarkus.hibernate.reactive.panache.common.WithSession
     public Uni<EnvioSriResponse> obtenerPorComprobanteId(UUID comprobanteId, String empresaRuc) {
         return envioSriRepository.findByComprobanteId(comprobanteId)
-            .onItem().transform(envio -> soloDeLaEmpresa(envio, empresaRuc))
+            .onItem().transform(envio -> filtrarPorEmpresa(envio, empresaRuc))
             .onItem().ifNull().failWith(() ->
                 new NotFoundException("No hay ningún envío al SRI para el comprobante " + comprobanteId))
             .map(mapper::toResponse);
@@ -230,7 +236,7 @@ public class SriConectorService {
     @io.quarkus.hibernate.reactive.panache.common.WithSession
     public Uni<EnvioSriResponse> obtenerPorClaveAcceso(String claveAcceso, String empresaRuc) {
         return envioSriRepository.findByClaveAcceso(claveAcceso)
-            .onItem().transform(envio -> soloDeLaEmpresa(envio, empresaRuc))
+            .onItem().transform(envio -> filtrarPorEmpresa(envio, empresaRuc))
             .onItem().ifNull().failWith(() ->
                 new NotFoundException("No hay ningún envío al SRI con clave de acceso " + claveAcceso))
             .map(mapper::toResponse);
@@ -240,12 +246,12 @@ public class SriConectorService {
      * Un envío de otra empresa se trata como inexistente (404): la api-key solo ve lo de su propio RUC y no se
      * revela que el comprobante existe.
      */
-    private static EnvioSri soloDeLaEmpresa(EnvioSri envio, String empresaRuc) {
+    private static EnvioSri filtrarPorEmpresa(EnvioSri envio, String empresaRuc) {
         // empresa_ruc es nullable (envíos anteriores a V2__ruc_envio_sri): Objects.equals evita el NPE → 404.
         return envio != null && Objects.equals(envio.getEmpresaRuc(), empresaRuc) ? envio : null;
     }
 
-    private String writeValueAsString(Object value) {
+    private String serializarAJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {

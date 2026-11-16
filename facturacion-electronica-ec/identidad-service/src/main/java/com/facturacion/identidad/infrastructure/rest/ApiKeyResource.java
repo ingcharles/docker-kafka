@@ -12,7 +12,6 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
-
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
@@ -24,7 +23,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
-import com.facturacion.identidad.application.dto.ApiKeyCreadaResponse;
+import com.facturacion.commons.rest.Respuestas;
 import com.facturacion.identidad.application.dto.ApiKeyResponse;
 import com.facturacion.identidad.application.dto.CrearApiKeyRequest;
 import com.facturacion.identidad.application.service.ApiKeyService;
@@ -53,7 +52,7 @@ public class ApiKeyResource {
     @APIResponse(responseCode = "409", description = "Ya existe una api-key con ese nombre para este usuario")
     public Uni<Response> crear(@Valid CrearApiKeyRequest request) {
         return apiKeyService.crear(sesionActual.getUsuarioId(), request)
-            .map(response -> Response.status(Response.Status.CREATED).entity(response).build());
+            .map(response -> Respuestas.creado(response));
     }
 
     @GET
@@ -64,11 +63,11 @@ public class ApiKeyResource {
 
     @DELETE
     @Path("/{id}")
-    @Operation(summary = "Revocar una api-key", description = "Revocación de mejor esfuerzo — ver ARQUITECTURA.md.")
+    @Operation(summary = "Revocar una api-key", description = "Efectiva al instante en todos los servicios (se publica en facturacion.apikey.revocaciones.v1). Es idempotente.")
     @APIResponse(responseCode = "204", description = "Revocada")
-    @APIResponse(responseCode = "404", description = "No existe (o ya estaba revocada, o no es del usuario autenticado)")
+    @APIResponse(responseCode = "404", description = "No existe, o no es del usuario autenticado")
     public Uni<Response> revocar(@Parameter(description = "Id de la api-key") @PathParam("id") UUID id) {
         return apiKeyService.revocar(sesionActual.getUsuarioId(), id)
-            .map(ignorado -> Response.noContent().build());
+            .map(ignorado -> Respuestas.sinContenido());
     }
 }

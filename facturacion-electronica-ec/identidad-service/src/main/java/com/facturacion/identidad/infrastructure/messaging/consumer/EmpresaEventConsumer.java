@@ -48,7 +48,7 @@ public class EmpresaEventConsumer {
 
     @Incoming("empresa-events-in")
     @WithTransaction
-    public Uni<Void> onEvent(EmpresaEventMessage evento) {
+    public Uni<Void> procesarEvento(EmpresaEventMessage evento) {
         EmpresaLocal empresa = new EmpresaLocal();
         empresa.setId(evento.empresaId());
         empresa.setRuc(evento.ruc());

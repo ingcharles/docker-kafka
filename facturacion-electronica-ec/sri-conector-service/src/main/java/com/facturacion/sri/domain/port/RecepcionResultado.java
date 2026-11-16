@@ -1,4 +1,4 @@
-package com.facturacion.sri.infrastructure.soap;
+package com.facturacion.sri.domain.port;
 
 /**
  * {@code estado}: RECIBIDA (el sobre pasó validación de esquema/firma, hay

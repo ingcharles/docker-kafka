@@ -3,9 +3,9 @@ package com.facturacion.comprobantes.domain.service;
 import java.math.BigDecimal;
 import java.util.Optional;
 
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.comprobantes.domain.model.enums.TipoIdentificacionSri;
 import com.facturacion.comprobantes.shared.error.CodigoError;
-import com.facturacion.commons.exception.ErrorNegocioException;
 
 /**
  * Coherencia entre el tipo de identificación (Tabla 6 del SRI) y el número de identificación; las reglas de cada
@@ -31,7 +31,7 @@ public final class IdentificacionValidador {
      */
     public static void validarMontoConsumidorFinal(String codigoTipo, BigDecimal importeTotal, BigDecimal montoMaximo,
             String campo) {
-        boolean esConsumidorFinal = TipoIdentificacionSri.deCodigo(codigoTipo)
+        boolean esConsumidorFinal = TipoIdentificacionSri.buscarPorCodigo(codigoTipo)
             .filter(t -> t == TipoIdentificacionSri.CONSUMIDOR_FINAL).isPresent();
         if (esConsumidorFinal && importeTotal != null && importeTotal.compareTo(montoMaximo) > 0) {
             throw new ErrorNegocioException(CodigoError.CONSUMIDOR_FINAL_EXCEDE_MONTO, campo,
@@ -43,7 +43,7 @@ public final class IdentificacionValidador {
         if (codigoTipo == null || identificacion == null) {
             return; // @NotBlank del DTO ya lo exige
         }
-        Optional<TipoIdentificacionSri> tipo = TipoIdentificacionSri.deCodigo(codigoTipo);
+        Optional<TipoIdentificacionSri> tipo = TipoIdentificacionSri.buscarPorCodigo(codigoTipo);
 
         Optional<TipoIdentificacionSri> duenoDelNumero = TipoIdentificacionSri.conNumeroFijo(identificacion);
         if (duenoDelNumero.isPresent() && duenoDelNumero.get() != tipo.orElse(null)) {

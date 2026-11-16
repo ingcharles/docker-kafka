@@ -29,7 +29,7 @@ public class ItemEventConsumer {
 
     @Incoming("item-events-in")
     @WithTransaction
-    public Uni<Void> onEvent(ItemEventMessage evento) {
+    public Uni<Void> procesarEvento(ItemEventMessage evento) {
         ItemLocal item = new ItemLocal();
         item.setId(evento.itemId());
         item.setRuc(evento.ruc());

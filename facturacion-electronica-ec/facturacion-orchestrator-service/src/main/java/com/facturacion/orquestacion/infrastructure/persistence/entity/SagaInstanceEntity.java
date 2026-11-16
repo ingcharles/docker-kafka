@@ -43,4 +43,7 @@ public class SagaInstanceEntity extends PanacheEntityBase {
 
     @Column(name = "notificacion_esperada", nullable = false)
     public boolean notificacionEsperada = true;
+
+    @Column(name = "usa_stock", nullable = false)
+    public boolean usaStock;
 }

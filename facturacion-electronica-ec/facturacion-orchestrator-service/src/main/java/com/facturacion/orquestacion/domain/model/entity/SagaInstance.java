@@ -29,11 +29,13 @@ public class SagaInstance {
     private int reintentos;
     /** false si el comprobante no tiene correo: tras la autorización la saga termina sin esperar una notificación. */
     private boolean notificacionEsperada = true;
+    /** true si la saga usa inventario: al autorizar se confirma el stock y al fallar se libera. */
+    private boolean usaStock;
 
     public SagaInstance() {
     }
 
-    public static SagaInstance start(UUID comprobanteId, String empresaRuc, String claveAcceso, String ambiente,
+    public static SagaInstance iniciar(UUID comprobanteId, String empresaRuc, String claveAcceso, String ambiente,
             boolean notificacionEsperada) {
         SagaInstance instance = new SagaInstance();
         instance.id = comprobanteId;
@@ -45,6 +47,15 @@ public class SagaInstance {
         Instant now = Instant.now();
         instance.createdAt = now;
         instance.updatedAt = now;
+        return instance;
+    }
+
+    /** Como {@link #iniciar}, pero la saga empieza reservando stock en inventario (STOCK_PENDIENTE) antes de firmar. */
+    public static SagaInstance iniciarConReservaDeStock(UUID comprobanteId, String empresaRuc, String claveAcceso,
+            String ambiente, boolean notificacionEsperada) {
+        SagaInstance instance = iniciar(comprobanteId, empresaRuc, claveAcceso, ambiente, notificacionEsperada);
+        instance.state = SagaState.STOCK_PENDIENTE;
+        instance.usaStock = true;
         return instance;
     }
 
@@ -110,6 +121,14 @@ public class SagaInstance {
 
     public void setNotificacionEsperada(boolean notificacionEsperada) {
         this.notificacionEsperada = notificacionEsperada;
+    }
+
+    public boolean isUsaStock() {
+        return usaStock;
+    }
+
+    public void setUsaStock(boolean usaStock) {
+        this.usaStock = usaStock;
     }
 
     public int getReintentos() {

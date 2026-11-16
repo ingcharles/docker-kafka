@@ -26,8 +26,7 @@ import com.facturacion.firma.infrastructure.outbox.OutboxEventRepository;
 import com.facturacion.firma.shared.constant.MessagingConstants;
 
 /**
- * A diferencia del relay de outbox de un solo tópico fijo (como en la
- * mayoría de los servicios de ecommerce/), este servicio produce hacia
+ * A diferencia del relay de outbox de un solo tópico fijo, este servicio produce hacia
  * <b>dos</b> tópicos: eventos de empresa ({@code EmpresaService}) y eventos
  * de firma ({@code FirmarComprobanteConsumer}) — así que enruta cada fila
  * según {@code outbox_event.topic}, mismo patrón que {@code SagaCommandRelay}
@@ -63,7 +62,7 @@ public class OutboxRelay {
     private Map<String, Emitter<String>> emittersByTopic;
 
     @jakarta.annotation.PostConstruct
-    void init() {
+    void inicializar() {
         emittersByTopic = Map.of(
             MessagingConstants.EMPRESA_EVENTS_TOPIC, empresaEventsEmitter,
             MessagingConstants.FIRMA_EVENTS_TOPIC, firmaEventsEmitter,
@@ -78,7 +77,7 @@ public class OutboxRelay {
     // en el siguiente tick, pero quedaba un ERROR falso en el log).
     @Scheduled(every = "1s", delayed = "2s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     @WithTransaction
-    public Uni<Void> relay() {
+    public Uni<Void> publicarEventosPendientes() {
         return outboxRepository.findUnpublishedBatch(BATCH_SIZE)
             .onItem().transformToMulti(batch -> Multi.createFrom().iterable(batch))
             .onItem().transformToUniAndConcatenate(this::publish)

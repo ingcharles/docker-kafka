@@ -9,6 +9,8 @@ import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.notificacion.domain.port.CorreoSalida;
+
 /**
  * Envío real (no simulado) del comprobante autorizado por correo, con el
  * RIDE en PDF y el XML autorizado (el envoltorio {@code <autorizacion>}
@@ -22,7 +24,7 @@ import io.smallrye.mutiny.Uni;
  * muchos correos de golpe (ver su javadoc).
  */
 @ApplicationScoped
-public class CorreoService {
+public class CorreoService implements CorreoSalida {
 
     private static final java.nio.charset.Charset UTF8 = java.nio.charset.StandardCharsets.UTF_8;
 

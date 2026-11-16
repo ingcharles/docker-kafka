@@ -17,11 +17,11 @@ import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.Tuple;
 import io.vertx.pgclient.PgException;
 
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.comprobantes.domain.catalogo.CatalogoDef;
 import com.facturacion.comprobantes.domain.catalogo.CatalogoDef.Columna;
 import com.facturacion.comprobantes.domain.catalogo.CatalogoDef.Tipo;
 import com.facturacion.comprobantes.shared.error.CodigoError;
-import com.facturacion.commons.exception.ErrorNegocioException;
 
 /**
  * Consulta y mantenimiento de los catálogos del SRI (formas de pago, impuestos y tarifas, tipos de identificación,
@@ -53,7 +53,7 @@ public class CatalogoAdminService {
 
     /** @param soloVigentes si es true: activo y vigente en {@code fecha} (hoy si es null). */
     public Uni<List<Map<String, Object>>> listar(CatalogoDef def, boolean soloVigentes, LocalDate fecha) {
-        StringBuilder sql = new StringBuilder("select ").append(columnasSelect(def)).append(" from ")
+        StringBuilder sql = new StringBuilder("select ").append(construirColumnasSelect(def)).append(" from ")
             .append(def.nombre());
         Tuple params = Tuple.tuple();
         if (soloVigentes) {
@@ -63,7 +63,7 @@ public class CatalogoAdminService {
                 params.addString((fecha == null ? LocalDate.now() : fecha).toString());
             }
         }
-        sql.append(" order by ").append(def.claves().stream().map(Columna::nombre).collect(Collectors.joining(", ")));
+        sql.append(" order by ").append(def.listarClaves().stream().map(Columna::nombre).collect(Collectors.joining(", ")));
         Uni<io.vertx.mutiny.sqlclient.RowSet<Row>> consulta = params.size() == 0
             ? pool.query(sql.toString()).execute()
             : pool.preparedQuery(sql.toString()).execute(params);
@@ -110,15 +110,15 @@ public class CatalogoAdminService {
                 default -> "";
             });
         }
-        String claves = def.claves().stream().map(Columna::nombre).collect(Collectors.joining(", "));
+        String claves = def.listarClaves().stream().map(Columna::nombre).collect(Collectors.joining(", "));
         String actualizar = columnas.stream().filter(c -> !c.clave())
             .map(c -> c.nombre() + " = EXCLUDED." + c.nombre()).collect(Collectors.joining(", "));
         return "insert into " + def.nombre() + " (" + insertCols + ") values (" + placeholders
             + ") on conflict (" + claves + ") do update set " + actualizar + ", actualizado_en = now()"
-            + " returning " + columnasSelect(def);
+            + " returning " + construirColumnasSelect(def);
     }
 
-    private static String columnasSelect(CatalogoDef def) {
+    private static String construirColumnasSelect(CatalogoDef def) {
         return def.columnas().stream().map(c -> switch (c.tipo()) {
             case DECIMAL, FECHA -> c.nombre() + "::text as " + c.nombre();
             default -> c.nombre();

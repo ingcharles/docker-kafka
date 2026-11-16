@@ -56,7 +56,7 @@ public class ConstructorNotaCredito implements ConstructorComprobante<CrearNotaC
                 comprobante.setDetalles(detalles);
                 comprobante.setDocModificadoTipo(request.getDocModificadoTipo());
                 comprobante.setDocModificadoNumero(request.getDocModificadoNumero());
-                comprobante.setDocModificadoFecha(comun.parseFecha(request.getDocModificadoFecha()));
+                comprobante.setDocModificadoFecha(comun.convertirFecha(request.getDocModificadoFecha()));
                 comprobante.setMotivo(request.getMotivo());
                 comprobante.setCamposAdicionales(comun.camposAdicionales(request.getCampoAdicional()));
                 return comprobante;

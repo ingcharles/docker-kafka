@@ -22,7 +22,7 @@ public class ApiException extends RuntimeException {
 
     /** El texto sale de {@code mensajes*.properties} con los {@code parametros} de la entrada. */
     public ApiException(ErrorCatalogo error, Object... parametros) {
-        super(Mensajes.de(error, parametros));
+        super(Mensajes.obtenerTexto(error, parametros));
         this.error = error;
         this.detalles = List.of();
     }
@@ -35,7 +35,7 @@ public class ApiException extends RuntimeException {
     }
 
     protected ApiException(ErrorCatalogo error, List<String> detalles, Object[] parametros) {
-        super(Mensajes.de(error, parametros));
+        super(Mensajes.obtenerTexto(error, parametros));
         this.error = error;
         this.detalles = List.copyOf(detalles);
     }

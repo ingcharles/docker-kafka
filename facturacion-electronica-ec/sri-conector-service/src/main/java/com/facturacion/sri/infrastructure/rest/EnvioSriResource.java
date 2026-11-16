@@ -19,9 +19,9 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.security.TokenPrincipal;
 import com.facturacion.sri.application.service.SriConectorService;
 import com.facturacion.sri.domain.model.entity.EnvioSri;
-import com.facturacion.commons.security.TokenPrincipal;
 
 /**
  * Superficie de observabilidad — ver el estado del envío/autorización de un

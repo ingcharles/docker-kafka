@@ -14,7 +14,6 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
-
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -27,6 +26,11 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.rest.Respuestas;
+import com.facturacion.commons.exception.SinPermisoException;
+import com.facturacion.commons.paging.PageRequest;
+import com.facturacion.commons.paging.PagedResponse;
+import com.facturacion.commons.security.TokenPrincipal;
 import com.facturacion.comprobantes.application.dto.ComprobanteResponse;
 import com.facturacion.comprobantes.application.dto.CrearFacturaRequest;
 import com.facturacion.comprobantes.application.dto.CrearGuiaRemisionRequest;
@@ -39,13 +43,9 @@ import com.facturacion.comprobantes.application.service.ComprobanteConsultaServi
 import com.facturacion.comprobantes.application.service.ComprobanteService;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
-import com.facturacion.commons.security.TokenPrincipal;
-import com.facturacion.commons.exception.SinPermisoException;
-import com.facturacion.commons.paging.PageRequest;
-import com.facturacion.commons.paging.PagedResponse;
 
 /**
- * Superficie de observabilidad y de creación — igual que en ecommerce/,
+ * Superficie de observabilidad y de creación:
  * nada aquí modifica el estado de un comprobante una vez creado: eso
  * siempre ocurre vía los comandos que manda facturacion-orchestrator-service
  * por Kafka. Cada creación valida que el {@code ruc} de la empresa coincida
@@ -107,7 +107,7 @@ public class ComprobanteResource {
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
                     .build();
-                return Response.created(location).entity(response).build();
+                return Respuestas.creado(location, response);
             });
     }
 
@@ -124,7 +124,7 @@ public class ComprobanteResource {
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
                     .build();
-                return Response.created(location).entity(response).build();
+                return Respuestas.creado(location, response);
             });
     }
 
@@ -141,7 +141,7 @@ public class ComprobanteResource {
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
                     .build();
-                return Response.created(location).entity(response).build();
+                return Respuestas.creado(location, response);
             });
     }
 
@@ -158,7 +158,7 @@ public class ComprobanteResource {
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
                     .build();
-                return Response.created(location).entity(response).build();
+                return Respuestas.creado(location, response);
             });
     }
 
@@ -175,7 +175,7 @@ public class ComprobanteResource {
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
                     .build();
-                return Response.created(location).entity(response).build();
+                return Respuestas.creado(location, response);
             });
     }
 
@@ -193,7 +193,7 @@ public class ComprobanteResource {
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
                     .build();
-                return Response.created(location).entity(response).build();
+                return Respuestas.creado(location, response);
             });
     }
 

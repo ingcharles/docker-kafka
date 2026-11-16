@@ -9,27 +9,27 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.firma.application.dto.ActualizarEstablecimientoRequest;
 import com.facturacion.firma.application.dto.CrearEstablecimientoRequest;
 import com.facturacion.firma.application.dto.EstablecimientoResponse;
 import com.facturacion.firma.application.event.EstablecimientoPuntoEmisionEventMessage;
+import com.facturacion.firma.application.mapper.EstablecimientoResponseMapper;
 import com.facturacion.firma.domain.model.entity.Empresa;
 import com.facturacion.firma.domain.model.entity.Establecimiento;
+import com.facturacion.firma.domain.port.EventoSaliente;
+import com.facturacion.firma.domain.port.EventosSalientes;
 import com.facturacion.firma.domain.repository.EmpresaRepository;
 import com.facturacion.firma.domain.repository.EstablecimientoRepository;
-import com.facturacion.firma.infrastructure.outbox.OutboxEventEntity;
-import com.facturacion.firma.infrastructure.outbox.OutboxEventRepository;
-import com.facturacion.firma.infrastructure.persistence.mapper.EstablecimientoMapper;
 import com.facturacion.firma.shared.constant.MessagingConstants;
 import com.facturacion.firma.shared.exception.CodigoDuplicadoException;
-import com.facturacion.commons.exception.NotFoundException;
 
 /**
  * CRUD de establecimientos de una {@link Empresa} — antes de esto,
@@ -45,17 +45,17 @@ public class EstablecimientoService {
 
     private final EstablecimientoRepository repository;
     private final EmpresaRepository empresaRepository;
-    private final EstablecimientoMapper mapper;
-    private final OutboxEventRepository outboxRepository;
+    private final EstablecimientoResponseMapper mapper;
+    private final EventosSalientes salientes;
     private final ObjectMapper objectMapper;
 
     @Inject
     public EstablecimientoService(EstablecimientoRepository repository, EmpresaRepository empresaRepository,
-            EstablecimientoMapper mapper, OutboxEventRepository outboxRepository, ObjectMapper objectMapper) {
+            EstablecimientoResponseMapper mapper, EventosSalientes salientes, ObjectMapper objectMapper) {
         this.repository = repository;
         this.empresaRepository = empresaRepository;
         this.mapper = mapper;
-        this.outboxRepository = outboxRepository;
+        this.salientes = salientes;
         this.objectMapper = objectMapper;
     }
 
@@ -122,13 +122,13 @@ public class EstablecimientoService {
         Uni<Establecimiento> guardado = esNuevo ? repository.persist(establecimiento)
             : repository.update(establecimiento);
         return guardado
-            .chain(persistido -> outboxRepository
-                .persist(construirEventoOutbox(empresa.getRuc(), persistido, tipoEvento))
+            .chain(persistido -> salientes
+                .registrar(construirEventoOutbox(empresa.getRuc(), persistido, tipoEvento))
                 .replaceWith(persistido))
             .map(mapper::toResponse);
     }
 
-    private OutboxEventEntity construirEventoOutbox(String ruc, Establecimiento establecimiento, String tipoEvento) {
+    private EventoSaliente construirEventoOutbox(String ruc, Establecimiento establecimiento, String tipoEvento) {
         EstablecimientoPuntoEmisionEventMessage mensaje = new EstablecimientoPuntoEmisionEventMessage(
             UUID.randomUUID(),
             tipoEvento,
@@ -140,11 +140,11 @@ public class EstablecimientoService {
             null,
             establecimiento.isActivo(),
             Instant.now());
-        return OutboxEventEntity.of(establecimiento.getId(), tipoEvento,
-            MessagingConstants.ESTABLECIMIENTO_PUNTO_EMISION_EVENTS_TOPIC, writeValueAsString(mensaje));
+        return new EventoSaliente(establecimiento.getId(), tipoEvento,
+            MessagingConstants.ESTABLECIMIENTO_PUNTO_EMISION_EVENTS_TOPIC, serializarAJson(mensaje));
     }
 
-    private String writeValueAsString(Object value) {
+    private String serializarAJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {

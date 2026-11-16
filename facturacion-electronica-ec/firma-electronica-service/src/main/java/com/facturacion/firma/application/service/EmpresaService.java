@@ -3,38 +3,37 @@ package com.facturacion.firma.application.service;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.facturacion.commons.exception.NotFoundException;
+import com.facturacion.commons.paging.PagedResponse;
 import com.facturacion.firma.application.dto.ActualizarEmpresaRequest;
 import com.facturacion.firma.application.dto.CrearEmpresaRequest;
 import com.facturacion.firma.application.dto.EmpresaResponse;
 import com.facturacion.firma.application.event.EmpresaEventMessage;
 import com.facturacion.firma.application.event.EstablecimientoPuntoEmisionEventMessage;
+import com.facturacion.firma.application.mapper.EmpresaResponseMapper;
 import com.facturacion.firma.domain.model.entity.Empresa;
 import com.facturacion.firma.domain.model.entity.Establecimiento;
 import com.facturacion.firma.domain.model.entity.PuntoEmision;
 import com.facturacion.firma.domain.model.enums.AmbienteSri;
+import com.facturacion.firma.domain.port.EventoSaliente;
+import com.facturacion.firma.domain.port.EventosSalientes;
 import com.facturacion.firma.domain.repository.EmpresaRepository;
 import com.facturacion.firma.domain.repository.EstablecimientoRepository;
 import com.facturacion.firma.domain.repository.PuntoEmisionRepository;
-import com.facturacion.firma.infrastructure.outbox.OutboxEventEntity;
-import com.facturacion.firma.infrastructure.outbox.OutboxEventRepository;
-import com.facturacion.firma.infrastructure.persistence.mapper.EmpresaMapper;
 import com.facturacion.firma.shared.constant.MessagingConstants;
-import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.firma.shared.exception.RucDuplicadoException;
-import com.facturacion.commons.paging.PagedResponse;
 
 @ApplicationScoped
 public class EmpresaService {
@@ -42,19 +41,19 @@ public class EmpresaService {
     private final EmpresaRepository repository;
     private final EstablecimientoRepository establecimientoRepository;
     private final PuntoEmisionRepository puntoEmisionRepository;
-    private final EmpresaMapper mapper;
-    private final OutboxEventRepository outboxRepository;
+    private final EmpresaResponseMapper mapper;
+    private final EventosSalientes salientes;
     private final ObjectMapper objectMapper;
 
     @Inject
     public EmpresaService(EmpresaRepository repository, EstablecimientoRepository establecimientoRepository,
-            PuntoEmisionRepository puntoEmisionRepository, EmpresaMapper mapper,
-            OutboxEventRepository outboxRepository, ObjectMapper objectMapper) {
+            PuntoEmisionRepository puntoEmisionRepository, EmpresaResponseMapper mapper,
+            EventosSalientes salientes, ObjectMapper objectMapper) {
         this.repository = repository;
         this.establecimientoRepository = establecimientoRepository;
         this.puntoEmisionRepository = puntoEmisionRepository;
         this.mapper = mapper;
-        this.outboxRepository = outboxRepository;
+        this.salientes = salientes;
         this.objectMapper = objectMapper;
     }
 
@@ -63,8 +62,7 @@ public class EmpresaService {
      * de emisión por defecto (código = {@code establecimientoDefecto}/
      * {@code puntoEmisionDefecto}, tipo MATRIZ) — así ninguna empresa nueva
      * necesita un paso manual aparte para poder emitir. Dos eventos más
-     * quedan listos en el outbox junto con {@code EmpresaRegistrada}: mismo
-     * patrón que {@code OrderService.createOrder} en ecommerce/, con tres
+     * quedan listos en el outbox junto con {@code EmpresaRegistrada}: tres
      * filas en vez de una.
      */
     /**
@@ -104,8 +102,8 @@ public class EmpresaService {
                     ahora,
                     ahora);
                 return repository.persist(empresa)
-                    .chain(guardado -> outboxRepository
-                        .persist(construirEventoOutbox(guardado, MessagingConstants.EVENT_TYPE_EMPRESA_REGISTRADA,
+                    .chain(guardado -> salientes
+                        .registrar(construirEventoOutbox(guardado, MessagingConstants.EVENT_TYPE_EMPRESA_REGISTRADA,
                             usuarioCreadorId))
                         .replaceWith(guardado))
                     .chain(this::crearEstablecimientoYPuntoEmisionPorDefecto)
@@ -124,38 +122,38 @@ public class EmpresaService {
         Establecimiento establecimiento = new Establecimiento(UUID.randomUUID(), empresa.getId(),
             empresa.getEstablecimientoDefecto(), empresa.getDireccionMatriz(), "MATRIZ", true, ahora, ahora);
         return establecimientoRepository.persist(establecimiento)
-            .chain(establecimientoGuardado -> outboxRepository
-                .persist(construirEventoEstablecimientoOutbox(empresa.getRuc(), establecimientoGuardado,
+            .chain(establecimientoGuardado -> salientes
+                .registrar(construirEventoEstablecimientoOutbox(empresa.getRuc(), establecimientoGuardado,
                     MessagingConstants.EVENT_TYPE_ESTABLECIMIENTO_REGISTRADO))
                 .replaceWith(establecimientoGuardado))
             .chain(establecimientoGuardado -> {
                 PuntoEmision puntoEmision = new PuntoEmision(UUID.randomUUID(), establecimientoGuardado.getId(),
                     empresa.getPuntoEmisionDefecto(), null, true, ahora, ahora);
                 return puntoEmisionRepository.persist(puntoEmision)
-                    .chain(puntoEmisionGuardado -> outboxRepository
-                        .persist(construirEventoPuntoEmisionOutbox(empresa.getRuc(), establecimientoGuardado,
+                    .chain(puntoEmisionGuardado -> salientes
+                        .registrar(construirEventoPuntoEmisionOutbox(empresa.getRuc(), establecimientoGuardado,
                             puntoEmisionGuardado, MessagingConstants.EVENT_TYPE_PUNTO_EMISION_REGISTRADO))
                         .replaceWithVoid());
             })
             .replaceWith(empresa);
     }
 
-    private OutboxEventEntity construirEventoEstablecimientoOutbox(String ruc, Establecimiento establecimiento,
+    private EventoSaliente construirEventoEstablecimientoOutbox(String ruc, Establecimiento establecimiento,
             String tipoEvento) {
         EstablecimientoPuntoEmisionEventMessage mensaje = new EstablecimientoPuntoEmisionEventMessage(
             UUID.randomUUID(), tipoEvento, ruc, establecimiento.getCodigo(), establecimiento.getDireccion(),
             establecimiento.getTipo(), null, null, establecimiento.isActivo(), Instant.now());
-        return OutboxEventEntity.of(establecimiento.getId(), tipoEvento,
-            MessagingConstants.ESTABLECIMIENTO_PUNTO_EMISION_EVENTS_TOPIC, writeValueAsString(mensaje));
+        return new EventoSaliente(establecimiento.getId(), tipoEvento,
+            MessagingConstants.ESTABLECIMIENTO_PUNTO_EMISION_EVENTS_TOPIC, serializarAJson(mensaje));
     }
 
-    private OutboxEventEntity construirEventoPuntoEmisionOutbox(String ruc, Establecimiento establecimiento,
+    private EventoSaliente construirEventoPuntoEmisionOutbox(String ruc, Establecimiento establecimiento,
             PuntoEmision puntoEmision, String tipoEvento) {
         EstablecimientoPuntoEmisionEventMessage mensaje = new EstablecimientoPuntoEmisionEventMessage(
             UUID.randomUUID(), tipoEvento, ruc, establecimiento.getCodigo(), null, null, puntoEmision.getCodigo(),
             puntoEmision.getDescripcion(), puntoEmision.isActivo(), Instant.now());
-        return OutboxEventEntity.of(puntoEmision.getId(), tipoEvento,
-            MessagingConstants.ESTABLECIMIENTO_PUNTO_EMISION_EVENTS_TOPIC, writeValueAsString(mensaje));
+        return new EventoSaliente(puntoEmision.getId(), tipoEvento,
+            MessagingConstants.ESTABLECIMIENTO_PUNTO_EMISION_EVENTS_TOPIC, serializarAJson(mensaje));
     }
 
     @WithTransaction
@@ -181,8 +179,8 @@ public class EmpresaService {
                 }
                 existente.setActivo(request.isActivo());
                 return repository.update(existente)
-                    .chain(actualizado -> outboxRepository
-                        .persist(construirEventoOutbox(actualizado, MessagingConstants.EVENT_TYPE_EMPRESA_ACTUALIZADA,
+                    .chain(actualizado -> salientes
+                        .registrar(construirEventoOutbox(actualizado, MessagingConstants.EVENT_TYPE_EMPRESA_ACTUALIZADA,
                             null))
                         .replaceWith(actualizado))
                     .map(mapper::toResponse);
@@ -210,7 +208,7 @@ public class EmpresaService {
             });
     }
 
-    private OutboxEventEntity construirEventoOutbox(Empresa empresa, String tipoEvento, UUID usuarioCreadorId) {
+    private EventoSaliente construirEventoOutbox(Empresa empresa, String tipoEvento, UUID usuarioCreadorId) {
         EmpresaEventMessage mensaje = new EmpresaEventMessage(
             UUID.randomUUID(),
             empresa.getId(),
@@ -231,11 +229,11 @@ public class EmpresaService {
             empresa.isActivo(),
             usuarioCreadorId,
             Instant.now());
-        return OutboxEventEntity.of(empresa.getId(), tipoEvento,
-            MessagingConstants.EMPRESA_EVENTS_TOPIC, writeValueAsString(mensaje));
+        return new EventoSaliente(empresa.getId(), tipoEvento,
+            MessagingConstants.EMPRESA_EVENTS_TOPIC, serializarAJson(mensaje));
     }
 
-    private String writeValueAsString(Object value) {
+    private String serializarAJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {

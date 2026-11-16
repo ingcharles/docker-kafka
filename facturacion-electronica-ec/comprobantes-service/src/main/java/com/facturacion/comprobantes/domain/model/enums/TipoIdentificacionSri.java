@@ -43,7 +43,7 @@ public enum TipoIdentificacionSri {
         return Optional.ofNullable(numeroFijo);
     }
 
-    public static Optional<TipoIdentificacionSri> deCodigo(String codigo) {
+    public static Optional<TipoIdentificacionSri> buscarPorCodigo(String codigo) {
         return Arrays.stream(values()).filter(t -> t.codigo.equals(codigo)).findFirst();
     }
 

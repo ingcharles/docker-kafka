@@ -13,7 +13,6 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-
 import javax.xml.XMLConstants;
 import javax.xml.crypto.dsig.CanonicalizationMethod;
 import javax.xml.crypto.dsig.DigestMethod;
@@ -79,7 +78,7 @@ public final class XadesBesFirmador {
         try {
             KeyStore keyStore = KeyStore.getInstance("PKCS12");
             keyStore.load(new ByteArrayInputStream(contenidoP12), contrasena);
-            String alias = primerAlias(keyStore);
+            String alias = obtenerPrimerAlias(keyStore);
             PrivateKey privateKey = (PrivateKey) keyStore.getKey(alias, contrasena);
             X509Certificate certificado = (X509Certificate) keyStore.getCertificate(alias);
 
@@ -223,7 +222,7 @@ public final class XadesBesFirmador {
         return qualifyingProperties;
     }
 
-    private static String primerAlias(KeyStore keyStore) throws Exception {
+    private static String obtenerPrimerAlias(KeyStore keyStore) throws Exception {
         var alias = keyStore.aliases();
         if (!alias.hasMoreElements()) {
             throw new CertificadoInvalidoException("El archivo .p12 no contiene ningún alias/entrada");

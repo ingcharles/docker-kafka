@@ -13,25 +13,25 @@ import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.exception.NotFoundException;
+import com.facturacion.commons.paging.PageResult;
+import com.facturacion.commons.paging.PagedResponse;
 import com.facturacion.inventario.application.dto.ActualizarCategoriaRequest;
 import com.facturacion.inventario.application.dto.CategoriaResponse;
 import com.facturacion.inventario.application.dto.CrearCategoriaRequest;
+import com.facturacion.inventario.application.mapper.CategoriaResponseMapper;
 import com.facturacion.inventario.domain.model.entity.Categoria;
 import com.facturacion.inventario.domain.model.enums.TipoCategoria;
-import com.facturacion.commons.paging.PageResult;
 import com.facturacion.inventario.domain.repository.CategoriaRepository;
-import com.facturacion.inventario.infrastructure.persistence.mapper.CategoriaMapper;
-import com.facturacion.commons.exception.NotFoundException;
-import com.facturacion.commons.paging.PagedResponse;
 
 @ApplicationScoped
 public class CategoriaService {
 
     private final CategoriaRepository repository;
-    private final CategoriaMapper mapper;
+    private final CategoriaResponseMapper mapper;
 
     @Inject
-    public CategoriaService(CategoriaRepository repository, CategoriaMapper mapper) {
+    public CategoriaService(CategoriaRepository repository, CategoriaResponseMapper mapper) {
         this.repository = repository;
         this.mapper = mapper;
     }

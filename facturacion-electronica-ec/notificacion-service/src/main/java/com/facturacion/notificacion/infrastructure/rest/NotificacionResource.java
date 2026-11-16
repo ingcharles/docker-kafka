@@ -17,8 +17,8 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
-import com.facturacion.notificacion.application.service.NotificacionService;
 import com.facturacion.commons.security.TokenPrincipal;
+import com.facturacion.notificacion.application.service.NotificacionService;
 
 /** Superficie de observabilidad — el envío real ocurre exclusivamente al consumir ComprobanteAutorizado. */
 @Path("")

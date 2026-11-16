@@ -26,13 +26,20 @@ for raw_def in "${TOPIC_DEFS[@]}"; do
   name="$(cut -d: -f1 <<< "$def")"
   partitions="$(cut -d: -f2 <<< "$def")"
   replication="$(cut -d: -f3 <<< "$def")"
+  # Cuarto campo opcional: configs del tópico separadas por ";" (p. ej. cleanup.policy=compact;retention.ms=-1).
+  configs="$(cut -d: -f4 <<< "$def")"
+  config_args=()
+  if [ -n "$configs" ]; then
+    IFS=";" read -ra CFGS <<< "$configs"
+    for c in "${CFGS[@]}"; do config_args+=(--config "$c"); done
+  fi
 
   echo "Asegurando el tópico '${name}' (particiones=${partitions}, replicación=${replication}) ..."
   "$KAFKA_BIN/kafka-topics.sh" --bootstrap-server "$KAFKA_BOOTSTRAP_SERVERS" \
     --create --if-not-exists \
     --topic "$name" \
     --partitions "$partitions" \
-    --replication-factor "$replication"
+    --replication-factor "$replication" \n    "${config_args[@]}"
 done
 
 echo "Bootstrap de tópicos completo."

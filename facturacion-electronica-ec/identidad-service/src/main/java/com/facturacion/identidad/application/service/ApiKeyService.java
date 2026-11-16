@@ -15,25 +15,26 @@ import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.exception.ConflictoException;
+import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.identidad.application.dto.ApiKeyCreadaResponse;
 import com.facturacion.identidad.application.dto.ApiKeyResponse;
 import com.facturacion.identidad.application.dto.CrearApiKeyRequest;
+import com.facturacion.identidad.application.mapper.ApiKeyResponseMapper;
 import com.facturacion.identidad.domain.model.entity.ApiKey;
+import com.facturacion.identidad.domain.port.EmisorTokens;
+import com.facturacion.identidad.domain.port.RevocacionApiKeysPublicador;
 import com.facturacion.identidad.domain.repository.ApiKeyRepository;
 import com.facturacion.identidad.domain.repository.EstablecimientoLocalRepository;
 import com.facturacion.identidad.domain.repository.PuntoEmisionLocalRepository;
 import com.facturacion.identidad.domain.repository.UsuarioEmpresaRolRepository;
-import com.facturacion.identidad.infrastructure.crypto.JwtService;
-import com.facturacion.identidad.infrastructure.persistence.mapper.ApiKeyMapper;
-import com.facturacion.commons.exception.ConflictoException;
-import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.identidad.shared.exception.SinAsociacionException;
 
 /**
- * Dueño del agregado ApiKey. La key en sí es un JWT (ver {@link JwtService})
+ * Dueño del agregado ApiKey. La key en sí es un JWT (ver {@link EmisorTokens})
  * — este servicio nunca la vuelve a mostrar después de crearla, solo guarda
- * su {@code jti} para poder listarla/revocarla (revocación de mejor
- * esfuerzo, ver V1__init.sql).
+ * su {@code jti} para poder listarla y revocarla. Al revocar se publica el jti
+ * en {@code facturacion.apikey.revocaciones.v1} y cada servicio la rechaza sin esperar a que venza.
  */
 @ApplicationScoped
 public class ApiKeyService {
@@ -42,14 +43,16 @@ public class ApiKeyService {
     private final UsuarioEmpresaRolRepository empresaRolRepository;
     private final EstablecimientoLocalRepository establecimientoLocalRepository;
     private final PuntoEmisionLocalRepository puntoEmisionLocalRepository;
-    private final ApiKeyMapper mapper;
-    private final JwtService jwtService;
+    private final ApiKeyResponseMapper mapper;
+    private final EmisorTokens jwtService;
+    private final RevocacionApiKeysPublicador publicador;
     private final int maxDiasExpiracion;
 
     @Inject
     public ApiKeyService(ApiKeyRepository apiKeyRepository, UsuarioEmpresaRolRepository empresaRolRepository,
             EstablecimientoLocalRepository establecimientoLocalRepository,
-            PuntoEmisionLocalRepository puntoEmisionLocalRepository, ApiKeyMapper mapper, JwtService jwtService,
+            PuntoEmisionLocalRepository puntoEmisionLocalRepository, ApiKeyResponseMapper mapper, EmisorTokens jwtService,
+            RevocacionApiKeysPublicador publicador,
             @ConfigProperty(name = "identidad.jwt.apikey.max-dias") int maxDiasExpiracion) {
         this.apiKeyRepository = apiKeyRepository;
         this.empresaRolRepository = empresaRolRepository;
@@ -57,6 +60,7 @@ public class ApiKeyService {
         this.puntoEmisionLocalRepository = puntoEmisionLocalRepository;
         this.mapper = mapper;
         this.jwtService = jwtService;
+        this.publicador = publicador;
         this.maxDiasExpiracion = maxDiasExpiracion;
     }
 
@@ -157,12 +161,48 @@ public class ApiKeyService {
             .map(lista -> lista.stream().map(mapper::toResponse).collect(Collectors.toList()));
     }
 
+    /**
+     * Revoca una api-key del usuario y avisa al resto de servicios para que la rechacen de inmediato. Es idempotente:
+     * si ya estaba revocada y aún no vence, reenvía el aviso (por si el anterior no llegó) y responde igual que la
+     * primera vez.
+     */
     @WithTransaction
     public Uni<Void> revocar(UUID usuarioId, UUID apiKeyId) {
-        return apiKeyRepository.revocar(apiKeyId, usuarioId)
-            .onItem().transformToUni(filas -> filas == 0
-                ? Uni.createFrom().failure(new NotFoundException(
-                    "No hay una api-key activa " + apiKeyId + " para este usuario"))
-                : Uni.createFrom().voidItem());
+        return apiKeyRepository.findById(apiKeyId)
+            .onItem().transformToUni(apiKey -> {
+                if (apiKey == null || !apiKey.getUsuarioId().equals(usuarioId)) {
+                    return Uni.createFrom().failure(new NotFoundException(
+                        "No hay una api-key " + apiKeyId + " para este usuario"));
+                }
+                return revocarYAvisar(apiKey);
+            });
+    }
+
+    /**
+     * Revoca todas las api-keys vigentes de un usuario sobre un ruc. Se usa cuando pierde el acceso a la empresa o le
+     * cambian el rol: el token lleva el rol de cuando se emitió, así que sin esto seguiría operando con el rol
+     * anterior hasta que la key venza (hasta un año).
+     */
+    @WithTransaction
+    public Uni<Void> revocarDeUsuarioEnRuc(UUID usuarioId, String ruc) {
+        return apiKeyRepository.findVigentesByUsuarioIdAndRuc(usuarioId, ruc)
+            .onItem().transformToUni(claves -> {
+                Uni<Void> cadena = Uni.createFrom().voidItem();
+                for (ApiKey clave : claves) {
+                    cadena = cadena.chain(() -> revocarYAvisar(clave));
+                }
+                return cadena;
+            });
+    }
+
+    private Uni<Void> revocarYAvisar(ApiKey apiKey) {
+        Uni<Integer> marca = apiKey.isRevocada()
+            ? Uni.createFrom().item(0)
+            : apiKeyRepository.revocar(apiKey.getId(), apiKey.getUsuarioId());
+        // Una key que ya venció no necesita aviso: ningún servicio la aceptaría de todos modos.
+        if (!apiKey.getFechaExpiracion().isAfter(Instant.now())) {
+            return marca.replaceWithVoid();
+        }
+        return marca.chain(() -> publicador.publicar(apiKey.getJti(), apiKey.getFechaExpiracion()));
     }
 }

@@ -5,7 +5,7 @@ import java.util.UUID;
 
 /**
  * Nunca incluye el contenido del .p12 ni su contraseña — solo metadata. Ver
- * {@code infrastructure.crypto.CifradoService} para cómo se protege lo demás.
+ * {@code infrastructure.crypto.Cifrador} para cómo se protege lo demás.
  */
 public class CertificadoMetadataResponse {
 

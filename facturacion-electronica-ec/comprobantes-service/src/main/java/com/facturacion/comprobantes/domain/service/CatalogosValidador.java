@@ -3,12 +3,12 @@ package com.facturacion.comprobantes.domain.service;
 import java.math.BigDecimal;
 import java.util.Optional;
 
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha.RetencionRow;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha.TipoIdentificacionRow;
 import com.facturacion.comprobantes.shared.error.CodigoError;
-import com.facturacion.commons.exception.ErrorNegocioException;
 
 /**
  * Reglas que cruzan un request con los catálogos del SRI (tablas propias, ver {@link CatalogosSriAFecha}).

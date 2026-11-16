@@ -13,7 +13,6 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
-
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
@@ -25,6 +24,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.rest.Respuestas;
 import com.facturacion.identidad.application.dto.AgregarMiembroRequest;
 import com.facturacion.identidad.application.dto.CambiarRolMiembroRequest;
 import com.facturacion.identidad.application.dto.EmpresaRolResponse;
@@ -78,7 +78,7 @@ public class EmpresaMiembroResource {
             @Parameter(description = "RUC de la empresa", required = true) @PathParam("ruc") String ruc,
             @Valid AgregarMiembroRequest request) {
         return usuarioService.agregarMiembro(sesionActual.getUsuarioId(), ruc, request.getEmail(), request.getRol())
-            .map(asociacion -> Response.status(Response.Status.CREATED).entity(asociacion).build());
+            .map(asociacion -> Respuestas.creado(asociacion));
     }
 
     @PATCH
@@ -89,11 +89,12 @@ public class EmpresaMiembroResource {
     @APIResponse(responseCode = "403", description = "El usuario autenticado no es ADMIN de este ruc")
     @APIResponse(responseCode = "404", description = "Ese usuario no está asociado a este ruc")
     @APIResponse(responseCode = "409", description = "Dejaría al ruc sin ningún ADMIN")
-    public Uni<EmpresaRolResponse> cambiarRol(
+    public Uni<Response> cambiarRol(
             @Parameter(description = "RUC de la empresa", required = true) @PathParam("ruc") String ruc,
             @Parameter(description = "Id del usuario miembro", required = true) @PathParam("usuarioId") UUID usuarioId,
             @Valid CambiarRolMiembroRequest request) {
-        return usuarioService.cambiarRolMiembro(sesionActual.getUsuarioId(), ruc, usuarioId, request.getRol());
+        return usuarioService.cambiarRolMiembro(sesionActual.getUsuarioId(), ruc, usuarioId, request.getRol())
+            .map(Respuestas::actualizado);
     }
 
     @DELETE
@@ -107,6 +108,6 @@ public class EmpresaMiembroResource {
             @Parameter(description = "RUC de la empresa", required = true) @PathParam("ruc") String ruc,
             @Parameter(description = "Id del usuario miembro", required = true) @PathParam("usuarioId") UUID usuarioId) {
         return usuarioService.revocarMiembro(sesionActual.getUsuarioId(), ruc, usuarioId)
-            .map(ignorado -> Response.noContent().build());
+            .map(ignorado -> Respuestas.sinContenido());
     }
 }

@@ -34,7 +34,7 @@ public class EstablecimientoPuntoEmisionEventConsumer {
 
     @Incoming("establecimiento-punto-emision-events-in")
     @WithTransaction
-    public Uni<Void> onEvent(EstablecimientoPuntoEmisionEventMessage evento) {
+    public Uni<Void> procesarEvento(EstablecimientoPuntoEmisionEventMessage evento) {
         if (evento.tipoEvento().startsWith("Establecimiento")) {
             EstablecimientoLocal establecimiento = new EstablecimientoLocal();
             establecimiento.setRuc(evento.ruc());

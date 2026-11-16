@@ -13,7 +13,6 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
-
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -27,8 +26,8 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.rest.Respuestas;
 import com.facturacion.identidad.application.dto.ActualizarPerfilRequest;
-import com.facturacion.identidad.application.dto.AsociarEmpresaRequest;
 import com.facturacion.identidad.application.dto.CambiarPasswordRequest;
 import com.facturacion.identidad.application.dto.CrearUsuarioRequest;
 import com.facturacion.identidad.application.dto.EmpresaRolResponse;
@@ -59,7 +58,7 @@ public class UsuarioResource {
     public Uni<Response> crear(@Valid CrearUsuarioRequest request, @Context UriInfo uriInfo) {
         return usuarioService.crear(request).map(response -> {
             URI location = uriInfo.getAbsolutePathBuilder().path(response.getId().toString()).build();
-            return Response.created(location).entity(response).build();
+            return Respuestas.creado(location, response);
         });
     }
 
@@ -69,8 +68,8 @@ public class UsuarioResource {
     @Operation(summary = "Autenticarse", description = "Devuelve un token de sesión — solo sirve para hablar con este servicio, no es una api-key.")
     @APIResponse(responseCode = "200", description = "Token de sesión")
     @APIResponse(responseCode = "401", description = "Email o contraseña incorrectos")
-    public Uni<TokenResponse> login(@Valid LoginRequest request) {
-        return usuarioService.login(request);
+    public Uni<Response> iniciarSesion(@Valid LoginRequest request) {
+        return usuarioService.iniciarSesion(request).map(Respuestas::actualizado);
     }
 
     @GET
@@ -78,7 +77,7 @@ public class UsuarioResource {
     @Autenticado
     @SecurityRequirement(name = "token")
     @Operation(summary = "Datos del usuario autenticado")
-    public Uni<UsuarioResponse> obtenerMe() {
+    public Uni<UsuarioResponse> obtenerPerfil() {
         return usuarioService.obtenerPorId(sesionActual.getUsuarioId());
     }
 
@@ -88,8 +87,8 @@ public class UsuarioResource {
     @SecurityRequirement(name = "token")
     @Consumes(MediaType.APPLICATION_JSON)
     @Operation(summary = "Actualizar el perfil del usuario autenticado", description = "Solo nombres/apellidos — el email de login no se cambia por aquí. PATCH porque solo toca una parte del recurso Usuario, no lo reemplaza entero.")
-    public Uni<UsuarioResponse> actualizarPerfil(@Valid ActualizarPerfilRequest request) {
-        return usuarioService.actualizarPerfil(sesionActual.getUsuarioId(), request);
+    public Uni<Response> actualizarPerfil(@Valid ActualizarPerfilRequest request) {
+        return usuarioService.actualizarPerfil(sesionActual.getUsuarioId(), request).map(Respuestas::actualizado);
     }
 
     @PATCH
@@ -102,7 +101,7 @@ public class UsuarioResource {
     @APIResponse(responseCode = "401", description = "La contraseña actual no es correcta")
     public Uni<Response> cambiarPassword(@Valid CambiarPasswordRequest request) {
         return usuarioService.cambiarPassword(sesionActual.getUsuarioId(), request)
-            .map(ignorado -> Response.noContent().build());
+            .map(ignorado -> Respuestas.sinContenido());
     }
 
     @DELETE
@@ -116,18 +115,7 @@ public class UsuarioResource {
     public Uni<Response> salirDeEmpresa(
             @Parameter(description = "RUC de la empresa", required = true) @PathParam("ruc") String ruc) {
         return usuarioService.salirDeEmpresa(sesionActual.getUsuarioId(), ruc)
-            .map(ignorado -> Response.noContent().build());
-    }
-
-    @POST
-    @Path("/me/empresas")
-    @Autenticado
-    @SecurityRequirement(name = "token")
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Operation(summary = "Asociarse a una empresa (ruc)",
-        description = "Sin flujo de invitación/aprobación en esta versión — ver ARQUITECTURA.md.")
-    public Uni<EmpresaRolResponse> asociarEmpresa(@Valid AsociarEmpresaRequest request) {
-        return usuarioService.asociarEmpresa(sesionActual.getUsuarioId(), request);
+            .map(ignorado -> Respuestas.sinContenido());
     }
 
     @GET

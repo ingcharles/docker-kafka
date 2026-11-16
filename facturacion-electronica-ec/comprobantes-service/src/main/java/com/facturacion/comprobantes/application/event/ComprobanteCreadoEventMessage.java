@@ -1,6 +1,7 @@
 package com.facturacion.comprobantes.application.event;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -26,5 +27,9 @@ public record ComprobanteCreadoEventMessage(
     String xmlGenerado,
     /** Si el comprobante tiene correo del receptor: solo entonces se publicará ComprobanteAutorizado y habrá notificación. */
     Boolean notificacionEsperada,
+    /** Tipo de comprobante: el orquestador solo descuenta inventario de las FACTURA (ventas). */
+    String tipoComprobante,
+    /** Líneas del detalle que referencian un ítem de inventario (itemId) con su cantidad; vacío si ninguna. */
+    List<ItemCantidadEvento> items,
     Instant occurredAt) {
 }

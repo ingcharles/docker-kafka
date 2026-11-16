@@ -28,7 +28,7 @@ public class ConfiguracionEmpresaEventConsumer {
 
     @Incoming("configuracion-empresa-events-in")
     @WithTransaction
-    public Uni<Void> onEvent(ConfiguracionEmpresaEventMessage evento) {
+    public Uni<Void> procesarEvento(ConfiguracionEmpresaEventMessage evento) {
         return repository.upsertOEliminar(evento.ruc(), evento.clave(), evento.valor(), evento.occurredAt());
     }
 }

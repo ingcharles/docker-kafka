@@ -40,7 +40,7 @@ public class ComprobanteEventConsumer {
 
     @Incoming("comprobante-events-in")
     @WithTransaction
-    public Uni<Void> onEvent(ComprobanteEventMessage evento) {
+    public Uni<Void> procesarEvento(ComprobanteEventMessage evento) {
         if (!MessagingConstants.EVENT_TYPE_COMPROBANTE_AUTORIZADO.equals(evento.eventType())) {
             return Uni.createFrom().voidItem();
         }

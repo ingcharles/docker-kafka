@@ -35,7 +35,7 @@ public final class PoliticaReintentoSaga {
     }
 
     public static Accion decidir(SagaInstance saga, Instant ahora, Plazos plazos) {
-        Duration plazo = plazoDe(saga.getState(), plazos);
+        Duration plazo = obtenerPlazoDe(saga.getState(), plazos);
         if (plazo == null || saga.getUpdatedAt().plus(plazo).isAfter(ahora)) {
             return Accion.ESPERAR;
         }
@@ -43,12 +43,12 @@ public final class PoliticaReintentoSaga {
     }
 
     /** Plazo de espera del estado, o {@code null} si el estado no se reintenta. */
-    private static Duration plazoDe(SagaState estado, Plazos plazos) {
+    private static Duration obtenerPlazoDe(SagaState estado, Plazos plazos) {
         if (!estado.esReintentable()) {
             return null;
         }
         return switch (estado) {
-            case CREADO -> plazos.plazoFirma();
+            case CREADO, STOCK_PENDIENTE, STOCK_RESERVADO -> plazos.plazoFirma();
             case FIRMADO -> plazos.plazoSri();
             default -> null;
         };

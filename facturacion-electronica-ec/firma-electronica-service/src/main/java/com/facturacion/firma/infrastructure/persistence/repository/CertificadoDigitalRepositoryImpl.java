@@ -1,10 +1,12 @@
 package com.facturacion.firma.infrastructure.persistence.repository;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import io.quarkus.panache.common.Sort;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.firma.domain.model.entity.CertificadoDigital;
@@ -41,6 +43,19 @@ public class CertificadoDigitalRepositoryImpl implements CertificadoDigitalRepos
         return repository.find("empresaId = ?1 and estado = ?2", empresaId, EstadoCertificado.ACTIVO.name())
             .firstResult()
             .map(entity -> entity == null ? null : mapper.toDomain(entity));
+    }
+
+    @Override
+    public Uni<CertificadoDigital> findUltimoByEmpresaId(UUID empresaId) {
+        return repository.find("empresaId = ?1", Sort.descending("creadoEn"), empresaId)
+            .firstResult()
+            .map(entity -> entity == null ? null : mapper.toDomain(entity));
+    }
+
+    @Override
+    public Uni<Integer> marcarExpiradosHasta(Instant ahora) {
+        return repository.update("estado = ?1 where estado = ?2 and fechaExpiracionCertificado < ?3",
+            EstadoCertificado.EXPIRADO.name(), EstadoCertificado.ACTIVO.name(), ahora);
     }
 
     @Override

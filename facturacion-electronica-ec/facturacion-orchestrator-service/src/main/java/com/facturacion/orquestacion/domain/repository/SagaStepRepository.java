@@ -15,4 +15,7 @@ public interface SagaStepRepository {
 
     /** El paso SENT más reciente — es lo que {@code POST /sagas/{comprobanteId}/retry} vuelve a publicar. */
     Uni<SagaStep> findLastSent(UUID sagaId);
+
+    /** La nota más reciente con ese código (p. ej. el comando de firma que queda esperando la reserva de stock). */
+    Uni<SagaStep> findUltimaNota(UUID sagaId, String codigo);
 }

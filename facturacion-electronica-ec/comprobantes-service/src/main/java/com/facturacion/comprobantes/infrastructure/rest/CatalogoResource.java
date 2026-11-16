@@ -18,17 +18,19 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.rest.Respuestas;
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.comprobantes.application.service.CatalogoAdminService;
-import com.facturacion.comprobantes.domain.model.enums.Catalogo;
 import com.facturacion.comprobantes.domain.catalogo.CatalogoDef;
+import com.facturacion.comprobantes.domain.model.enums.Catalogo;
 import com.facturacion.comprobantes.shared.constant.ApiConstants;
 import com.facturacion.comprobantes.shared.error.CodigoError;
-import com.facturacion.commons.exception.ErrorNegocioException;
 
 /**
  * Catálogos del SRI de este servicio. Lectura: cualquier api-key válida (filtro global). Escritura: además exige el header
@@ -73,10 +75,10 @@ public class CatalogoResource {
     /** Crea o actualiza una fila por su clave. Dar de baja = mandar {@code "activo": false}. */
     @PUT
     @Path("/{catalogo}")
-    public Uni<Map<String, Object>> guardar(@HeaderParam(ApiConstants.HEADER_ADMIN_TOKEN) String token,
+    public Uni<Response> guardar(@HeaderParam(ApiConstants.HEADER_ADMIN_TOKEN) String token,
             @PathParam("catalogo") String catalogo, Map<String, Object> body) {
         exigirAdmin(token);
-        return service.guardar(definicion(catalogo), body);
+        return service.guardar(definicion(catalogo), body).map(Respuestas::actualizado);
     }
 
     private static CatalogoDef definicion(String catalogo) {

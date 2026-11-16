@@ -4,8 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Ciclo de vida de la saga de un comprobante. A diferencia de la saga de ecommerce (que compensa reservas/pagos
- * si algo falla), acá no hay nada que compensar: firmar, enviar al SRI y notificar son pasos que o bien no tienen
+ * Ciclo de vida de la saga de un comprobante. Casi no hay nada que compensar (solo el stock reservado): firmar, enviar al SRI y notificar son pasos que o bien no tienen
  * efecto colateral que deshacer (firmar, notificar) o ya son definitivos por naturaleza fiscal (una vez que el
  * SRI autoriza, el comprobante es legalmente válido pase lo que pase después) — así que
  * FIRMA_FALLIDA/RECHAZADO_RECEPCION/NO_AUTORIZADO son estados terminales de error sin ningún comando de
@@ -23,6 +22,12 @@ import java.util.List;
  */
 public enum SagaState {
 
+    /** Con descuento de inventario: se pidió reservar el stock y se espera la respuesta de inventario-service. */
+    STOCK_PENDIENTE(false, true),
+    /** Stock reservado: se pidió la firma y se espera su respuesta (equivale a CREADO en el flujo sin inventario). */
+    STOCK_RESERVADO(false, true),
+    /** Inventario no pudo reservar el stock de alguna línea: terminal de error (inventario ya compensó lo parcial). */
+    STOCK_NO_DISPONIBLE(true, false),
     CREADO(false, true),
     FIRMADO(false, true),
     FIRMA_FALLIDA(true, false),

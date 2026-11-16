@@ -12,6 +12,7 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.vertx.core.Vertx;
 
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.comprobantes.application.dto.ComprobanteResponse;
 import com.facturacion.comprobantes.application.dto.CrearFacturaRequest;
 import com.facturacion.comprobantes.application.dto.CrearGuiaRemisionRequest;
@@ -20,6 +21,7 @@ import com.facturacion.comprobantes.application.dto.CrearNotaCreditoRequest;
 import com.facturacion.comprobantes.application.dto.CrearNotaDebitoRequest;
 import com.facturacion.comprobantes.application.dto.CrearRetencionRequest;
 import com.facturacion.comprobantes.application.dto.EmpresaRequest;
+import com.facturacion.comprobantes.application.mapper.ComprobanteResponseMapper;
 import com.facturacion.comprobantes.application.service.construccion.ConstructorFactura;
 import com.facturacion.comprobantes.application.service.construccion.ConstructorGuiaRemision;
 import com.facturacion.comprobantes.application.service.construccion.ConstructorLiquidacionCompra;
@@ -29,18 +31,16 @@ import com.facturacion.comprobantes.application.service.construccion.Constructor
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha;
+import com.facturacion.comprobantes.domain.port.EventosSalientes;
+import com.facturacion.comprobantes.domain.port.GeneradorXml;
+import com.facturacion.comprobantes.domain.port.ValidadorXml;
 import com.facturacion.comprobantes.domain.repository.CatalogoSriRepository;
 import com.facturacion.comprobantes.domain.repository.ComprobanteRepository;
 import com.facturacion.comprobantes.domain.repository.ConfiguracionEmpresaLocalRepository;
 import com.facturacion.comprobantes.domain.repository.EstablecimientoLocalRepository;
 import com.facturacion.comprobantes.domain.repository.PuntoEmisionLocalRepository;
-import com.facturacion.comprobantes.infrastructure.outbox.OutboxEventRepository;
-import com.facturacion.comprobantes.infrastructure.persistence.mapper.ComprobanteMapper;
-import com.facturacion.comprobantes.infrastructure.xml.GeneradorXmlComprobanteResolver;
-import com.facturacion.comprobantes.infrastructure.xml.XsdValidador;
 import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 import com.facturacion.comprobantes.shared.error.CodigoError;
-import com.facturacion.commons.exception.ErrorNegocioException;
 
 /**
  * Emisión de comprobantes: un método {@code crear*} por tipo, todos sobre el flujo común {@link #emitir} (validar
@@ -61,11 +61,11 @@ public class ComprobanteService {
     private final EstablecimientoLocalRepository establecimientoLocalRepository;
     private final PuntoEmisionLocalRepository puntoEmisionLocalRepository;
     private final ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository;
-    private final GeneradorXmlComprobanteResolver xmlResolver;
-    private final XsdValidador xsdValidador;
+    private final GeneradorXml xmlResolver;
+    private final ValidadorXml xsdValidador;
     private final CatalogoSriRepository catalogoSriRepository;
-    private final ComprobanteMapper mapper;
-    private final OutboxEventRepository outboxRepository;
+    private final ComprobanteResponseMapper mapper;
+    private final EventosSalientes salientes;
     private final EventosComprobante eventos;
     private final ConstructorFactura constructorFactura;
     private final ConstructorNotaCredito constructorNotaCredito;
@@ -79,9 +79,9 @@ public class ComprobanteService {
             EstablecimientoLocalRepository establecimientoLocalRepository,
             PuntoEmisionLocalRepository puntoEmisionLocalRepository,
             ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository,
-            GeneradorXmlComprobanteResolver xmlResolver, XsdValidador xsdValidador,
-            CatalogoSriRepository catalogoSriRepository, ComprobanteMapper mapper,
-            OutboxEventRepository outboxRepository, EventosComprobante eventos,
+            GeneradorXml xmlResolver, ValidadorXml xsdValidador,
+            CatalogoSriRepository catalogoSriRepository, ComprobanteResponseMapper mapper,
+            EventosSalientes salientes, EventosComprobante eventos,
             ConstructorFactura constructorFactura, ConstructorNotaCredito constructorNotaCredito,
             ConstructorNotaDebito constructorNotaDebito, ConstructorGuiaRemision constructorGuiaRemision,
             ConstructorRetencion constructorRetencion, ConstructorLiquidacionCompra constructorLiquidacionCompra) {
@@ -93,7 +93,7 @@ public class ComprobanteService {
         this.xsdValidador = xsdValidador;
         this.catalogoSriRepository = catalogoSriRepository;
         this.mapper = mapper;
-        this.outboxRepository = outboxRepository;
+        this.salientes = salientes;
         this.eventos = eventos;
         this.constructorFactura = constructorFactura;
         this.constructorNotaCredito = constructorNotaCredito;
@@ -165,7 +165,7 @@ public class ComprobanteService {
             // antes de reservar el secuencial, y en cadena (no en paralelo) por la misma razón que abajo.
             .onItem().transformToUni(ignorado -> catalogoSriRepository.cargar(fechaEmision()))
             .onItem().transformToUni(catalogos -> comprobanteRepository
-                .siguienteSecuencial(empresa.getRuc(), tipo, empresa.getEstablecimiento(), empresa.getPuntoEmision())
+                .obtenerSiguienteSecuencial(empresa.getRuc(), tipo, empresa.getEstablecimiento(), empresa.getPuntoEmision())
                 .map(secuencial -> new SecuencialYCatalogos(secuencial, catalogos)))
             .onItem().transformToUni(par -> constructor.apply(par.secuencial(), par.catalogos())
                 // Secuencial a propósito (no Uni.combine): dos consultas Hibernate
@@ -186,7 +186,7 @@ public class ComprobanteService {
                             // que viaja, sin cambios, hasta firma-electronica-service.
                             comprobante.setXmlGenerado(xmlResolver.generar(comprobante));
                             // Validar contra el XSD real del SRI (última versión, ver
-                            // XsdValidador) es CPU-bound/bloqueante — se corre en el
+                            // ValidadorXml) es CPU-bound/bloqueante — se corre en el
                             // worker pool y se vuelve al contexto de Vert.x antes de
                             // tocar el repositorio, mismo patrón que
                             // CertificadoService.validarYExtraerMetadata. Un XML mal
@@ -198,7 +198,7 @@ public class ComprobanteService {
                                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                                 .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
                                 .onItem().transformToUni(validado -> comprobanteRepository.persist(validado)
-                                    .chain(guardado -> outboxRepository.persist(eventos.creado(guardado))
+                                    .chain(guardado -> salientes.registrar(eventos.construirEventoCreado(guardado))
                                         .replaceWith(guardado))
                                     .map(mapper::toResponse));
                         })));

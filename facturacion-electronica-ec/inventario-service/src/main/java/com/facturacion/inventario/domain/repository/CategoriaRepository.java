@@ -4,8 +4,8 @@ import java.util.UUID;
 
 import io.smallrye.mutiny.Uni;
 
-import com.facturacion.inventario.domain.model.entity.Categoria;
 import com.facturacion.commons.paging.PageResult;
+import com.facturacion.inventario.domain.model.entity.Categoria;
 
 public interface CategoriaRepository {
 

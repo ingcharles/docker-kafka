@@ -52,7 +52,7 @@ public class ConstructorGuiaRemision implements ConstructorComprobante<CrearGuia
             destinatario.setCodDocSustento(destinoRequest.getCodDocSustento());
             destinatario.setNumDocSustento(destinoRequest.getNumDocSustento());
             destinatario.setNumAutDocSustento(destinoRequest.getNumAutDocSustento());
-            destinatario.setFechaEmisionDocSustento(comun.parseFecha(destinoRequest.getFechaEmisionDocSustento()));
+            destinatario.setFechaEmisionDocSustento(comun.convertirFecha(destinoRequest.getFechaEmisionDocSustento()));
             destinatarios.add(destinatario);
 
             for (DetalleGuiaRemisionRequest detalleRequest : destinoRequest.getDetalles()) {
@@ -80,8 +80,8 @@ public class ConstructorGuiaRemision implements ConstructorComprobante<CrearGuia
         comprobante.setTransportistaRazonSocial(request.getTransportistaRazonSocial());
         comprobante.setTransportistaTipoIdentificacion(request.getTransportistaTipoIdentificacion());
         comprobante.setTransportistaRuc(request.getTransportistaRuc());
-        comprobante.setFechaIniTransporte(comun.parseFecha(request.getFechaIniTransporte()));
-        comprobante.setFechaFinTransporte(comun.parseFecha(request.getFechaFinTransporte()));
+        comprobante.setFechaIniTransporte(comun.convertirFecha(request.getFechaIniTransporte()));
+        comprobante.setFechaFinTransporte(comun.convertirFecha(request.getFechaFinTransporte()));
         comprobante.setPlaca(request.getPlaca());
         comprobante.setCamposAdicionales(comun.camposAdicionales(request.getCampoAdicional()));
         return Uni.createFrom().item(comprobante);

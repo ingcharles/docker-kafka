@@ -14,7 +14,6 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
-
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -29,11 +28,12 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.vertx.core.Vertx;
 
+import com.facturacion.commons.rest.Respuestas;
 import com.facturacion.inventario.application.dto.ImagenItemResponse;
 import com.facturacion.inventario.application.dto.SubirImagenRequest;
 import com.facturacion.inventario.application.service.ImagenService;
-import com.facturacion.inventario.infrastructure.security.AccesoEmpresa;
 import com.facturacion.inventario.domain.model.entity.ImagenItem;
+import com.facturacion.inventario.infrastructure.security.AccesoEmpresa;
 
 /**
  * Imágenes de productos y servicios. El contenido se guarda en Postgres
@@ -83,7 +83,7 @@ public class ImagenResource {
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder()
                     .path("imagenes").path(response.getId().toString()).path("contenido").build();
-                return Response.created(location).entity(response).build();
+                return Respuestas.creado(location, response);
             });
     }
 
@@ -122,7 +122,7 @@ public class ImagenResource {
     public Uni<Response> eliminar(
             @Parameter(description = "Id de la imagen", required = true) @PathParam("id") UUID id) {
         return acceso.exigirImagenEscritura(id).chain(() -> imagenService.eliminar(id))
-            .map(ignorado -> Response.noContent().build());
+            .map(ignorado -> Respuestas.sinContenido());
     }
 
     private byte[] leerArchivo(SubirImagenRequest form) {

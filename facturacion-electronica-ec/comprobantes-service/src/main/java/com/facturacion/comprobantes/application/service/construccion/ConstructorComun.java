@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 
 import jakarta.enterprise.context.ApplicationScoped;
 
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.comprobantes.application.dto.CampoAdicionalRequest;
 import com.facturacion.comprobantes.application.dto.EmpresaRequest;
 import com.facturacion.comprobantes.application.dto.PagoRequest;
@@ -27,7 +28,6 @@ import com.facturacion.comprobantes.domain.service.ClaveAccesoGenerador;
 import com.facturacion.comprobantes.domain.service.PagosValidador;
 import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 import com.facturacion.comprobantes.shared.error.CodigoError;
-import com.facturacion.commons.exception.ErrorNegocioException;
 
 /**
  * Piezas comunes a los constructores de los 6 tipos de comprobante: encabezado (clave de acceso, snapshot de la
@@ -42,8 +42,8 @@ public class ConstructorComun {
     /** Encabezado común a los 6 tipos (clave de acceso, snapshot de la empresa inline, estado inicial). */
     public Comprobante encabezado(EmpresaRequest empresa, TipoComprobante tipo, long secuencial,
             Instant ahora) {
-        AmbienteSri ambiente = parseAmbiente(empresa.getAmbiente());
-        String claveAcceso = ClaveAccesoGenerador.generar(ClaveAccesoGenerador.hoyEnEcuador(), tipo, empresa.getRuc(),
+        AmbienteSri ambiente = convertirAmbiente(empresa.getAmbiente());
+        String claveAcceso = ClaveAccesoGenerador.generar(ClaveAccesoGenerador.obtenerFechaActualEcuador(), tipo, empresa.getRuc(),
             ambiente, empresa.getEstablecimiento(), empresa.getPuntoEmision(), secuencial);
 
         Comprobante comprobante = new Comprobante();
@@ -119,7 +119,7 @@ public class ConstructorComun {
      * estricta: antes se aceptaba "31/02/2026" y se corregía en silencio a 28/02, y un texto que no era fecha
      * terminaba en un 500.
      */
-    public Instant parseFecha(String ddMmAaaa) {
+    public Instant convertirFecha(String ddMmAaaa) {
         if (ddMmAaaa == null || ddMmAaaa.isBlank()) {
             return null;
         }
@@ -131,7 +131,7 @@ public class ConstructorComun {
     }
 
     /** Traduce el texto "PRUEBAS"/"PRODUCCION" del request a {@code AmbienteSri}, con un mensaje de error legible si viene mal. */
-    private static AmbienteSri parseAmbiente(String texto) {
+    private static AmbienteSri convertirAmbiente(String texto) {
         try {
             return AmbienteSri.valueOf(texto);
         } catch (IllegalArgumentException e) {

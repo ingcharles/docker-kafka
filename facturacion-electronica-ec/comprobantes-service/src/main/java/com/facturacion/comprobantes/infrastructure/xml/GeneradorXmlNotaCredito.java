@@ -8,12 +8,12 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
-import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.Impuesto;
 import com.facturacion.comprobantes.domain.service.GeneradorXmlComprobante;
+import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 
 /** Genera el XML de Nota de Crédito conforme al Anexo de la ficha técnica del SRI (versión 1.1.0, la última disponible — ver {@code xsd/NotaCredito_V1.1.0.xsd}). */
 @ApplicationScoped
@@ -30,7 +30,7 @@ public class GeneradorXmlNotaCredito implements GeneradorXmlComprobante {
     @Override
     public String generar(Comprobante c) {
         try {
-            Document doc = XmlComprobanteUtil.nuevoDocumento();
+            Document doc = XmlComprobanteUtil.crearDocumento();
 
             Element raiz = doc.createElement("notaCredito");
             raiz.setAttribute("id", "comprobante");
@@ -53,47 +53,47 @@ public class GeneradorXmlNotaCredito implements GeneradorXmlComprobante {
 
     private Element construirInfoTributaria(Document doc, Comprobante c) {
         Element info = doc.createElement("infoTributaria");
-        XmlComprobanteUtil.texto(doc, info, "ambiente", c.getAmbiente().codigo());
-        XmlComprobanteUtil.texto(doc, info, "tipoEmision", "1");
-        XmlComprobanteUtil.texto(doc, info, "razonSocial", c.getEmpresaRazonSocial());
+        XmlComprobanteUtil.agregarTexto(doc, info, "ambiente", c.getAmbiente().codigo());
+        XmlComprobanteUtil.agregarTexto(doc, info, "tipoEmision", "1");
+        XmlComprobanteUtil.agregarTexto(doc, info, "razonSocial", c.getEmpresaRazonSocial());
         if (c.getEmpresaNombreComercial() != null && !c.getEmpresaNombreComercial().isBlank()) {
-            XmlComprobanteUtil.texto(doc, info, "nombreComercial", c.getEmpresaNombreComercial());
+            XmlComprobanteUtil.agregarTexto(doc, info, "nombreComercial", c.getEmpresaNombreComercial());
         }
-        XmlComprobanteUtil.texto(doc, info, "ruc", c.getEmpresaRuc());
-        XmlComprobanteUtil.texto(doc, info, "claveAcceso", c.getClaveAcceso());
-        XmlComprobanteUtil.texto(doc, info, "codDoc", TipoComprobante.NOTA_CREDITO.codigo());
-        XmlComprobanteUtil.texto(doc, info, "estab", c.getEstablecimiento());
-        XmlComprobanteUtil.texto(doc, info, "ptoEmi", c.getPuntoEmision());
-        XmlComprobanteUtil.texto(doc, info, "secuencial", c.getSecuencial());
-        XmlComprobanteUtil.texto(doc, info, "dirMatriz", c.getEmpresaDireccionMatriz());
+        XmlComprobanteUtil.agregarTexto(doc, info, "ruc", c.getEmpresaRuc());
+        XmlComprobanteUtil.agregarTexto(doc, info, "claveAcceso", c.getClaveAcceso());
+        XmlComprobanteUtil.agregarTexto(doc, info, "codDoc", TipoComprobante.NOTA_CREDITO.codigo());
+        XmlComprobanteUtil.agregarTexto(doc, info, "estab", c.getEstablecimiento());
+        XmlComprobanteUtil.agregarTexto(doc, info, "ptoEmi", c.getPuntoEmision());
+        XmlComprobanteUtil.agregarTexto(doc, info, "secuencial", c.getSecuencial());
+        XmlComprobanteUtil.agregarTexto(doc, info, "dirMatriz", c.getEmpresaDireccionMatriz());
         return info;
     }
 
     private Element construirInfoNotaCredito(Document doc, Comprobante c) {
         Element info = doc.createElement("infoNotaCredito");
-        XmlComprobanteUtil.texto(doc, info, "fechaEmision",
+        XmlComprobanteUtil.agregarTexto(doc, info, "fechaEmision",
             FORMATO_FECHA.format(c.getFechaEmision().atZone(ZonaHoraria.ECUADOR)));
-        XmlComprobanteUtil.texto(doc, info, "dirEstablecimiento",
+        XmlComprobanteUtil.agregarTexto(doc, info, "dirEstablecimiento",
             XmlComprobanteUtil.direccionEstablecimiento(c));
-        XmlComprobanteUtil.texto(doc, info, "tipoIdentificacionComprador", c.getCompradorTipoIdentificacion());
-        XmlComprobanteUtil.texto(doc, info, "razonSocialComprador", c.getCompradorRazonSocial());
-        XmlComprobanteUtil.texto(doc, info, "identificacionComprador", c.getCompradorIdentificacion());
+        XmlComprobanteUtil.agregarTexto(doc, info, "tipoIdentificacionComprador", c.getCompradorTipoIdentificacion());
+        XmlComprobanteUtil.agregarTexto(doc, info, "razonSocialComprador", c.getCompradorRazonSocial());
+        XmlComprobanteUtil.agregarTexto(doc, info, "identificacionComprador", c.getCompradorIdentificacion());
         if (c.isEmpresaContribuyenteEspecial() && c.getEmpresaNumeroContribuyenteEspecial() != null) {
-            XmlComprobanteUtil.texto(doc, info, "contribuyenteEspecial", c.getEmpresaNumeroContribuyenteEspecial());
+            XmlComprobanteUtil.agregarTexto(doc, info, "contribuyenteEspecial", c.getEmpresaNumeroContribuyenteEspecial());
         }
-        XmlComprobanteUtil.texto(doc, info, "obligadoContabilidad", c.isEmpresaObligadoContabilidad() ? "SI" : "NO");
-        XmlComprobanteUtil.texto(doc, info, "codDocModificado", c.getDocModificadoTipo());
-        XmlComprobanteUtil.texto(doc, info, "numDocModificado", c.getDocModificadoNumero());
-        XmlComprobanteUtil.texto(doc, info, "fechaEmisionDocSustento",
+        XmlComprobanteUtil.agregarTexto(doc, info, "obligadoContabilidad", c.isEmpresaObligadoContabilidad() ? "SI" : "NO");
+        XmlComprobanteUtil.agregarTexto(doc, info, "codDocModificado", c.getDocModificadoTipo());
+        XmlComprobanteUtil.agregarTexto(doc, info, "numDocModificado", c.getDocModificadoNumero());
+        XmlComprobanteUtil.agregarTexto(doc, info, "fechaEmisionDocSustento",
             FORMATO_FECHA.format(c.getDocModificadoFecha().atZone(ZonaHoraria.ECUADOR)));
-        XmlComprobanteUtil.texto(doc, info, "totalSinImpuestos", XmlComprobanteUtil.montoTexto(c.getSubtotalSinImpuestos()));
-        XmlComprobanteUtil.texto(doc, info, "valorModificacion", XmlComprobanteUtil.montoTexto(c.getImporteTotal()));
-        XmlComprobanteUtil.texto(doc, info, "moneda", c.getMoneda());
+        XmlComprobanteUtil.agregarTexto(doc, info, "totalSinImpuestos", XmlComprobanteUtil.formatearMonto(c.getSubtotalSinImpuestos()));
+        XmlComprobanteUtil.agregarTexto(doc, info, "valorModificacion", XmlComprobanteUtil.formatearMonto(c.getImporteTotal()));
+        XmlComprobanteUtil.agregarTexto(doc, info, "moneda", c.getMoneda());
         info.appendChild(construirTotalConImpuestos(doc, c));
         // Último hijo obligatorio de infoNotaCredito según el XSD real del
         // SRI (confirmado con un rechazo real de Recepción — no aparecía
         // claro como obligatorio en la ficha técnica en texto).
-        XmlComprobanteUtil.texto(doc, info, "motivo", c.getMotivo());
+        XmlComprobanteUtil.agregarTexto(doc, info, "motivo", c.getMotivo());
         return info;
     }
 
@@ -106,10 +106,10 @@ public class GeneradorXmlNotaCredito implements GeneradorXmlComprobante {
             BigDecimal valor = grupo.stream().map(Impuesto::valor).reduce(BigDecimal.ZERO, BigDecimal::add);
 
             Element totalImpuesto = doc.createElement("totalImpuesto");
-            XmlComprobanteUtil.texto(doc, totalImpuesto, "codigo", primero.codigo());
-            XmlComprobanteUtil.texto(doc, totalImpuesto, "codigoPorcentaje", primero.codigoPorcentaje());
-            XmlComprobanteUtil.texto(doc, totalImpuesto, "baseImponible", XmlComprobanteUtil.montoTexto(baseImponible));
-            XmlComprobanteUtil.texto(doc, totalImpuesto, "valor", XmlComprobanteUtil.montoTexto(valor));
+            XmlComprobanteUtil.agregarTexto(doc, totalImpuesto, "codigo", primero.codigo());
+            XmlComprobanteUtil.agregarTexto(doc, totalImpuesto, "codigoPorcentaje", primero.codigoPorcentaje());
+            XmlComprobanteUtil.agregarTexto(doc, totalImpuesto, "baseImponible", XmlComprobanteUtil.formatearMonto(baseImponible));
+            XmlComprobanteUtil.agregarTexto(doc, totalImpuesto, "valor", XmlComprobanteUtil.formatearMonto(valor));
             totalConImpuestos.appendChild(totalImpuesto);
         }
         return totalConImpuestos;
@@ -128,26 +128,26 @@ public class GeneradorXmlNotaCredito implements GeneradorXmlComprobante {
         Element detalles = doc.createElement("detalles");
         for (DetalleComprobante d : c.getDetalles()) {
             Element detalle = doc.createElement("detalle");
-            XmlComprobanteUtil.texto(doc, detalle, "codigoInterno", d.getCodigoPrincipal());
+            XmlComprobanteUtil.agregarTexto(doc, detalle, "codigoInterno", d.getCodigoPrincipal());
             if (d.getCodigoAuxiliar() != null && !d.getCodigoAuxiliar().isBlank()) {
-                XmlComprobanteUtil.texto(doc, detalle, "codigoAdicional", d.getCodigoAuxiliar());
+                XmlComprobanteUtil.agregarTexto(doc, detalle, "codigoAdicional", d.getCodigoAuxiliar());
             }
-            XmlComprobanteUtil.texto(doc, detalle, "descripcion", d.getDescripcion());
-            XmlComprobanteUtil.texto(doc, detalle, "cantidad", d.getCantidad().toPlainString());
-            XmlComprobanteUtil.texto(doc, detalle, "precioUnitario", XmlComprobanteUtil.montoTexto(d.getPrecioUnitario()));
-            XmlComprobanteUtil.texto(doc, detalle, "descuento",
-                XmlComprobanteUtil.montoTexto(d.getDescuento() == null ? BigDecimal.ZERO : d.getDescuento()));
-            XmlComprobanteUtil.texto(doc, detalle, "precioTotalSinImpuesto",
-                XmlComprobanteUtil.montoTexto(d.precioTotalSinImpuesto()));
+            XmlComprobanteUtil.agregarTexto(doc, detalle, "descripcion", d.getDescripcion());
+            XmlComprobanteUtil.agregarTexto(doc, detalle, "cantidad", d.getCantidad().toPlainString());
+            XmlComprobanteUtil.agregarTexto(doc, detalle, "precioUnitario", XmlComprobanteUtil.formatearMonto(d.getPrecioUnitario()));
+            XmlComprobanteUtil.agregarTexto(doc, detalle, "descuento",
+                XmlComprobanteUtil.formatearMonto(d.getDescuento() == null ? BigDecimal.ZERO : d.getDescuento()));
+            XmlComprobanteUtil.agregarTexto(doc, detalle, "precioTotalSinImpuesto",
+                XmlComprobanteUtil.formatearMonto(d.precioTotalSinImpuesto()));
 
             Element impuestos = doc.createElement("impuestos");
             for (Impuesto imp : d.getImpuestos()) {
                 Element impuesto = doc.createElement("impuesto");
-                XmlComprobanteUtil.texto(doc, impuesto, "codigo", imp.codigo());
-                XmlComprobanteUtil.texto(doc, impuesto, "codigoPorcentaje", imp.codigoPorcentaje());
-                XmlComprobanteUtil.texto(doc, impuesto, "tarifa", imp.tarifa().toPlainString());
-                XmlComprobanteUtil.texto(doc, impuesto, "baseImponible", XmlComprobanteUtil.montoTexto(imp.baseImponible()));
-                XmlComprobanteUtil.texto(doc, impuesto, "valor", XmlComprobanteUtil.montoTexto(imp.valor()));
+                XmlComprobanteUtil.agregarTexto(doc, impuesto, "codigo", imp.codigo());
+                XmlComprobanteUtil.agregarTexto(doc, impuesto, "codigoPorcentaje", imp.codigoPorcentaje());
+                XmlComprobanteUtil.agregarTexto(doc, impuesto, "tarifa", imp.tarifa().toPlainString());
+                XmlComprobanteUtil.agregarTexto(doc, impuesto, "baseImponible", XmlComprobanteUtil.formatearMonto(imp.baseImponible()));
+                XmlComprobanteUtil.agregarTexto(doc, impuesto, "valor", XmlComprobanteUtil.formatearMonto(imp.valor()));
                 impuestos.appendChild(impuesto);
             }
             detalle.appendChild(impuestos);

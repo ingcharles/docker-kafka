@@ -7,8 +7,8 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-import com.facturacion.orquestacion.shared.error.CodigoError;
 import com.facturacion.commons.error.Mensajes;
+import com.facturacion.orquestacion.shared.error.CodigoError;
 
 /**
  * Bug real que ya ocurrió: el mensaje largo de una nota del watchdog se guardaba en step_name (varchar(100)) y
@@ -21,7 +21,7 @@ class SagaStepTest {
 
     @Test
     void laNotaGuardaElCodigoCortoEnElNombreYElMensajeLargoEnElPayload() {
-        String mensaje = Mensajes.de(CodigoError.SAGA_EXPIRADA, "FIRMADO", 3);
+        String mensaje = Mensajes.obtenerTexto(CodigoError.SAGA_EXPIRADA, "FIRMADO", 3);
         SagaStep nota = SagaStep.nota(UUID.randomUUID(), CodigoError.SAGA_EXPIRADA.codigo(), mensaje);
 
         assertEquals("NOTA", nota.getStatus());

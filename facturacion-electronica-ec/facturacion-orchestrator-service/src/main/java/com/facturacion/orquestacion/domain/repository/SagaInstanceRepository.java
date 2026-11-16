@@ -5,9 +5,9 @@ import java.util.UUID;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.paging.PageResult;
 import com.facturacion.orquestacion.domain.model.entity.SagaInstance;
 import com.facturacion.orquestacion.domain.model.enums.SagaState;
-import com.facturacion.commons.paging.PageResult;
 
 public interface SagaInstanceRepository {
 
@@ -26,7 +26,7 @@ public interface SagaInstanceRepository {
      * @return la saga ya actualizada, o vacío si no estaba en ninguno de
      * los estados de origen permitidos
      */
-    Uni<SagaInstance> updateState(UUID comprobanteId, SagaState to, String failureReason, SagaState... allowedFrom);
+    Uni<SagaInstance> transicionarEstado(UUID comprobanteId, SagaState to, String failureReason, SagaState... allowedFrom);
 
     /** Sagas en alguno de esos estados, las que llevan más tiempo sin actividad primero (para el watchdog). */
     Uni<List<SagaInstance>> findByEstados(List<SagaState> estados, int limite);

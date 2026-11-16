@@ -64,4 +64,10 @@ public class EmpresaEntity extends PanacheEntityBase {
 
     @Column(name = "actualizado_en", nullable = false)
     public Instant actualizadoEn;
+
+    @Column(name = "logo")
+    public byte[] logo;
+
+    @Column(name = "logo_tipo")
+    public String logoTipo;
 }

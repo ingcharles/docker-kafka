@@ -7,6 +7,7 @@ import jakarta.inject.Inject;
 
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
+import com.facturacion.comprobantes.domain.port.GeneradorXml;
 import com.facturacion.comprobantes.domain.service.GeneradorXmlComprobante;
 import com.facturacion.comprobantes.shared.exception.TipoComprobanteNoSoportadoException;
 
@@ -17,7 +18,7 @@ import com.facturacion.comprobantes.shared.exception.TipoComprobanteNoSoportadoE
  * una clase nueva que implemente el puerto, sin tocar este resolver.
  */
 @ApplicationScoped
-public class GeneradorXmlComprobanteResolver {
+public class GeneradorXmlComprobanteResolver implements GeneradorXml {
 
     @Inject
     @Any

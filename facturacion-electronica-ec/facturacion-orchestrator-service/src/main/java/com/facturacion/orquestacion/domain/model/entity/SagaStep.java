@@ -25,7 +25,7 @@ public class SagaStep {
     public SagaStep() {
     }
 
-    public static SagaStep received(UUID sagaId, String stepName) {
+    public static SagaStep crearRecibido(UUID sagaId, String stepName) {
         SagaStep step = new SagaStep();
         step.id = UUID.randomUUID();
         step.sagaId = sagaId;
@@ -51,7 +51,7 @@ public class SagaStep {
         return step;
     }
 
-    public static SagaStep sent(UUID sagaId, String stepName, String topic, String payload) {
+    public static SagaStep crearEnviado(UUID sagaId, String stepName, String topic, String payload) {
         SagaStep step = new SagaStep();
         step.id = UUID.randomUUID();
         step.sagaId = sagaId;

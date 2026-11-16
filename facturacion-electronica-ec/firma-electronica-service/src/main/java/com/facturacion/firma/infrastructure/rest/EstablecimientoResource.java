@@ -13,7 +13,6 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
-
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -26,6 +25,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.rest.Respuestas;
 import com.facturacion.firma.application.dto.ActualizarEstablecimientoRequest;
 import com.facturacion.firma.application.dto.CrearEstablecimientoRequest;
 import com.facturacion.firma.application.dto.EstablecimientoResponse;
@@ -66,7 +66,7 @@ public class EstablecimientoResource {
             .map(response -> {
                 URI location = uriInfo.getBaseUriBuilder().path("establecimientos")
                     .path(response.getId().toString()).build();
-                return Response.created(location).entity(response).build();
+                return Respuestas.creado(location, response);
             });
     }
 
@@ -81,7 +81,7 @@ public class EstablecimientoResource {
             @Parameter(description = "Id del establecimiento", required = true) @PathParam("id") UUID id,
             @Valid ActualizarEstablecimientoRequest request) {
         return acceso.exigirEmpresaAdmin(empresaId).chain(() -> establecimientoService.actualizar(empresaId, id, request))
-            .map(response -> Response.ok(response).build());
+            .map(response -> Respuestas.actualizado(response));
     }
 
     @GET

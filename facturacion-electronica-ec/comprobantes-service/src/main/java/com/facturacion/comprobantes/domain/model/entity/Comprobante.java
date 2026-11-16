@@ -560,4 +560,76 @@ public class Comprobante {
     public void setActualizadoEn(Instant actualizadoEn) {
         this.actualizadoEn = actualizadoEn;
     }
+
+    // --- Ciclo de vida --------------------------------------------------------------------------------------------
+    // Las transiciones viven en el agregado: cada una valida que el cambio sea legal (EstadoComprobante.puedePasarA)
+    // y deja juntos el estado y los datos que le corresponden, para que ningún servicio los combine mal.
+
+    /** Si el ciclo de vida permite pasar del estado actual a {@code destino}. */
+    public boolean puedePasarA(EstadoComprobante destino) {
+        return estado.puedePasarA(destino);
+    }
+
+    /** Si {@code destino} está adelante en el ciclo pero se saltaría pasos intermedios (ver {@link EstadoComprobante}). */
+    public boolean saltaPasos(EstadoComprobante destino) {
+        return estado.saltaPasos(destino);
+    }
+
+    /** BORRADOR → FIRMADO: guarda el XML firmado devuelto por firma-electronica-service. */
+    public void marcarFirmado(String xmlFirmado) {
+        exigirTransicionA(EstadoComprobante.FIRMADO);
+        this.xmlFirmado = xmlFirmado;
+        this.estado = EstadoComprobante.FIRMADO;
+    }
+
+    /** BORRADOR → FIRMA_FALLIDA: no se pudo firmar; el motivo queda para corregir y reintentar. */
+    public void marcarFirmaFallida(String motivo) {
+        exigirTransicionA(EstadoComprobante.FIRMA_FALLIDA);
+        this.motivoRechazo = motivo;
+        this.estado = EstadoComprobante.FIRMA_FALLIDA;
+    }
+
+    /** BORRADOR → STOCK_INSUFICIENTE: el inventario no pudo reservar el stock; el motivo indica los ítems. */
+    public void marcarStockInsuficiente(String motivo) {
+        exigirTransicionA(EstadoComprobante.STOCK_INSUFICIENTE);
+        this.motivoRechazo = motivo;
+        this.estado = EstadoComprobante.STOCK_INSUFICIENTE;
+    }
+
+    /** FIRMADO → NO_AUTORIZADO: el SRI lo rechazó; se corrige y se reenvía con la misma clave de acceso. */
+    public void marcarNoAutorizado(String motivo) {
+        exigirTransicionA(EstadoComprobante.NO_AUTORIZADO);
+        this.motivoRechazo = motivo;
+        this.estado = EstadoComprobante.NO_AUTORIZADO;
+    }
+
+    /** FIRMADO → AUTORIZADO: guarda el bloque {@code <autorizacion>} completo y los datos de la autorización. */
+    public void marcarAutorizado(String xmlAutorizado, String numeroAutorizacion, Instant fechaAutorizacion) {
+        exigirTransicionA(EstadoComprobante.AUTORIZADO);
+        this.xmlAutorizado = xmlAutorizado;
+        this.numeroAutorizacion = numeroAutorizacion;
+        this.fechaAutorizacion = fechaAutorizacion;
+        this.estado = EstadoComprobante.AUTORIZADO;
+    }
+
+    /** Adjunta el RIDE; solo tiene sentido con el comprobante autorizado (recién entonces hay número y fecha reales). */
+    public void adjuntarRide(byte[] ridePdf) {
+        if (estado != EstadoComprobante.AUTORIZADO) {
+            throw new IllegalStateException("El RIDE solo se adjunta a un comprobante AUTORIZADO; estado actual: " + estado);
+        }
+        this.ridePdf = ridePdf;
+    }
+
+    /** AUTORIZADO → NOTIFICADO: el comprobante ya se envió por correo al receptor. */
+    public void marcarNotificado() {
+        exigirTransicionA(EstadoComprobante.NOTIFICADO);
+        this.estado = EstadoComprobante.NOTIFICADO;
+    }
+
+    private void exigirTransicionA(EstadoComprobante destino) {
+        if (!estado.puedePasarA(destino)) {
+            throw new IllegalStateException(
+                "El comprobante " + id + " está " + estado + " y no puede pasar a " + destino);
+        }
+    }
 }

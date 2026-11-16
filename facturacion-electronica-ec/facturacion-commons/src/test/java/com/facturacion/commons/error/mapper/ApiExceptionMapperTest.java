@@ -20,7 +20,7 @@ class ApiExceptionMapperTest {
 
     @Test
     void notFoundConTextoLiteralSale404ConCodigoGenerico() {
-        ApiErrorResponse cuerpo = ApiExceptionMapper.cuerpo(new NotFoundException("Comprobante no encontrado: 7"));
+        ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(new NotFoundException("Comprobante no encontrado: 7"));
         assertEquals(404, cuerpo.getStatus());
         assertEquals("Not Found", cuerpo.getError());
         assertEquals("Comprobante no encontrado: 7", cuerpo.getMessage());
@@ -30,14 +30,14 @@ class ApiExceptionMapperTest {
 
     @Test
     void cadaExcepcionGenericaTraeSuEstado() {
-        assertEquals(401, ApiExceptionMapper.cuerpo(new TokenInvalidoException("x")).getStatus());
-        assertEquals(403, ApiExceptionMapper.cuerpo(new SinPermisoException("x")).getStatus());
-        assertEquals(409, ApiExceptionMapper.cuerpo(new ConflictoException("x")).getStatus());
+        assertEquals(401, ApiExceptionMapper.construirCuerpo(new TokenInvalidoException("x")).getStatus());
+        assertEquals(403, ApiExceptionMapper.construirCuerpo(new SinPermisoException("x")).getStatus());
+        assertEquals(409, ApiExceptionMapper.construirCuerpo(new ConflictoException("x")).getStatus());
     }
 
     @Test
     void errorNegocioUsaLaEntradaDelCatalogoYSusDetalles() {
-        ApiErrorResponse cuerpo = ApiExceptionMapper.cuerpo(
+        ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(
             ErrorNegocioException.conDetalles(ErrorComun.SOLICITUD_INVALIDA, List.of("a", "b"), "varios problemas"));
         assertEquals(400, cuerpo.getStatus());
         assertEquals("GEN-400-002", cuerpo.getCodigo());

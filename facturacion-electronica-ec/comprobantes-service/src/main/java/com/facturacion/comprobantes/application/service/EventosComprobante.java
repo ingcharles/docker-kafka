@@ -2,6 +2,7 @@ package com.facturacion.comprobantes.application.service;
 
 import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 import java.util.UUID;
 
 import jakarta.enterprise.context.ApplicationScoped;
@@ -12,8 +13,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.facturacion.comprobantes.application.event.ComprobanteAutorizadoEventMessage;
 import com.facturacion.comprobantes.application.event.ComprobanteCreadoEventMessage;
+import com.facturacion.comprobantes.application.event.ItemCantidadEvento;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
-import com.facturacion.comprobantes.infrastructure.outbox.OutboxEventEntity;
+import com.facturacion.comprobantes.domain.port.EventoSaliente;
 import com.facturacion.comprobantes.shared.constant.MessagingConstants;
 
 /**
@@ -32,7 +34,7 @@ public class EventosComprobante {
     }
 
     /** {@code ComprobanteCreado}: lleva el XML generado, que viaja sin cambios hasta firma-electronica-service. */
-    public OutboxEventEntity creado(Comprobante comprobante) {
+    public EventoSaliente construirEventoCreado(Comprobante comprobante) {
         ComprobanteCreadoEventMessage mensaje = new ComprobanteCreadoEventMessage(
             UUID.randomUUID(),
             comprobante.getId(),
@@ -42,8 +44,10 @@ public class EventosComprobante {
             comprobante.getAmbiente().name(),
             comprobante.getXmlGenerado(),
             tieneCorreo(comprobante),
+            comprobante.getTipoComprobante().name(),
+            itemsDeInventario(comprobante),
             Instant.now());
-        return OutboxEventEntity.of(comprobante.getId(), MessagingConstants.EVENT_TYPE_COMPROBANTE_CREADO,
+        return new EventoSaliente(comprobante.getId(), MessagingConstants.EVENT_TYPE_COMPROBANTE_CREADO,
             MessagingConstants.COMPROBANTE_EVENTS_TOPIC, serializar(mensaje));
     }
 
@@ -52,7 +56,7 @@ public class EventosComprobante {
      * entre servicios) ni regenerar el RIDE por su cuenta, así que el RIDE ya generado viaja embebido.
      * Solo tiene sentido si el receptor dio un correo (ver {@link #tieneCorreo}).
      */
-    public OutboxEventEntity autorizado(Comprobante comprobante) {
+    public EventoSaliente construirEventoAutorizado(Comprobante comprobante) {
         ComprobanteAutorizadoEventMessage mensaje = new ComprobanteAutorizadoEventMessage(
             UUID.randomUUID(),
             comprobante.getId(),
@@ -65,8 +69,19 @@ public class EventosComprobante {
             Base64.getEncoder().encodeToString(comprobante.getRidePdf()),
             comprobante.getXmlAutorizado(),
             Instant.now());
-        return OutboxEventEntity.of(comprobante.getId(), MessagingConstants.EVENT_TYPE_COMPROBANTE_AUTORIZADO,
+        return new EventoSaliente(comprobante.getId(), MessagingConstants.EVENT_TYPE_COMPROBANTE_AUTORIZADO,
             MessagingConstants.COMPROBANTE_EVENTS_TOPIC, serializar(mensaje));
+    }
+
+    /** Líneas que apuntan a un ítem de inventario: las demás (texto libre) no tienen stock que descontar. */
+    private static List<ItemCantidadEvento> itemsDeInventario(Comprobante comprobante) {
+        if (comprobante.getDetalles() == null) {
+            return List.of();
+        }
+        return comprobante.getDetalles().stream()
+            .filter(detalle -> detalle.getItemId() != null && detalle.getCantidad() != null)
+            .map(detalle -> new ItemCantidadEvento(detalle.getItemId(), detalle.getCantidad()))
+            .toList();
     }
 
     /** Sin correo del receptor no se publica ComprobanteAutorizado y por tanto nunca habrá notificación. */

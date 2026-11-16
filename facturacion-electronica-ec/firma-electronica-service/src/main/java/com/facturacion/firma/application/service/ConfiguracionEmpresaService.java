@@ -8,25 +8,25 @@ import java.util.stream.Collectors;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.firma.application.dto.ConfiguracionEmpresaResponse;
 import com.facturacion.firma.application.event.ConfiguracionEmpresaEventMessage;
+import com.facturacion.firma.application.mapper.ConfiguracionEmpresaResponseMapper;
 import com.facturacion.firma.domain.model.entity.ConfiguracionEmpresa;
 import com.facturacion.firma.domain.model.entity.Empresa;
+import com.facturacion.firma.domain.port.EventoSaliente;
+import com.facturacion.firma.domain.port.EventosSalientes;
 import com.facturacion.firma.domain.repository.ConfiguracionEmpresaRepository;
 import com.facturacion.firma.domain.repository.EmpresaRepository;
-import com.facturacion.firma.infrastructure.outbox.OutboxEventEntity;
-import com.facturacion.firma.infrastructure.outbox.OutboxEventRepository;
-import com.facturacion.firma.infrastructure.persistence.mapper.ConfiguracionEmpresaMapper;
 import com.facturacion.firma.shared.constant.MessagingConstants;
 import com.facturacion.firma.shared.exception.CodigoDuplicadoException;
-import com.facturacion.commons.exception.NotFoundException;
 
 /**
  * Ajustes opcionales por empresa, guardados como pares clave/valor — ver la
@@ -42,18 +42,18 @@ public class ConfiguracionEmpresaService {
 
     private final EmpresaRepository empresaRepository;
     private final ConfiguracionEmpresaRepository configuracionRepository;
-    private final ConfiguracionEmpresaMapper mapper;
-    private final OutboxEventRepository outboxRepository;
+    private final ConfiguracionEmpresaResponseMapper mapper;
+    private final EventosSalientes salientes;
     private final ObjectMapper objectMapper;
 
     @Inject
     public ConfiguracionEmpresaService(EmpresaRepository empresaRepository,
-            ConfiguracionEmpresaRepository configuracionRepository, ConfiguracionEmpresaMapper mapper,
-            OutboxEventRepository outboxRepository, ObjectMapper objectMapper) {
+            ConfiguracionEmpresaRepository configuracionRepository, ConfiguracionEmpresaResponseMapper mapper,
+            EventosSalientes salientes, ObjectMapper objectMapper) {
         this.empresaRepository = empresaRepository;
         this.configuracionRepository = configuracionRepository;
         this.mapper = mapper;
-        this.outboxRepository = outboxRepository;
+        this.salientes = salientes;
         this.objectMapper = objectMapper;
     }
 
@@ -87,8 +87,8 @@ public class ConfiguracionEmpresaService {
 
     private Uni<ConfiguracionEmpresa> guardarYPublicar(Empresa empresa, String clave, String valor) {
         return configuracionRepository.upsert(empresa.getId(), clave, valor)
-            .chain(guardado -> outboxRepository
-                .persist(construirEventoOutbox(empresa, clave, valor,
+            .chain(guardado -> salientes
+                .registrar(construirEventoOutbox(empresa, clave, valor,
                     MessagingConstants.EVENT_TYPE_CONFIGURACION_EMPRESA_ESTABLECIDA))
                 .replaceWith(guardado));
     }
@@ -113,20 +113,35 @@ public class ConfiguracionEmpresaService {
             .onItem().ifNull().failWith(() -> new NotFoundException("Empresa no encontrada: " + empresaId))
             .onItem().transformToUni(empresa -> configuracionRepository.deleteByEmpresaIdAndClave(empresaId, clave)
                 .onItem().transformToUni(borrada -> Boolean.TRUE.equals(borrada)
-                    ? outboxRepository.persist(construirEventoOutbox(empresa, clave, null,
+                    ? salientes.registrar(construirEventoOutbox(empresa, clave, null,
                         MessagingConstants.EVENT_TYPE_CONFIGURACION_EMPRESA_ELIMINADA)).replaceWithVoid()
                     : Uni.createFrom().failure(new NotFoundException(
                         "No existe la configuración '" + clave + "' para la empresa " + empresaId))));
     }
 
-    private OutboxEventEntity construirEventoOutbox(Empresa empresa, String clave, String valor, String tipoEvento) {
-        ConfiguracionEmpresaEventMessage mensaje = new ConfiguracionEmpresaEventMessage(
-            UUID.randomUUID(), tipoEvento, empresa.getRuc(), clave, valor, Instant.now());
-        return OutboxEventEntity.of(empresa.getId(), tipoEvento, MessagingConstants.CONFIGURACION_EMPRESA_EVENTS_TOPIC,
-            writeValueAsString(mensaje));
+    /**
+     * Publica un ajuste que NO se guarda en configuracion_empresa porque ya vive en otra columna de la empresa (hoy: el
+     * logo, ajuste "ride.logo"): los servicios consumidores lo reciben igual que cualquier otro ajuste.
+     */
+    public Uni<Void> publicarAjusteDerivado(Empresa empresa, String clave, String valor) {
+        return salientes.registrar(construirEventoOutbox(empresa, clave, valor,
+            MessagingConstants.EVENT_TYPE_CONFIGURACION_EMPRESA_ESTABLECIDA));
     }
 
-    private String writeValueAsString(Object value) {
+    /** Contraparte de {@link #publicarAjusteDerivado}: los consumidores borran el ajuste. */
+    public Uni<Void> retirarAjusteDerivado(Empresa empresa, String clave) {
+        return salientes.registrar(construirEventoOutbox(empresa, clave, null,
+            MessagingConstants.EVENT_TYPE_CONFIGURACION_EMPRESA_ELIMINADA));
+    }
+
+    private EventoSaliente construirEventoOutbox(Empresa empresa, String clave, String valor, String tipoEvento) {
+        ConfiguracionEmpresaEventMessage mensaje = new ConfiguracionEmpresaEventMessage(
+            UUID.randomUUID(), tipoEvento, empresa.getRuc(), clave, valor, Instant.now());
+        return new EventoSaliente(empresa.getId(), tipoEvento, MessagingConstants.CONFIGURACION_EMPRESA_EVENTS_TOPIC,
+            serializarAJson(mensaje));
+    }
+
+    private String serializarAJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {

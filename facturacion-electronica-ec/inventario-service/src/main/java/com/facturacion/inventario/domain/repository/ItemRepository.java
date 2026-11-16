@@ -5,9 +5,9 @@ import java.util.UUID;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.paging.PageResult;
 import com.facturacion.inventario.domain.model.entity.Item;
 import com.facturacion.inventario.domain.model.enums.TipoItem;
-import com.facturacion.commons.paging.PageResult;
 
 public interface ItemRepository {
 

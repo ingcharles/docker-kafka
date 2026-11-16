@@ -32,7 +32,6 @@ import com.facturacion.orquestacion.shared.constant.MessagingConstants;
  * a un único tópico fijo), este enruta cada fila hacia uno de tres tópicos
  * de comando distintos según {@code outbox_event.topic} — el orquestador es
  * el único participante que emite hacia más de un destino (mismo patrón que
- * {@code SagaCommandRelay} en ecommerce/saga-orchestrator-service, y que
  * {@code OutboxRelay} de inventario-service para sus dos tópicos). "delayed"
  * evita la carrera de arranque con los emitters de Reactive Messaging —
  * acá hace más falta que en otros servicios: son 3 canales salientes más 4 entrantes.
@@ -58,19 +57,24 @@ public class OrquestacionCommandRelay {
     @Channel("sri-commands-out")
     Emitter<String> sriCommandsEmitter;
 
+    @Inject
+    @Channel("inventario-commands-out")
+    Emitter<String> inventarioCommandsEmitter;
+
     private Map<String, Emitter<String>> emittersByTopic;
 
     @PostConstruct
-    void init() {
+    void inicializar() {
         emittersByTopic = Map.of(
             MessagingConstants.COMPROBANTE_COMMANDS_TOPIC, comprobanteCommandsEmitter,
             MessagingConstants.FIRMA_COMMANDS_TOPIC, firmaCommandsEmitter,
-            MessagingConstants.SRI_COMMANDS_TOPIC, sriCommandsEmitter);
+            MessagingConstants.SRI_COMMANDS_TOPIC, sriCommandsEmitter,
+            MessagingConstants.INVENTARIO_COMMANDS_TOPIC, inventarioCommandsEmitter);
     }
 
     @Scheduled(every = "1s", delayed = "3s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     @WithTransaction
-    public Uni<Void> relay() {
+    public Uni<Void> publicarEventosPendientes() {
         return outboxRepository.findUnpublishedBatch(BATCH_SIZE)
             .onItem().transformToMulti(batch -> Multi.createFrom().iterable(batch))
             .onItem().transformToUniAndConcatenate(this::publish)

@@ -4,6 +4,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import org.eclipse.microprofile.reactive.messaging.Incoming;
+import org.jboss.logging.Logger;
 
 import io.smallrye.mutiny.Uni;
 
@@ -13,6 +14,8 @@ import com.facturacion.orquestacion.application.service.SagaOrchestratorService;
 @ApplicationScoped
 public class NotificacionEventConsumer {
 
+    private static final Logger LOG = Logger.getLogger(NotificacionEventConsumer.class);
+
     private final SagaOrchestratorService orchestratorService;
 
     @Inject
@@ -21,7 +24,9 @@ public class NotificacionEventConsumer {
     }
 
     @Incoming("notificacion-events-in")
-    public Uni<Void> onEvent(NotificacionResultadoEventMessage event) {
-        return orchestratorService.handleNotificacionEvent(event);
+    public Uni<Void> procesarEvento(NotificacionResultadoEventMessage event) {
+        return orchestratorService.procesarEventoNotificacion(event)
+            .invoke(resultado -> resultado.registrar(LOG, "procesarEventoNotificacion", event.eventId(), event.comprobanteId()))
+            .replaceWithVoid();
     }
 }

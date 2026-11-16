@@ -1,0 +1,306 @@
+{
+  "info": {
+    "name": "Flujo real de una factura electrónica",
+    "description": "De cero hasta el correo: cuenta, empresa, api-key, certificado, producto, factura, saga y verificación. Ejecutar en orden (o con el Collection Runner). Los ids y tokens se guardan solos en las variables de la colección/entorno. Usar siempre ambiente PRUEBAS.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "ruc", "value": "1722039953001" },
+    { "key": "razon_social", "value": "ANCHUNDIA VALENCIA CARLOS EDUARDO" },
+    { "key": "email_cuenta", "value": "e.du.ingcharles@gmail.com" },
+    { "key": "email_comprador", "value": "e.du.ingcharles@hotmail.com" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{apikey}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "1. Identidad: cuenta, empresa y api-key",
+      "item": [
+        {
+          "name": "1.1 Registrar usuario",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{identidad_url}}/usuarios", "host": ["{{identidad_url}}"], "path": ["usuarios"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_cuenta}}\",\n  \"password\": \"{{password_cuenta}}\",\n  \"nombres\": \"Carlos\",\n  \"apellidos\": \"Anchundia\"\n}"
+            },
+            "description": "Solo la primera vez. Si el usuario ya existe responde 409: pasar al login."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": ["pm.test('201 creado o 409 ya existe', () => pm.expect([201, 409]).to.include(pm.response.code));"] }
+            }
+          ]
+        },
+        {
+          "name": "1.2 Login (guarda token)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{identidad_url}}/usuarios/login", "host": ["{{identidad_url}}"], "path": ["usuarios", "login"] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email_cuenta}}\",\n  \"password\": \"{{password_cuenta}}\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.expect(j.token, 'token').to.be.a('string');",
+                  "pm.collectionVariables.set('token', j.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.3 Crear empresa (guarda empresa_id)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{firma_url}}", "host": ["{{firma_url}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ruc\": \"{{ruc}}\",\n  \"razonSocial\": \"{{razon_social}}\",\n  \"nombreComercial\": \"Prueba\",\n  \"direccionMatriz\": \"LLANO CHICO\",\n  \"obligadoContabilidad\": false,\n  \"contribuyenteEspecial\": false,\n  \"esGranContribuyente\": false,\n  \"vendeCombustibles\": false,\n  \"ambiente\": \"PRUEBAS\",\n  \"establecimientoDefecto\": \"001\",\n  \"puntoEmisionDefecto\": \"001\"\n}"
+            },
+            "description": "Con el token de sesión. El usuario queda ADMIN de la empresa (evento de Kafka: puede tardar unos segundos) y se crea el establecimiento 001 / punto 001."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('empresa_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.4 Mis empresas (esperar a que aparezca como ADMIN)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{identidad_url}}/usuarios/me/empresas", "host": ["{{identidad_url}}"], "path": ["usuarios", "me", "empresas"] },
+            "description": "Si la empresa aún no aparece, repetir en unos segundos antes de pedir la api-key (si no: 403 IDE-403-003)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": ["pm.test('200', () => pm.response.to.have.status(200));", "pm.test('incluye el RUC', () => pm.expect(pm.response.text()).to.include(pm.collectionVariables.get('ruc')));"] }
+            }
+          ]
+        },
+        {
+          "name": "1.5 Crear api-key (guarda apikey; se muestra una sola vez)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{identidad_url}}/api-keys", "host": ["{{identidad_url}}"], "path": ["api-keys"] },
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"flujo-real\",\n  \"ruc\": \"{{ruc}}\",\n  \"expiracionEnDias\": 30\n}" },
+            "description": "La api-key sirve para los otros 6 servicios (autorización de colección: Bearer {{apikey}})."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('apikey', pm.response.json().valor);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Firma: certificado y logo",
+      "item": [
+        {
+          "name": "2.1 Subir certificado .p12",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{firma_url}}/{{empresa_id}}/certificado", "host": ["{{firma_url}}"], "path": ["{{empresa_id}}", "certificado"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "archivo", "type": "file", "src": [], "description": "Elegir el .p12 (D:\\inf_sri\\FIRMA ELECTRONICA\\...)" },
+                { "key": "contrasena", "value": "{{p12_password}}", "type": "text" }
+              ]
+            },
+            "description": "En el campo archivo, pulsar Select Files y elegir el .p12. 201; 400 si venció o la clave no abre."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('201', () => pm.response.to.have.status(201));"] } }]
+        },
+        {
+          "name": "2.2 Subir logo (opcional)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{firma_url}}/{{empresa_id}}/logo", "host": ["{{firma_url}}"], "path": ["{{empresa_id}}", "logo"] },
+            "body": { "mode": "formdata", "formdata": [{ "key": "archivo", "type": "file", "src": [], "description": "PNG o JPG" }] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('201', () => pm.response.to.have.status(201));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "3. Inventario: producto con stock",
+      "item": [
+        {
+          "name": "3.1 Crear producto (guarda item_id)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{inventario_url}}/items", "host": ["{{inventario_url}}"], "path": ["items"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ruc\": \"{{ruc}}\",\n  \"tipo\": \"PRODUCTO\",\n  \"codigoPrincipal\": \"TABLET02\",\n  \"descripcion\": \"Tablet 10 pulgadas\",\n  \"precioUnitario\": 300.00,\n  \"unidadMedida\": \"unidad\",\n  \"cantidadInicial\": 20,\n  \"costoInicial\": 220.00,\n  \"stockMinimo\": 5,\n  \"codigoImpuesto\": \"2\",\n  \"codigoPorcentaje\": \"4\",\n  \"tieneIce\": false\n}"
+            },
+            "description": "El código TABLET02 debe ser único por RUC: si ya existe, cambiarlo."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('item_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Comprobantes: emitir la factura",
+      "item": [
+        {
+          "name": "4.1 Emitir factura (guarda comprobante_id)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{comprobantes_url}}/facturas", "host": ["{{comprobantes_url}}"], "path": ["facturas"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"empresa\": {\n    \"ruc\": \"{{ruc}}\",\n    \"razonSocial\": \"{{razon_social}}\",\n    \"direccionMatriz\": \"LLANO CHICO\",\n    \"ambiente\": \"PRUEBAS\",\n    \"establecimiento\": \"001\",\n    \"puntoEmision\": \"001\"\n  },\n  \"compradorTipoIdentificacion\": \"05\",\n  \"compradorIdentificacion\": \"1710034065\",\n  \"compradorRazonSocial\": \"Consumidor de Prueba\",\n  \"compradorDireccion\": \"Quito\",\n  \"compradorCorreo\": \"{{email_comprador}}\",\n  \"moneda\": \"DOLAR\",\n  \"detalles\": [\n    {\n      \"itemId\": \"{{item_id}}\",\n      \"codigoPrincipal\": \"TABLET02\",\n      \"descripcion\": \"Tablet 10 pulgadas\",\n      \"cantidad\": 1,\n      \"precioUnitario\": 300.00\n    }\n  ]\n}"
+            },
+            "description": "Queda en BORRADOR y la saga arranca sola."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('comprobante_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Saga: seguir hasta el final",
+      "item": [
+        {
+          "name": "5.1 Consultar saga (se repite sola en el Runner hasta un estado final)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{sagas_url}}/{{comprobante_id}}", "host": ["{{sagas_url}}"], "path": ["{{comprobante_id}}"] },
+            "description": "Camino esperado: STOCK_PENDIENTE → STOCK_RESERVADO → FIRMADO → AUTORIZADO → NOTIFICADO. Finales de error: STOCK_NO_DISPONIBLE, FIRMA_FALLIDA, RECHAZADO_RECEPCION, NO_AUTORIZADO, NOTIFICACION_FALLIDA. Enviándola a mano, repetirla cada pocos segundos."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const finales = ['NOTIFICADO','STOCK_NO_DISPONIBLE','FIRMA_FALLIDA','RECHAZADO_RECEPCION','NO_AUTORIZADO','NOTIFICACION_FALLIDA'];",
+                  "const j = pm.response.json();",
+                  "const estado = j.state;",
+                  "console.log('Estado de la saga:', estado);",
+                  "const intentos = Number(pm.collectionVariables.get('intentos_saga') || 0) + 1;",
+                  "pm.collectionVariables.set('intentos_saga', intentos);",
+                  "if (!finales.includes(estado) && intentos < 30) {",
+                  "  setTimeout(() => postman.setNextRequest(pm.info.requestName), 3000);",
+                  "} else {",
+                  "  pm.collectionVariables.unset('intentos_saga');",
+                  "  pm.test('La saga terminó en NOTIFICADO (estado: ' + estado + ')', () => pm.expect(estado).to.eql('NOTIFICADO'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Verificar el resultado",
+      "item": [
+        {
+          "name": "6.1 Comprobante (AUTORIZADO / NOTIFICADO)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{comprobantes_url}}/comprobantes/{{comprobante_id}}", "host": ["{{comprobantes_url}}"], "path": ["comprobantes", "{{comprobante_id}}"] }
+          }
+        },
+        {
+          "name": "6.2 Descargar RIDE (PDF) — usar Send and Download",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{comprobantes_url}}/comprobantes/{{comprobante_id}}/ride", "host": ["{{comprobantes_url}}"], "path": ["comprobantes", "{{comprobante_id}}", "ride"] }
+          }
+        },
+        {
+          "name": "6.3 Descargar XML autorizado — usar Send and Download",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{comprobantes_url}}/comprobantes/{{comprobante_id}}/xml", "host": ["{{comprobantes_url}}"], "path": ["comprobantes", "{{comprobante_id}}", "xml"] }
+          }
+        },
+        {
+          "name": "6.4 Notificación (ENVIADA o FALLIDA + motivo)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{notificaciones_url}}/notificaciones/comprobante/{{comprobante_id}}", "host": ["{{notificaciones_url}}"], "path": ["notificaciones", "comprobante", "{{comprobante_id}}"] }
+          }
+        },
+        {
+          "name": "6.5 Producto (cantidadDisponible bajó 1)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{inventario_url}}/items/{{item_id}}", "host": ["{{inventario_url}}"], "path": ["items", "{{item_id}}"] }
+          }
+        }
+      ]
+    }
+  ]
+}

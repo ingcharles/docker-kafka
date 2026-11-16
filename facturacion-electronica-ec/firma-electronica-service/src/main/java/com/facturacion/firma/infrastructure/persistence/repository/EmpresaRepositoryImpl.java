@@ -11,8 +11,8 @@ import jakarta.inject.Inject;
 import io.quarkus.panache.common.Page;
 import io.smallrye.mutiny.Uni;
 
-import com.facturacion.firma.domain.model.entity.Empresa;
 import com.facturacion.commons.paging.PageResult;
+import com.facturacion.firma.domain.model.entity.Empresa;
 import com.facturacion.firma.domain.repository.EmpresaRepository;
 import com.facturacion.firma.infrastructure.persistence.entity.EmpresaEntity;
 import com.facturacion.firma.infrastructure.persistence.mapper.EmpresaMapper;
@@ -54,6 +54,12 @@ public class EmpresaRepositoryImpl implements EmpresaRepository {
                 entity.actualizadoEn = Instant.now();
                 return Uni.createFrom().item(mapper.toDomain(entity));
             });
+    }
+
+    @Override
+    public Uni<Void> actualizarLogo(UUID id, byte[] logo, String tipo) {
+        return repository.update("logo = ?1, logoTipo = ?2, actualizadoEn = ?3 where id = ?4", logo, tipo, Instant.now(), id)
+            .replaceWithVoid();
     }
 
     @Override

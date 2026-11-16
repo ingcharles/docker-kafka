@@ -36,6 +36,17 @@ public final class MessagingConstants {
     public static final String COMANDO_MARCAR_AUTORIZADO = "MARCAR_AUTORIZADO";
     public static final String COMANDO_MARCAR_NO_AUTORIZADO = "MARCAR_NO_AUTORIZADO";
     public static final String COMANDO_MARCAR_NOTIFICADO = "MARCAR_NOTIFICADO";
+    public static final String COMANDO_MARCAR_STOCK_INSUFICIENTE = "MARCAR_STOCK_INSUFICIENTE";
+
+    // Inventario: solo participa si el descuento de inventario está habilitado (orquestacion.inventario.descuento.habilitado).
+    public static final String INVENTARIO_COMMANDS_TOPIC = "facturacion.inventario.comandos.v1";
+    public static final String INVENTARIO_EVENTS_TOPIC = "facturacion.inventario.eventos.v1";
+    public static final String COMANDO_STOCK_RESERVAR = "RESERVAR";
+    public static final String COMANDO_STOCK_CONFIRMAR = "CONFIRMAR";
+    public static final String COMANDO_STOCK_LIBERAR = "LIBERAR";
+    public static final String EVENT_TYPE_STOCK_RESERVADO = "StockReservado";
+    public static final String EVENT_TYPE_STOCK_NO_DISPONIBLE = "StockNoDisponible";
+    public static final String TIPO_COMPROBANTE_FACTURA = "FACTURA";
 
     private MessagingConstants() {
     }

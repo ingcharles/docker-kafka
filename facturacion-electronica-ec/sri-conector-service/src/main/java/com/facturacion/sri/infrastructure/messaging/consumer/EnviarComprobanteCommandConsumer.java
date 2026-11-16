@@ -37,7 +37,7 @@ public class EnviarComprobanteCommandConsumer {
 
     @Incoming("sri-comandos-in")
     @WithTransaction
-    public Uni<Void> onCommand(EnviarComprobanteCommand command) {
+    public Uni<Void> procesarComando(EnviarComprobanteCommand command) {
         // Un comando sin identificadores no se puede procesar ni dejar rastro en la base: se rechaza con un motivo
         // claro y SmallRye lo envía al DLQ, en vez de fallar con un error de restricción de la base.
         if (command == null || command.eventId() == null || command.comprobanteId() == null) {

@@ -9,10 +9,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import com.facturacion.comprobantes.domain.model.enums.Catalogo;
-import com.facturacion.comprobantes.shared.error.CodigoError;
 import com.facturacion.commons.error.Mensajes;
 import com.facturacion.commons.exception.ErrorNegocioException;
+import com.facturacion.comprobantes.domain.model.enums.Catalogo;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /**
  * Descripción de un {@link Catalogo}: columnas tipadas y columnas clave (las de las tablas de
@@ -112,7 +112,7 @@ public record CatalogoDef(Catalogo catalogo, List<Columna> columnas) {
             Columna.activo())));
 
     public static Optional<CatalogoDef> buscar(String nombre) {
-        return Catalogo.deNombre(nombre).flatMap(c -> TODOS.stream().filter(d -> d.catalogo == c).findFirst());
+        return Catalogo.buscarPorNombre(nombre).flatMap(c -> TODOS.stream().filter(d -> d.catalogo == c).findFirst());
     }
 
     /** Nombre de cable del catálogo (también el nombre de su tabla). */
@@ -120,7 +120,7 @@ public record CatalogoDef(Catalogo catalogo, List<Columna> columnas) {
         return catalogo.nombre();
     }
 
-    public List<Columna> claves() {
+    public List<Columna> listarClaves() {
         return columnas.stream().filter(Columna::clave).toList();
     }
 
@@ -153,7 +153,7 @@ public record CatalogoDef(Catalogo catalogo, List<Columna> columnas) {
                     crudo = columna.tipo == Tipo.BOOLEANO
                         ? Boolean.valueOf(columna.valorPorDefecto) : columna.valorPorDefecto;
                 } else if (columna.requerido || columna.clave) {
-                    errores.add(Mensajes.de(CodigoError.CAMPO_OBLIGATORIO, columna.nombre));
+                    errores.add(Mensajes.obtenerTexto(CodigoError.CAMPO_OBLIGATORIO, columna.nombre));
                     continue;
                 } else {
                     valores.put(columna.nombre, null);
@@ -218,7 +218,7 @@ public record CatalogoDef(Catalogo catalogo, List<Columna> columnas) {
             LocalDate hasta = LocalDate.parse((String) valores.get(COL_VIGENTE_HASTA));
             if (hasta.isBefore(desde)) {
                 throw ErrorNegocioException.conDetalles(CodigoError.CAMPOS_INVALIDOS,
-                    List.of(Mensajes.de(CodigoError.VIGENCIA_INVERTIDA)), nombre());
+                    List.of(Mensajes.obtenerTexto(CodigoError.VIGENCIA_INVERTIDA)), nombre());
             }
         }
     }
@@ -228,7 +228,7 @@ public record CatalogoDef(Catalogo catalogo, List<Columna> columnas) {
             BigDecimal valor = new BigDecimal((String) valores.get(campo));
             if (valor.signum() < 0 || valor.compareTo(maximo) > 0) {
                 throw ErrorNegocioException.conDetalles(CodigoError.CAMPOS_INVALIDOS,
-                    List.of(Mensajes.de(CodigoError.RANGO_FUERA_DE_LIMITES, campo, maximo.toPlainString())),
+                    List.of(Mensajes.obtenerTexto(CodigoError.RANGO_FUERA_DE_LIMITES, campo, maximo.toPlainString())),
                     nombre());
             }
         }

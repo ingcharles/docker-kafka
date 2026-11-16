@@ -14,21 +14,21 @@ import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.exception.NotFoundException;
+import com.facturacion.commons.paging.PageResult;
+import com.facturacion.commons.paging.PagedResponse;
 import com.facturacion.inventario.application.dto.MovimientoKardexResponse;
 import com.facturacion.inventario.application.dto.RegistrarAjusteKardexRequest;
 import com.facturacion.inventario.application.dto.RegistrarEntradaKardexRequest;
+import com.facturacion.inventario.application.mapper.MovimientoKardexResponseMapper;
 import com.facturacion.inventario.domain.model.entity.Item;
 import com.facturacion.inventario.domain.model.entity.MovimientoKardex;
 import com.facturacion.inventario.domain.model.enums.TipoMovimientoKardex;
-import com.facturacion.commons.paging.PageResult;
 import com.facturacion.inventario.domain.repository.ItemRepository;
 import com.facturacion.inventario.domain.repository.MovimientoKardexRepository;
 import com.facturacion.inventario.domain.service.KardexCalculador;
-import com.facturacion.inventario.infrastructure.persistence.mapper.MovimientoKardexMapper;
 import com.facturacion.inventario.shared.exception.ItemNoEsProductoException;
-import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.inventario.shared.exception.StockInsuficienteException;
-import com.facturacion.commons.paging.PagedResponse;
 
 /**
  * Kardex de costeo por promedio ponderado (ver {@link KardexCalculador}).
@@ -45,11 +45,11 @@ public class KardexService {
 
     private final ItemRepository itemRepository;
     private final MovimientoKardexRepository kardexRepository;
-    private final MovimientoKardexMapper mapper;
+    private final MovimientoKardexResponseMapper mapper;
 
     @Inject
     public KardexService(ItemRepository itemRepository, MovimientoKardexRepository kardexRepository,
-            MovimientoKardexMapper mapper) {
+            MovimientoKardexResponseMapper mapper) {
         this.itemRepository = itemRepository;
         this.kardexRepository = kardexRepository;
         this.mapper = mapper;

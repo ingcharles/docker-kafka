@@ -3,7 +3,6 @@ package com.facturacion.sri.infrastructure.persistence.mapper;
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingConstants;
 
-import com.facturacion.sri.application.dto.EnvioSriResponse;
 import com.facturacion.sri.domain.model.entity.EnvioSri;
 import com.facturacion.sri.domain.model.enums.AmbienteSri;
 import com.facturacion.sri.domain.model.enums.EstadoEnvioSri;
@@ -15,8 +14,6 @@ public interface EnvioSriMapper {
     EnvioSriEntity toEntity(EnvioSri domain);
 
     EnvioSri toDomain(EnvioSriEntity entity);
-
-    EnvioSriResponse toResponse(EnvioSri domain);
 
     default String map(AmbienteSri ambiente) {
         return ambiente == null ? null : ambiente.name();

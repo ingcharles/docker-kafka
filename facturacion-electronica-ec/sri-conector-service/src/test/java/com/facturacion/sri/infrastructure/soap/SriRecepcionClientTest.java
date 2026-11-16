@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+import com.facturacion.sri.domain.port.RecepcionResultado;
+
 class SriRecepcionClientTest {
 
     private static String respuesta(String estado, String identificador, String mensaje) {

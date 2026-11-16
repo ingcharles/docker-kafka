@@ -3,15 +3,12 @@ package com.facturacion.inventario.infrastructure.persistence.mapper;
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingConstants;
 
-import com.facturacion.inventario.application.dto.MovimientoKardexResponse;
 import com.facturacion.inventario.domain.model.entity.MovimientoKardex;
 import com.facturacion.inventario.domain.model.enums.TipoMovimientoKardex;
 import com.facturacion.inventario.infrastructure.persistence.entity.MovimientoKardexEntity;
 
 @Mapper(componentModel = MappingConstants.ComponentModel.CDI)
 public interface MovimientoKardexMapper {
-
-    MovimientoKardexResponse toResponse(MovimientoKardex domain);
 
     MovimientoKardexEntity toEntity(MovimientoKardex domain);
 

@@ -21,7 +21,7 @@ public class ConstraintViolationExceptionMapper implements ExceptionMapper<Const
         List<String> details = exception.getConstraintViolations().stream()
             .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
             .collect(Collectors.toList());
-        ApiErrorResponse body = new ApiErrorResponse(400, "Bad Request", Mensajes.de(ErrorComun.VALIDACION_FALLIDA),
+        ApiErrorResponse body = new ApiErrorResponse(400, "Bad Request", Mensajes.obtenerTexto(ErrorComun.VALIDACION_FALLIDA),
             details, ErrorComun.VALIDACION_FALLIDA.codigo());
         return Response.status(Response.Status.BAD_REQUEST).entity(body).build();
     }

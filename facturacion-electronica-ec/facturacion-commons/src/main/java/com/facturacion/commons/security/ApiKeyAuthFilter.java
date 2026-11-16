@@ -10,6 +10,8 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.ext.Provider;
 
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
 import com.facturacion.commons.exception.TokenInvalidoException;
 
 /**
@@ -34,14 +36,25 @@ public class ApiKeyAuthFilter implements ContainerRequestFilter {
     @Context
     ResourceInfo resourceInfo;
 
+    private final boolean habilitado;
+
+    /**
+     * @param habilitado {@code facturacion.filtro-api-key.habilitado} (por defecto {@code true}). identidad-service lo
+     *                   apaga: tiene endpoints públicos (registro y login) y su propia autenticación de sesión.
+     */
     @Inject
-    public ApiKeyAuthFilter(JwtVerificador jwtVerificador, TokenPrincipal tokenPrincipal) {
+    public ApiKeyAuthFilter(JwtVerificador jwtVerificador, TokenPrincipal tokenPrincipal,
+            @ConfigProperty(name = "facturacion.filtro-api-key.habilitado", defaultValue = "true") boolean habilitado) {
         this.jwtVerificador = jwtVerificador;
         this.tokenPrincipal = tokenPrincipal;
+        this.habilitado = habilitado;
     }
 
     @Override
     public void filter(ContainerRequestContext requestContext) {
+        if (!habilitado) {
+            return;
+        }
         boolean permiteSesion = permiteSesion();
         String header = requestContext.getHeaderString(HttpHeaders.AUTHORIZATION);
         if (header == null || !header.startsWith(PREFIJO)) {
