@@ -7,6 +7,7 @@ cambias el comportamiento, actualiza ese documento **en presente y en corto, sin
 ## Compilar y probar
 - Desde esta carpeta: `mvn -B test` (todo) o `mvn -B package` (incluye la validación de Quarkus, que `test` no hace).
 - Un servicio suelto usa el `facturacion-commons` instalado en `~/.m2`: tras tocar commons, `mvn -f facturacion-commons/pom.xml install -DskipTests`.
+- Ambientes: `env/desarrollo.env`, `env/pruebas.env` y `env/produccion.env` (versionados, **sin secretos**) más `env/<ambiente>.secretos.env` (ignorado por git; plantilla `env/secretos.env.example`). Se levantan con `./scripts/compose.sh <ambiente> up -d` (guía paso a paso en `env/README.md`). Nunca pongas una contraseña, clave o token en un archivo versionado.
 - Un build completo tarda ~10 min: córrelo en segundo plano. En este equipo (Windows) no hay `python`; para ediciones masivas usa `perl`.
 
 ## Reglas del código
