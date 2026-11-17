@@ -8,6 +8,7 @@ import org.jboss.logging.Logger;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.orquestacion.application.event.SriResultadoEventMessage;
 import com.facturacion.orquestacion.application.service.SagaOrchestratorService;
 
@@ -23,6 +24,7 @@ public class SriEventConsumer {
         this.orchestratorService = orchestratorService;
     }
 
+    @LogFallosMensajeria
     @Incoming("sri-events-in")
     public Uni<Void> procesarEvento(SriResultadoEventMessage event) {
         return orchestratorService.procesarEventoSri(event)

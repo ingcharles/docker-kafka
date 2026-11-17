@@ -13,8 +13,13 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingConstants;
 import org.mapstruct.MappingTarget;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.facturacion.comprobantes.application.dto.DetalleComprobanteResponse;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
+import com.facturacion.comprobantes.domain.model.vo.CampoAdicional;
 import com.facturacion.comprobantes.domain.model.vo.Impuesto;
 import com.facturacion.comprobantes.infrastructure.persistence.entity.DetalleComprobanteEntity;
 import com.facturacion.comprobantes.infrastructure.persistence.entity.DetalleImpuestoEntity;
@@ -34,6 +39,7 @@ import com.facturacion.comprobantes.infrastructure.persistence.entity.DetalleImp
 public interface DetalleComprobanteMapper {
 
     DateTimeFormatter FECHA_SRI = DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT);
+    ObjectMapper JSON = new ObjectMapper();
 
     @Mapping(target = "precioTotalSinImpuesto", expression = "java(domain.precioTotalSinImpuesto())")
     DetalleComprobanteResponse toResponse(DetalleComprobante domain);
@@ -41,10 +47,32 @@ public interface DetalleComprobanteMapper {
     @Mapping(target = "comprobante", ignore = true)
     @Mapping(target = "precioTotalSinImpuesto", expression = "java(domain.precioTotalSinImpuesto())")
     @Mapping(target = "impuestos", expression = "java(escribirImpuestos(domain.getImpuestos()))")
+    @Mapping(target = "detallesAdicionalesJson", expression = "java(escribirDetallesAdicionales(domain.getDetallesAdicionales()))")
     DetalleComprobanteEntity toEntity(DetalleComprobante domain);
 
     @Mapping(target = "impuestos", expression = "java(leerImpuestos(entity.impuestos))")
+    @Mapping(target = "detallesAdicionales", expression = "java(leerDetallesAdicionales(entity.detallesAdicionalesJson))")
     DetalleComprobante toDomain(DetalleComprobanteEntity entity);
+
+    default String escribirDetallesAdicionales(List<CampoAdicional> detalles) {
+        try {
+            return JSON.writeValueAsString(detalles == null ? List.of() : detalles);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("No se pudo serializar los detalles adicionales de la línea", e);
+        }
+    }
+
+    default List<CampoAdicional> leerDetallesAdicionales(String detallesJson) {
+        if (detallesJson == null) {
+            return List.of();
+        }
+        try {
+            return JSON.readValue(detallesJson, new TypeReference<List<CampoAdicional>>() {
+            });
+        } catch (Exception e) {
+            throw new IllegalStateException("No se pudo leer los detalles adicionales de la línea", e);
+        }
+    }
 
     default List<DetalleImpuestoEntity> escribirImpuestos(List<Impuesto> impuestos) {
         List<DetalleImpuestoEntity> filas = new ArrayList<>();

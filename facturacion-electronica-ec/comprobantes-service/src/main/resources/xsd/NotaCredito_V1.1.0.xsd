@@ -454,7 +454,7 @@
 	</xsd:simpleType>
 	<xsd:simpleType name="contribuyenteRimpe">
 		<xsd:restriction base="xsd:string">
-		  <xsd:pattern value="CONTRIBUYENTE RÉGIMEN RIMPE"/>
+		  <xsd:pattern value="CONTRIBUYENTE RÉGIMEN RIMPE|CONTRIBUYENTE NEGOCIO POPULAR - RÉGIMEN RIMPE"/>
 	    </xsd:restriction>
 	</xsd:simpleType>
 	<xsd:simpleType name="tipoIdentificacionComprador">

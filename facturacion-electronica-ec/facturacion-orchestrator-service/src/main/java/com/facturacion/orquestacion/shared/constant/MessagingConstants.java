@@ -36,6 +36,7 @@ public final class MessagingConstants {
     public static final String COMANDO_MARCAR_AUTORIZADO = "MARCAR_AUTORIZADO";
     public static final String COMANDO_MARCAR_NO_AUTORIZADO = "MARCAR_NO_AUTORIZADO";
     public static final String COMANDO_MARCAR_NOTIFICADO = "MARCAR_NOTIFICADO";
+    public static final String COMANDO_REENVIAR_NOTIFICACION = "REENVIAR_NOTIFICACION";
     public static final String COMANDO_MARCAR_STOCK_INSUFICIENTE = "MARCAR_STOCK_INSUFICIENTE";
 
     // Inventario: solo participa si el descuento de inventario está habilitado (orquestacion.inventario.descuento.habilitado).

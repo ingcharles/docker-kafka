@@ -20,6 +20,7 @@ import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
 import com.facturacion.comprobantes.domain.model.entity.ItemLocal;
 import com.facturacion.comprobantes.domain.model.enums.ImpuestoSri;
+import com.facturacion.comprobantes.domain.model.vo.CampoAdicional;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha;
 import com.facturacion.comprobantes.domain.model.vo.Impuesto;
 import com.facturacion.comprobantes.domain.repository.ItemLocalRepository;
@@ -32,6 +33,9 @@ import com.facturacion.comprobantes.shared.error.CodigoError;
  */
 @ApplicationScoped
 public class ConstructorDetalles {
+
+    /** Máximo de {@code <detAdicional>} por línea que admite el XSD del SRI. */
+    private static final int MAX_DETALLES_ADICIONALES = 3;
 
     private final ItemLocalRepository itemLocalRepository;
 
@@ -68,7 +72,7 @@ public class ConstructorDetalles {
     public Uni<Map<UUID, ItemLocal>> cargarItems(List<DetalleComprobanteRequest> detalles,
             String ruc) {
         Set<UUID> ids = detalles.stream()
-            .filter(d -> (d.getImpuestos() == null || d.getImpuestos().isEmpty()) && d.getItemId() != null)
+            .filter(d -> d.getItemId() != null)
             .map(DetalleComprobanteRequest::getItemId)
             .collect(Collectors.toSet());
         return itemLocalRepository.findByIdsAndRuc(ids, ruc);
@@ -85,6 +89,7 @@ public class ConstructorDetalles {
         detalle.setCantidad(request.getCantidad());
         detalle.setPrecioUnitario(request.getPrecioUnitario());
         detalle.setDescuento(request.getDescuento() == null ? BigDecimal.ZERO : request.getDescuento());
+        detalle.setPrecioSinSubsidio(request.getPrecioSinSubsidio());
 
         BigDecimal baseImponible = detalle.precioTotalSinImpuesto();
         List<Impuesto> impuestos;
@@ -115,7 +120,27 @@ public class ConstructorDetalles {
             impuestos = construirImpuestosDesdeItem(item, baseImponible, catalogos);
         }
         detalle.setImpuestos(impuestos);
+        detalle.setDetallesAdicionales(detallesAdicionales(request,
+            request.getItemId() == null ? null : itemsPorId.get(request.getItemId())));
         return detalle;
+    }
+
+    /**
+     * Los detalles adicionales que mandó el llamador (hasta 3) y, si el ítem tiene unidad de medida y no se mandó uno
+     * "Medida", ese primero: "Medida: UN".
+     */
+    private List<CampoAdicional> detallesAdicionales(DetalleComprobanteRequest request, ItemLocal item) {
+        List<CampoAdicional> detalles = new ArrayList<>();
+        if (request.getDetallesAdicionales() != null) {
+            request.getDetallesAdicionales()
+                .forEach(d -> detalles.add(new CampoAdicional(d.getNombre(), d.getValor())));
+        }
+        boolean hayMedida = detalles.stream().anyMatch(d -> "Medida".equalsIgnoreCase(d.nombre()));
+        if (item != null && item.getUnidadMedida() != null && !item.getUnidadMedida().isBlank() && !hayMedida
+                && detalles.size() < MAX_DETALLES_ADICIONALES) {
+            detalles.add(0, new CampoAdicional("Medida", item.getUnidadMedida()));
+        }
+        return detalles;
     }
 
     /**

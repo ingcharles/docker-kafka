@@ -4,8 +4,11 @@ import java.util.UUID;
 
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -25,6 +28,7 @@ import io.smallrye.mutiny.Uni;
 import com.facturacion.commons.rest.Respuestas;
 import com.facturacion.commons.paging.PageRequest;
 import com.facturacion.commons.security.TokenPrincipal;
+import com.facturacion.orquestacion.application.dto.ReenvioMasivoResponse;
 import com.facturacion.orquestacion.application.service.SagaOrchestratorService;
 import com.facturacion.orquestacion.application.service.SagaQueryService;
 import com.facturacion.orquestacion.domain.model.enums.SagaState;
@@ -86,5 +90,20 @@ public class SagaResource {
         return sagaQueryService.getByComprobanteId(comprobanteId, tokenPrincipal.getRuc())
             .chain(() -> sagaOrchestratorService.reintentarUltimoComando(comprobanteId))
             .map(v -> Respuestas.aceptado());
+    }
+
+    @POST
+    @Path("/reenviar-notificaciones")
+    @Operation(summary = "Reenviar en masa los correos fallidos",
+        description = "Reenvía el correo de las sagas de la empresa que están en NOTIFICACION_FALLIDA, hasta `limite` "
+            + "por llamada (las demás se reenvían en la siguiente). Es asíncrono: cada una pasa a NOTIFICADO si el "
+            + "envío sale bien, o vuelve a NOTIFICACION_FALLIDA con el motivo nuevo.")
+    @APIResponse(responseCode = "202", description = "Cuántas sagas se mandaron a reenviar")
+    public Uni<Response> reenviarNotificaciones(
+            @Parameter(description = "Máximo de correos por llamada (1 a 500)")
+            @QueryParam("limite") @DefaultValue("100") @Min(1) @Max(500) int limite) {
+        tokenPrincipal.exigirEscritura();
+        return sagaOrchestratorService.reenviarNotificacionesFallidas(tokenPrincipal.getRuc(), limite)
+            .map(solicitados -> Respuestas.aceptado(new ReenvioMasivoResponse(solicitados)));
     }
 }

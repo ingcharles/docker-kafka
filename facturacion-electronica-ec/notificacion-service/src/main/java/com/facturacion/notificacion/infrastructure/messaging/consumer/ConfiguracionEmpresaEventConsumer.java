@@ -8,6 +8,7 @@ import org.eclipse.microprofile.reactive.messaging.Incoming;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.notificacion.application.event.ConfiguracionEmpresaEventMessage;
 import com.facturacion.notificacion.domain.repository.ConfiguracionEmpresaLocalRepository;
 
@@ -26,6 +27,7 @@ public class ConfiguracionEmpresaEventConsumer {
         this.repository = repository;
     }
 
+    @LogFallosMensajeria
     @Incoming("configuracion-empresa-events-in")
     @WithTransaction
     public Uni<Void> procesarEvento(ConfiguracionEmpresaEventMessage evento) {

@@ -28,6 +28,12 @@ public interface SagaInstanceRepository {
      */
     Uni<SagaInstance> transicionarEstado(UUID comprobanteId, SagaState to, String failureReason, SagaState... allowedFrom);
 
+    /**
+     * Igual que {@link #transicionarEstado}, pero borra el motivo de un fallo anterior: para cuando la saga se recupera
+     * (p. ej. un correo que falló y se reenvió bien).
+     */
+    Uni<SagaInstance> transicionarEstadoLimpiandoMotivo(UUID comprobanteId, SagaState to, SagaState... allowedFrom);
+
     /** Sagas en alguno de esos estados, las que llevan más tiempo sin actividad primero (para el watchdog). */
     Uni<List<SagaInstance>> findByEstados(List<SagaState> estados, int limite);
 

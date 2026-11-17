@@ -8,6 +8,7 @@ import org.eclipse.microprofile.reactive.messaging.Incoming;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.comprobantes.application.event.EstablecimientoPuntoEmisionEventMessage;
 import com.facturacion.comprobantes.domain.model.entity.EstablecimientoLocal;
 import com.facturacion.comprobantes.domain.model.entity.PuntoEmisionLocal;
@@ -33,6 +34,7 @@ public class EstablecimientoPuntoEmisionEventConsumer {
         this.puntoEmisionRepository = puntoEmisionRepository;
     }
 
+    @LogFallosMensajeria
     @Incoming("establecimiento-punto-emision-events-in")
     @WithTransaction
     public Uni<Void> procesarEvento(EstablecimientoPuntoEmisionEventMessage evento) {

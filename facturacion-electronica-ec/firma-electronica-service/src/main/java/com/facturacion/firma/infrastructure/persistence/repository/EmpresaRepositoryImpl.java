@@ -46,7 +46,6 @@ public class EmpresaRepositoryImpl implements EmpresaRepository {
                 entity.numeroContribuyenteEspecial = domain.getNumeroContribuyenteEspecial();
                 entity.esGranContribuyente = domain.isEsGranContribuyente();
                 entity.numeroResolucionGranContribuyente = domain.getNumeroResolucionGranContribuyente();
-                entity.vendeCombustibles = domain.isVendeCombustibles();
                 entity.ambiente = mapper.map(domain.getAmbiente());
                 entity.establecimientoDefecto = domain.getEstablecimientoDefecto();
                 entity.puntoEmisionDefecto = domain.getPuntoEmisionDefecto();

@@ -30,6 +30,17 @@ public class NotificacionEnviadaRepositoryImpl implements NotificacionEnviadaRep
     }
 
     @Override
+    public Uni<NotificacionEnviada> actualizar(NotificacionEnviada domain) {
+        return repository.findById(domain.getId()).map(entity -> {
+            entity.destinatario = domain.getDestinatario();
+            entity.estado = domain.getEstado().name();
+            entity.motivoError = domain.getMotivoError();
+            entity.enviadoEn = domain.getEnviadoEn();
+            return mapper.toDomain(entity);
+        });
+    }
+
+    @Override
     public Uni<NotificacionEnviada> findByComprobanteId(UUID comprobanteId) {
         return repository.find("comprobanteId", comprobanteId).firstResult()
             .map(entity -> entity == null ? null : mapper.toDomain(entity));

@@ -14,6 +14,8 @@ import org.eclipse.microprofile.reactive.messaging.Message;
 import org.eclipse.microprofile.reactive.messaging.Metadata;
 
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.Context;
+import io.vertx.core.Vertx;
 import io.smallrye.reactive.messaging.kafka.api.OutgoingKafkaRecordMetadata;
 
 import com.facturacion.commons.security.MensajeRevocacion;
@@ -38,6 +40,9 @@ public class KafkaRevocacionApiKeysPublicador implements RevocacionApiKeysPublic
 
     @Override
     public Uni<Void> publicar(String jti, Instant venceEn) {
+        // El ack llega en un hilo del productor de Kafka. La transaccion de la revocacion (Hibernate Reactive) debe
+        // cerrarse en el contexto de Vert.x donde se abrio, asi que se vuelve a el despues de esperar la confirmacion.
+        Context contexto = Vertx.currentContext();
         CompletableFuture<Void> confirmado = new CompletableFuture<>();
         Metadata metadata = Metadata.of(OutgoingKafkaRecordMetadata.<String>builder().withKey(jti).build());
         emisor.send(Message.of(new MensajeRevocacion(jti, venceEn).serializar(), metadata,
@@ -49,7 +54,8 @@ public class KafkaRevocacionApiKeysPublicador implements RevocacionApiKeysPublic
                 confirmado.completeExceptionally(causa);
                 return CompletableFuture.<Void>completedFuture(null);
             }));
-        return Uni.createFrom().completionStage((CompletionStage<Void>) confirmado)
+        Uni<Void> ack = Uni.createFrom().completionStage((CompletionStage<Void>) confirmado)
             .ifNoItem().after(ESPERA_MAXIMA).fail();
+        return contexto == null ? ack : ack.emitOn(tarea -> contexto.runOnContext(ignorado -> tarea.run()));
     }
 }

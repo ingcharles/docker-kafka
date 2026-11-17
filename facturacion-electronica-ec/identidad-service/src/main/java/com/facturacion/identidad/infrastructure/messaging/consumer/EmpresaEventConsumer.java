@@ -11,6 +11,7 @@ import org.eclipse.microprofile.reactive.messaging.Incoming;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.identidad.application.event.EmpresaEventMessage;
 import com.facturacion.identidad.domain.model.entity.EmpresaLocal;
 import com.facturacion.identidad.domain.model.entity.UsuarioEmpresaRol;
@@ -46,6 +47,7 @@ public class EmpresaEventConsumer {
         this.empresaRolRepository = empresaRolRepository;
     }
 
+    @LogFallosMensajeria
     @Incoming("empresa-events-in")
     @WithTransaction
     public Uni<Void> procesarEvento(EmpresaEventMessage evento) {

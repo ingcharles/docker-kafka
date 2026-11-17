@@ -27,6 +27,9 @@ public class ItemLocalEntity extends PanacheEntityBase {
     @Column(nullable = false)
     public String descripcion;
 
+    @Column(name = "unidad_medida")
+    public String unidadMedida;
+
     @Column(name = "codigo_impuesto", nullable = false)
     public String codigoImpuesto;
 

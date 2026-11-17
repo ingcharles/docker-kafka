@@ -8,6 +8,7 @@ import org.jboss.logging.Logger;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.orquestacion.application.event.ComprobanteFirmadoEventMessage;
 import com.facturacion.orquestacion.application.service.SagaOrchestratorService;
 
@@ -23,6 +24,7 @@ public class FirmaEventConsumer {
         this.orchestratorService = orchestratorService;
     }
 
+    @LogFallosMensajeria
     @Incoming("firma-events-in")
     public Uni<Void> procesarEvento(ComprobanteFirmadoEventMessage event) {
         return orchestratorService.procesarEventoFirma(event)

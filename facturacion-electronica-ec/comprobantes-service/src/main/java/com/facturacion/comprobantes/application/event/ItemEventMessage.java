@@ -19,6 +19,7 @@ public record ItemEventMessage(
     String codigoPrincipal,
     String codigoAuxiliar,
     String descripcion,
+    String unidadMedida,
     String codigoImpuesto,
     String codigoPorcentaje,
     boolean tieneIce,

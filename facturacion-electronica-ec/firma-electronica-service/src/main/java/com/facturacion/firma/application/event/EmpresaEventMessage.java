@@ -25,7 +25,6 @@ public record EmpresaEventMessage(
     String numeroContribuyenteEspecial,
     boolean esGranContribuyente,
     String numeroResolucionGranContribuyente,
-    boolean vendeCombustibles,
     String ambiente,
     String establecimientoDefecto,
     String puntoEmisionDefecto,

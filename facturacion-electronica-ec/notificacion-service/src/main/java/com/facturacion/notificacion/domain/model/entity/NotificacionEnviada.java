@@ -6,10 +6,11 @@ import java.util.UUID;
 import com.facturacion.notificacion.domain.model.enums.EstadoNotificacion;
 
 /**
- * Un intento de notificación por correo — el agregado de este servicio. Un
- * único registro por comprobante (índice único), para no reenviar el mismo
- * comprobante dos veces aunque el evento ComprobanteAutorizado llegue
- * duplicado (a nivel de Kafka, "al menos una vez").
+ * La notificación por correo de un comprobante — el agregado de este servicio. Un
+ * único registro por comprobante (índice único) que guarda el resultado del último
+ * envío: un evento ComprobanteAutorizado duplicado (Kafka, "al menos una vez") lo
+ * descarta el inbox por eventId, y un reenvío pedido por el usuario trae un eventId
+ * nuevo y actualiza este mismo registro.
  */
 public class NotificacionEnviada {
 

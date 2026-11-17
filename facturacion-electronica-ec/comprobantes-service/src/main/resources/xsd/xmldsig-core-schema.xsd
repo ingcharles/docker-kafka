@@ -1,13 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE schema
-  PUBLIC "-//W3C//DTD XMLSchema 200102//EN" "http://www.w3.org/2001/XMLSchema.dtd"
- [
-   <!ATTLIST schema 
-     xmlns:ds CDATA #FIXED "http://www.w3.org/2000/09/xmldsig#">
-   <!ENTITY dsig 'http://www.w3.org/2000/09/xmldsig#'>
-   <!ENTITY % p ''>
-   <!ENTITY % s ''>
-  ]>
+<!-- Copia del esquema oficial sin su DOCTYPE: el DTD externo de w3.org obligaba a descargarlo de internet cada vez que se compilaba este XSD,
+     y w3.org limita esas descargas (fallaba el arranque o las pruebas). El raíz declara xmlns:ds y el cuerpo no usa las entidades. -->
 
 <!-- Schema for XML Signatures
     http://www.w3.org/2000/09/xmldsig#

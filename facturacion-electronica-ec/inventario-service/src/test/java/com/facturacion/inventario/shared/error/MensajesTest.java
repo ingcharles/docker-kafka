@@ -25,9 +25,18 @@ class MensajesTest {
     }
 
     @Test
+    void cadaCodigoDeLogTieneSuMensaje() {
+        for (CodigoLog codigo : CodigoLog.values()) {
+            assertTrue(Mensajes.existe(codigo.claveMensaje()), codigo + " no tiene clave en mensajes.properties");
+            assertFalse(Mensajes.obtenerTexto(codigo, 1, 2, 3, 4).isBlank(), codigo + " tiene mensaje vacío");
+        }
+    }
+
+    @Test
     void mensajesNoUsadosNoSeAcumulan() {
         Set<String> usadas = Arrays.stream(CodigoError.values()).map(CodigoError::claveMensaje)
             .collect(Collectors.toSet());
+        Arrays.stream(CodigoLog.values()).forEach(log -> usadas.add(log.claveMensaje()));
         Set<String> sobrantes = new HashSet<>(Mensajes.listarClaves());
         sobrantes.removeAll(usadas);
         assertTrue(sobrantes.isEmpty(), "Claves sin código de error: " + sobrantes);

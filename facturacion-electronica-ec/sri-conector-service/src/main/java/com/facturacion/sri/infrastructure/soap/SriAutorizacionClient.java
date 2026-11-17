@@ -19,9 +19,11 @@ import org.w3c.dom.NodeList;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 
+import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.sri.domain.model.enums.AmbienteSri;
 import com.facturacion.sri.domain.port.AutorizacionResultado;
 import com.facturacion.sri.domain.port.AutorizacionSri;
+import com.facturacion.sri.shared.error.CodigoLog;
 
 /**
  * Cliente real del Web Service de Autorización del SRI —
@@ -75,7 +77,7 @@ public class SriAutorizacionClient implements AutorizacionSri {
                 .POST(HttpRequest.BodyPublishers.ofString(sobre, StandardCharsets.UTF_8))
                 .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            LOG.infof("SRI Autorización respondió HTTP %d para clave %s", response.statusCode(), claveAcceso);
+            LogCodificado.info(LOG, CodigoLog.HTTP_AUTORIZACION, "claveAcceso=" + claveAcceso, response.statusCode());
             return parsear(response.body());
         } catch (Exception e) {
             throw new IllegalStateException("No se pudo contactar al WS de Autorización del SRI (" + url + ")", e);

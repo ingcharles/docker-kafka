@@ -9,7 +9,9 @@ import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.sri.application.service.SriConectorService;
+import com.facturacion.sri.shared.error.CodigoLog;
 
 /**
  * Consulta Autorización para todo lo que sigue en RECIBIDO — con backoff
@@ -38,9 +40,8 @@ public class AutorizacionPoller {
         return sriConectorService.listarPendientesDeAutorizacion(BATCH_SIZE)
             .onItem().transformToMulti(batch -> Multi.createFrom().iterable(batch))
             .onItem().transformToUniAndConcatenate(envio -> sriConectorService.consultarAutorizacion(envio)
-                .onFailure().invoke(failure -> LOG.errorf(failure,
-                    "Falló la consulta de autorización para %s, se reintenta en el siguiente ciclo",
-                    envio.getClaveAcceso()))
+                .onFailure().invoke(failure -> LogCodificado.error(LOG, failure, CodigoLog.CONSULTA_AUTORIZACION_FALLIDA,
+                    "claveAcceso=" + envio.getClaveAcceso()))
                 .onFailure().recoverWithItem(() -> null))
             .collect().last()
             .replaceWithVoid();

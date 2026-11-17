@@ -39,6 +39,14 @@ public class EmpresaRequest {
 
     private String numeroResolucionGranContribuyente;
 
+    /** Anexo 21: número de la resolución de agente de retención, sin ceros a la izquierda (máximo 8 dígitos). Opcional. */
+    @Pattern(regexp = "[1-9]\\d{0,7}", message = "agenteRetencion debe ser el número de resolución sin ceros a la izquierda (máximo 8 dígitos)")
+    private String agenteRetencion;
+
+    /** Anexo 22: RIMPE o NEGOCIO_POPULAR. Opcional; vacío si el emisor no es RIMPE. */
+    @Pattern(regexp = "RIMPE|NEGOCIO_POPULAR", message = "regimenRimpe debe ser RIMPE o NEGOCIO_POPULAR")
+    private String regimenRimpe;
+
     /** PRUEBAS o PRODUCCION — Tabla 4 de la ficha técnica del SRI. */
     @NotBlank
     private String ambiente;
@@ -129,6 +137,22 @@ public class EmpresaRequest {
 
     public void setNumeroResolucionGranContribuyente(String numeroResolucionGranContribuyente) {
         this.numeroResolucionGranContribuyente = numeroResolucionGranContribuyente;
+    }
+
+    public String getAgenteRetencion() {
+        return agenteRetencion;
+    }
+
+    public void setAgenteRetencion(String agenteRetencion) {
+        this.agenteRetencion = agenteRetencion;
+    }
+
+    public String getRegimenRimpe() {
+        return regimenRimpe;
+    }
+
+    public void setRegimenRimpe(String regimenRimpe) {
+        this.regimenRimpe = regimenRimpe;
     }
 
     public String getAmbiente() {

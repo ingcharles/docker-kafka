@@ -15,6 +15,7 @@ import io.smallrye.mutiny.Uni;
 import com.facturacion.comprobantes.application.dto.CrearFacturaRequest;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
+import com.facturacion.comprobantes.domain.model.enums.CombustibleSri;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha;
 import com.facturacion.comprobantes.domain.service.CatalogosValidador;
@@ -63,6 +64,9 @@ public class ConstructorFactura implements ConstructorComprobante<CrearFacturaRe
                 comprobante.setCompradorDireccion(request.getCompradorDireccion());
                 comprobante.setCompradorCorreo(request.getCompradorCorreo());
                 comprobante.setMoneda(request.getMoneda());
+                comprobante.setPlaca(request.getPlaca() == null || request.getPlaca().isBlank() ? null
+                    : request.getPlaca().toUpperCase(java.util.Locale.ROOT));
+                CombustibleSri.exigirPlacaSiHayCombustible(detalles, comprobante.getPlaca());
                 comprobante.setDetalles(detalles);
                 comprobante.setPagos(comun.pagos(request.getPagos(), comprobante.getImporteTotal(), true, catalogos));
                 PagosValidador.validarFacturaNegociable(comprobante.getPagos(), comprobante.getCompradorDireccion());

@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 public class DetalleComprobanteRequest {
 
@@ -32,6 +33,10 @@ public class DetalleComprobanteRequest {
 
     private BigDecimal descuento = BigDecimal.ZERO;
 
+    /** Precio unitario sin subsidio (XSD: {@code precioSinSubsidio}); solo cuando corresponde, p. ej. combustibles subsidiados. */
+    @DecimalMin(value = "0.0")
+    private BigDecimal precioSinSubsidio;
+
     /**
      * Opcional cuando {@code itemId} referencia un ítem que ya llegó a la
      * copia local de inventario-service (ver ComprobanteService.construirDetalle):
@@ -43,6 +48,22 @@ public class DetalleComprobanteRequest {
      */
     @Valid
     private List<ImpuestoRequest> impuestos;
+
+    /**
+     * Detalles adicionales de la línea ({@code <detAdicional nombre valor/>} del XML; la columna "Detalles Adicionales" del
+     * RIDE), hasta 3. Si el ítem tiene unidad de medida y no se manda un detalle "Medida", se agrega solo.
+     */
+    @Valid
+    @Size(max = 3, message = "una línea admite como máximo 3 detalles adicionales")
+    private List<CampoAdicionalRequest> detallesAdicionales;
+
+    public List<CampoAdicionalRequest> getDetallesAdicionales() {
+        return detallesAdicionales;
+    }
+
+    public void setDetallesAdicionales(List<CampoAdicionalRequest> detallesAdicionales) {
+        this.detallesAdicionales = detallesAdicionales;
+    }
 
     public UUID getItemId() {
         return itemId;
@@ -98,6 +119,14 @@ public class DetalleComprobanteRequest {
 
     public void setDescuento(BigDecimal descuento) {
         this.descuento = descuento;
+    }
+
+    public BigDecimal getPrecioSinSubsidio() {
+        return precioSinSubsidio;
+    }
+
+    public void setPrecioSinSubsidio(BigDecimal precioSinSubsidio) {
+        this.precioSinSubsidio = precioSinSubsidio;
     }
 
     public List<ImpuestoRequest> getImpuestos() {

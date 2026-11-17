@@ -14,8 +14,10 @@ public class DetalleComprobanteResponse {
     private BigDecimal cantidad;
     private BigDecimal precioUnitario;
     private BigDecimal descuento;
+    private BigDecimal precioSinSubsidio;
     private BigDecimal precioTotalSinImpuesto;
     private List<ImpuestoResponse> impuestos;
+    private List<CampoAdicionalResponse> detallesAdicionales;
     private UUID destinatarioId;
 
     public UUID getId() {
@@ -80,6 +82,22 @@ public class DetalleComprobanteResponse {
 
     public void setDescuento(BigDecimal descuento) {
         this.descuento = descuento;
+    }
+
+    public BigDecimal getPrecioSinSubsidio() {
+        return precioSinSubsidio;
+    }
+
+    public void setPrecioSinSubsidio(BigDecimal precioSinSubsidio) {
+        this.precioSinSubsidio = precioSinSubsidio;
+    }
+
+    public List<CampoAdicionalResponse> getDetallesAdicionales() {
+        return detallesAdicionales;
+    }
+
+    public void setDetallesAdicionales(List<CampoAdicionalResponse> detallesAdicionales) {
+        this.detallesAdicionales = detallesAdicionales;
     }
 
     public BigDecimal getPrecioTotalSinImpuesto() {

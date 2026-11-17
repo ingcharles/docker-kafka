@@ -16,6 +16,8 @@ import io.smallrye.mutiny.Uni;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.facturacion.commons.error.LogCodificado;
+import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.inventario.application.event.StockCommandMessage;
 import com.facturacion.inventario.application.event.StockEventMessage;
 import com.facturacion.inventario.application.service.StockReservationService;
@@ -24,6 +26,7 @@ import com.facturacion.inventario.infrastructure.inbox.ProcessedMessageRepositor
 import com.facturacion.inventario.infrastructure.outbox.OutboxEventEntity;
 import com.facturacion.inventario.infrastructure.outbox.OutboxEventRepository;
 import com.facturacion.inventario.shared.constant.MessagingConstants;
+import com.facturacion.inventario.shared.error.CodigoLog;
 
 /**
  * Aplica los tres comandos que {@code facturacion-orchestrator-service}
@@ -51,14 +54,15 @@ public class StockCommandConsumer {
         this.objectMapper = objectMapper;
     }
 
+    @LogFallosMensajeria
     @Incoming("inventario-comandos-in")
     @WithTransaction
     public Uni<Void> procesarComando(StockCommandMessage command) {
         return processedMessageRepository.alreadyProcessed(command.eventId())
             .onItem().transformToUni(processed -> {
                 if (Boolean.TRUE.equals(processed)) {
-                    LOG.infof("Se descarta el comando %s (comprobante %s) — ya se procesó antes",
-                        command.eventId(), command.comprobanteId());
+                    LogCodificado.info(LOG, CodigoLog.COMANDO_DUPLICADO_DESCARTADO, "comprobanteId=" + command.comprobanteId(),
+                        command.eventId());
                     return Uni.createFrom().voidItem();
                 }
                 return aplicar(command)
@@ -71,6 +75,12 @@ public class StockCommandConsumer {
         return switch (command.tipoComando()) {
             case MessagingConstants.COMANDO_RESERVAR -> stockReservationService
                 .reservarTodos(command.comprobanteId(), command.items())
+                .onItem().invoke(resultado -> {
+                    if (!resultado.exitoso()) {
+                        LogCodificado.warn(LOG, CodigoLog.STOCK_NO_DISPONIBLE, "comprobanteId=" + command.comprobanteId(),
+                            resultado.itemsInsuficientes().size());
+                    }
+                })
                 .onItem().transformToUni(resultado -> registrarEvento(command.comprobanteId(),
                     resultado.exitoso()
                         ? MessagingConstants.EVENT_TYPE_STOCK_RESERVADO
@@ -85,7 +95,7 @@ public class StockCommandConsumer {
                 .chain(() -> registrarEvento(command.comprobanteId(),
                     MessagingConstants.EVENT_TYPE_STOCK_LIBERADO, List.of()));
             default -> {
-                LOG.warnf("Tipo de comando de stock desconocido: %s", command.tipoComando());
+                LogCodificado.warn(LOG, CodigoLog.COMANDO_STOCK_DESCONOCIDO, "comprobanteId=" + command.comprobanteId(), command.tipoComando());
                 yield Uni.createFrom().voidItem();
             }
         };

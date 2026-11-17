@@ -4,6 +4,9 @@ import java.net.URI;
 import java.util.List;
 import java.util.Locale;
 
+import com.facturacion.commons.error.LogCodificado;
+import com.facturacion.sri.shared.error.CodigoLog;
+
 import org.jboss.logging.Logger;
 
 /**
@@ -32,8 +35,7 @@ final class UrlsSri {
         if (esPermitida(override.trim(), hostsPermitidos)) {
             return override.trim();
         }
-        LOG.warnf("Se ignora el override de URL del SRI '%s': no es https o su host no está en sri.url.hosts-permitidos. "
-            + "Se usa la URL oficial.", override);
+        LogCodificado.warn(LOG, CodigoLog.URL_SRI_IGNORADA, null, override);
         return porDefecto;
     }
 

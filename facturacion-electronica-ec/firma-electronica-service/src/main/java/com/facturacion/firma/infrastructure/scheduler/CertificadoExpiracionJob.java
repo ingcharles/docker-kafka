@@ -8,7 +8,9 @@ import org.jboss.logging.Logger;
 import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.firma.application.service.CertificadoService;
+import com.facturacion.firma.shared.error.CodigoLog;
 
 /**
  * Cada hora pasa a EXPIRADO los certificados activos que ya vencieron, para que se vea en la API y no quede ningún
@@ -32,7 +34,7 @@ public class CertificadoExpiracionJob {
         return certificadoService.marcarVencidos()
             .onItem().invoke(marcados -> {
                 if (marcados > 0) {
-                    LOG.warnf("%d certificado(s) de firma vencieron y pasaron a EXPIRADO: hay que subir uno nuevo", marcados);
+                    LogCodificado.warn(LOG, CodigoLog.CERTIFICADOS_VENCIDOS, null, marcados);
                 }
             })
             .replaceWithVoid();

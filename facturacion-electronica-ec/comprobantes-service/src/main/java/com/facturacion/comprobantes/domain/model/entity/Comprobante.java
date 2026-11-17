@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import com.facturacion.comprobantes.domain.model.enums.AmbienteSri;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
+import com.facturacion.comprobantes.domain.model.enums.RegimenRimpe;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.CampoAdicional;
 import com.facturacion.comprobantes.domain.model.vo.DocumentoSustento;
@@ -41,6 +42,10 @@ public class Comprobante {
     private String empresaNumeroContribuyenteEspecial;
     private boolean empresaEsGranContribuyente;
     private String empresaNumeroResolucionGranContribuyente;
+    /** Anexo 21: número de resolución con que fue designado agente de retención (sin ceros a la izquierda). */
+    private String empresaAgenteRetencion;
+    /** Anexo 22: régimen RIMPE del emisor; {@code null} si no aplica. */
+    private RegimenRimpe empresaRegimenRimpe;
     /** RUC del proveedor de software/servicio de facturación electrónica (Anexo 26, Res. NAC-DGERCGC26-00000027) — {@code configuracion_empresa}, clave {@code sri.proveedor.ruc}; {@code null} si la empresa no la configuró. */
     private String proveedorRuc;
 
@@ -239,6 +244,22 @@ public class Comprobante {
 
     public void setEmpresaNumeroResolucionGranContribuyente(String empresaNumeroResolucionGranContribuyente) {
         this.empresaNumeroResolucionGranContribuyente = empresaNumeroResolucionGranContribuyente;
+    }
+
+    public String getEmpresaAgenteRetencion() {
+        return empresaAgenteRetencion;
+    }
+
+    public void setEmpresaAgenteRetencion(String empresaAgenteRetencion) {
+        this.empresaAgenteRetencion = empresaAgenteRetencion;
+    }
+
+    public RegimenRimpe getEmpresaRegimenRimpe() {
+        return empresaRegimenRimpe;
+    }
+
+    public void setEmpresaRegimenRimpe(RegimenRimpe empresaRegimenRimpe) {
+        this.empresaRegimenRimpe = empresaRegimenRimpe;
     }
 
     public String getProveedorRuc() {

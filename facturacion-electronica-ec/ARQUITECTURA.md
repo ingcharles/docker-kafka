@@ -186,6 +186,7 @@ stateDiagram-v2
     FIRMADO --> AUTORIZADO: SriAutorizado
     AUTORIZADO --> NOTIFICADO: NotificacionExitosa
     AUTORIZADO --> NOTIFICACION_FALLIDA: NotificacionFallida
+    NOTIFICACION_FALLIDA --> NOTIFICADO: NotificacionExitosa (reenvío del correo)
 
     CREADO --> FIRMA_FALLIDA: ComprobanteFirmaFallida
     FIRMADO --> RECHAZADO_RECEPCION: SriRechazadoRecepcion
@@ -194,7 +195,6 @@ stateDiagram-v2
     AUTORIZADO --> AUTORIZADO_SIN_NOTIFICACION: SriAutorizado, comprobante sin correo
     AUTORIZADO_SIN_NOTIFICACION --> [*]
     NOTIFICADO --> [*]
-    NOTIFICACION_FALLIDA --> [*]
     FIRMA_FALLIDA --> [*]
     RECHAZADO_RECEPCION --> [*]
     NO_AUTORIZADO --> [*]
@@ -229,13 +229,13 @@ El reintento vuelve a publicar el **payload exacto** del último comando (mismo 
 **Otros puntos de la revisión de la saga**
 - **Sagas sin correo:** `comprobantes-service` solo publica `ComprobanteAutorizado` si hay `compradorCorreo`. `ComprobanteCreado` lleva `notificacionEsperada` (`null` = `true`); si es `false`, la saga pasa de `AUTORIZADO` a **`AUTORIZADO_SIN_NOTIFICACION`** (terminal) en cuanto el SRI autoriza.
 
-- **Una saga que falla no frena a las demás:** cada saga se procesa en su propia transacción (`idsParaRecuperar` lee; `recuperarSaga` actúa sobre una). Un reintento fallido deja una nota `ORQ-003` y cuenta como intento: una saga con un dato corrupto termina en `EXPIRADA`.
+- **Una saga que falla no frena a las demás:** cada saga se procesa en su propia transacción (`idsParaRecuperar` lee; `recuperarSaga` actúa sobre una). Un reintento fallido deja una nota `ORQ-402` y cuenta como intento: una saga con un dato corrupto termina en `EXPIRADA`.
 
 - **Relay del outbox con `FOR UPDATE SKIP LOCKED`** (los 6 servicios con outbox): con varias instancias, cada una toma lotes distintos. La corrección la garantiza el inbox de los consumidores; el bloqueo solo evita tráfico duplicado.
 
 - **DLQ sin consumidor ni alerta** (ver 6.5): un mensaje que falla se aparta pero nadie recibe aviso. Falta una alerta sobre el tamaño de los `.dlq` y una herramienta de reproceso.
 
-- **La saga no reintenta la notificación** (`NOTIFICACION_FALLIDA` es terminal, ver 5): no hay herramienta para reenviar el correo.
+- **La saga no reintenta la notificación sola**: tras `NOTIFICACION_FALLIDA` el correo se reenvía a mano con `POST /comprobantes/{id}/reenviar-correo` (ver 13.5). No hay reenvío automático.
 
 
 `SriRecibido` queda registrado en la bitácora de pasos (`saga_step`) pero **no** cambia `SagaInstance.state` — es un checkpoint informativo entre Recepción y Autorización, no un estado de negocio nuevo. La validación de transición es atómica: `UPDATE saga_instance SET state = ? WHERE id = ? AND state IN (...)` atómico — una redelivery duplicada de Kafka simplemente no afecta ninguna fila.
@@ -251,7 +251,7 @@ Una saga clásica deshace lo ya hecho cuando algo falla a mitad de camino. **Ac�
 | Falla la firma (`ComprobanteFirmaFallida`) | `FIRMA_FALLIDA`, estado terminal | Nada se envió a ningún sistema externo todavía — no hay nada que deshacer. |
 | El SRI rechaza en Recepción (`SriRechazadoRecepcion`) | `RECHAZADO_RECEPCION`, estado terminal | El comprobante nunca llegó a existir para el SRI — es como si nunca se hubiera enviado. |
 | El SRI no autoriza (`SriNoAutorizado`) | `NO_AUTORIZADO`, estado terminal | Mismo caso — el documento no tiene validez legal, no hay "reversa" que hacer ante el SRI. |
-| Falla la notificación (`NotificacionFallida`) | `NOTIFICACION_FALLIDA`, estado terminal — **pero el Comprobante en `comprobantes-service` se queda en `AUTORIZADO`, no cambia** | Una vez que el SRI autoriza, el comprobante **es legalmente válido con o sin correo enviado** — no hay ninguna acción de negocio que "cancelar" solo porque el destinatario no recibió el email. La discrepancia (saga en `NOTIFICACION_FALLIDA`, comprobante en `AUTORIZADO`) es intencional y es el único lugar donde queda registrada: reintentar el envío es una operación aparte (reenviar el correo), no una compensación de la saga. |
+| Falla la notificación (`NotificacionFallida`) | `NOTIFICACION_FALLIDA`, que solo se abandona con un reenvío exitoso del correo — **pero el Comprobante en `comprobantes-service` se queda en `AUTORIZADO`, no cambia** | Una vez que el SRI autoriza, el comprobante **es legalmente válido con o sin correo enviado** — no hay ninguna acción de negocio que "cancelar" solo porque el destinatario no recibió el email. La discrepancia (saga en `NOTIFICACION_FALLIDA`, comprobante en `AUTORIZADO`) es intencional y es el único lugar donde queda registrada: reintentar el envío es una operación aparte (reenviar el correo), no una compensación de la saga. |
 
 Esto es coherente con la resolución NAC-DGERCGC25-00000017 (vigente desde 2026-01-01): un final-consumer invoice ya autorizado no puede anularse salvo dentro de la ventana legal de 7 días del mes siguiente, y ni siquiera eso es una "compensación de saga" — es un proceso de negocio aparte (emitir una Nota de Crédito), no algo que este orquestador automatice.
 
@@ -670,7 +670,7 @@ Cómo se resolvió cada integración externa:
 - **La nota de crédito no valida contra el documento que modifica** (que exista, sea de la misma empresa y no exceda su valor): confía en el número y la fecha que manda el cliente.
 - **No se valida el dígito verificador de cédula/RUC** a propósito: el SRI es la autoridad y tiene excepciones. La longitud y el tipo sí se validan.
 - **Los consumidores de Kafka** no validan el sobre del mensaje de forma uniforme: firma y sri-conector rechazan un comando sin `eventId`/`comprobanteId` (va a la DLQ), el resto depende de que venga bien formado. Los DLQ no tienen consumidor ni alerta (ver 6.5).
-- **Logs sin códigos de catálogo**: los eventos críticos (saga `EXPIRADA`, DLQ, SRI rechaza, sin stock) se registran en texto libre.
+- **Logs con código en todos los niveles**: `LogCodificado` y el catálogo de `CATALOGO_ERRORES.md` (sección "Logs"); el primer dígito del código es el nivel. Quedan fuera los logs de las librerías (SmallRye, Quarkus, Hibernate), p. ej. los mensajes de DLQ.
 - **Fase 2 de compartir código** (outbox/inbox, `ConfiguracionEmpresaLocal`, serializadores de Kafka): descartada a propósito, ver sección 12.
 
 
@@ -722,7 +722,38 @@ Se sube a la tabla `empresa` de firma-electronica-service (`logo bytea`, `logo_t
 
 A4 vertical, con el formato de factura del SRI: arriba a la izquierda el recuadro del emisor (logo o nombre comercial, razón social, direcciones, contribuyente especial, obligado a llevar contabilidad) y debajo el del comprador (fecha de emisión, identificación, razón social; en notas de crédito/débito, el documento que modifica y la razón); a la derecha el recuadro del documento (RUC, tipo, número en el color de `ride.color`, número y fecha de autorización, ambiente, emisión y la clave de acceso con su código de barras Code 128, `ZXing`). Sigue la tabla del detalle con bordes (continúa en otra página repitiendo el encabezado), y abajo "Información Adicional" (forma de pago, RUC proveedor y campos adicionales) y los totales por tarifa de IVA, ICE, propina y valor total.
 
-### 13.4 Vencimiento del certificado de firma
+### 13.4 Datos tributarios del emisor y de la línea (XML y RIDE)
+
+La ficha técnica v2.34 exige estos datos en el XML y en el RIDE cuando aplican. Los manda el llamador en el bloque `empresa` de la petición (y quedan copiados en el comprobante); si no aplican, no se escriben.
+
+| Dato | Anexo | Petición | XML | RIDE |
+|---|---|---|---|---|
+| Contribuyente especial | — | `contribuyenteEspecial` + `numeroContribuyenteEspecial` | `<contribuyenteEspecial>` en `infoFactura` y equivalentes | `Contribuyente Especial Nro:` |
+| Agente de retención | 21 | `agenteRetencion` (número de resolución sin ceros, máx. 8 dígitos) | `<agenteRetencion>` al final de `infoTributaria` | `Agente de Retención Resolución No. N` |
+| Régimen RIMPE | 22 | `regimenRimpe`: `RIMPE` o `NEGOCIO_POPULAR` | `<contribuyenteRimpe>` con la leyenda, después de `agenteRetencion` | la leyenda, en el recuadro del emisor |
+| Gran contribuyente | 24 | `esGranContribuyente` + `numeroResolucionGranContribuyente` | `<campoAdicional nombre="Gran Contribuyente">resolución</campoAdicional>` | fila `Gran Contribuyente:` en Información Adicional |
+| RUC del proveedor | 26 | configuración `sri.proveedor.ruc` de la empresa | `<campoAdicional nombre="RUC Proveedor">` | fila `RUC Proveedor:` |
+| Placa | 12 y 25 | `placa` en la factura: letras y números sin espacios, máx. 20 (Tabla 29) | `<placa>` en `infoFactura`, entre `moneda` y `pagos` | no sale |
+
+En Información Adicional el orden es: forma de pago, RUC proveedor, gran contribuyente y los `campoAdicional` del llamador.
+
+**Combustibles y transporte comercial.** La placa es obligatoria en la factura de venta de combustibles líquidos (Anexo 12) y de transporte terrestre comercial (Anexo 25); en cualquier otra factura va vacía. En la línea, el Anexo 16 (Tabla 30) fija `codigoPrincipal` y `descripcion` del combustible (`0103` SÚPER, `0101` EXTRA, `0174` EXTRA CON ETANOL, `0121` DIESEL PREMIUM, `0104` DIESEL 2) y el Anexo 25 el `codigoAuxiliar` del transporte (`H492001` operadora al cliente, `H492002` socio a la operadora); el llamador los manda en la línea. Ninguno va en `detallesAdicionales`. La línea acepta `precioSinSubsidio` opcional (sale entre `precioUnitario` y `descuento`, en factura y liquidación de compra). Una factura con un `codigoPrincipal` de la Tabla 30 sin `placa` se rechaza con `COMP-400-504` antes de generar el XML; no hay un indicador "vende combustibles" en la empresa, porque el SRI no lo define y bastan la placa y los códigos de la línea.
+
+El SRI valida `agenteRetencion` contra el RUC del emisor: si no figura como agente de retención, rechaza con `ERROR AL VALIDAR AGENTE RETENCION`.
+
+**Detalles adicionales de la línea.** Cada línea admite hasta 3 `detallesAdicionales` (`nombre`/`valor`) que salen como `<detAdicional>` entre `precioTotalSinImpuesto` e `impuestos` y en la columna "Detalles Adicionales" del RIDE. Si la línea referencia un ítem con unidad de medida y no trae un detalle `Medida`, se agrega `Medida: <unidad>` como primero. La unidad viaja en el evento de ítem de inventario (`unidadMedida`) y se guarda en `item_local.unidad_medida`. Se guardan como JSON en `detalle_comprobante.detalles_adicionales_json`.
+
+Los XSD incluidos aceptan las dos leyendas RIMPE del Anexo 22 (`CONTRIBUYENTE RÉGIMEN RIMPE` y `CONTRIBUYENTE NEGOCIO POPULAR - RÉGIMEN RIMPE`).
+
+El `xmldsig-core-schema.xsd` empaquetado no lleva el DOCTYPE del original: ese DTD externo se descargaba de w3.org al compilar los esquemas y, cuando w3.org no respondía, el servicio no arrancaba o las pruebas fallaban.
+
+### 13.5 Reenvío del correo
+
+`POST /comprobantes/{id}/reenviar-correo` (api-key de escritura de la empresa, `202`) vuelve a publicar `ComprobanteAutorizado` con un `eventId` nuevo, con el RIDE y el XML ya guardados; no toca el estado del comprobante ni llama a otro servicio. `notificacion-service` lo procesa como un envío más: crea la notificación o, si ya existe (una por comprobante), actualiza su estado, motivo y fecha, y publica `NotificacionEnviada` o `NotificacionFallida`. Si el envío sale bien, el orquestador pasa la saga de `NOTIFICACION_FALLIDA` a `NOTIFICADO` (borra el motivo) y el comprobante de `AUTORIZADO` a `NOTIFICADO`. Responde `409` si el comprobante no está autorizado, no tiene RIDE o no tiene correo del receptor (`COMP-409-901` y `COMP-409-902`). El resultado se consulta en `GET /notificaciones/comprobante/{id}`.
+
+**En masa.** `POST /sagas/reenviar-notificaciones?limite=100` (orquestador, api-key de escritura, `202` con `{"solicitados": n}`) toma las sagas de la empresa en `NOTIFICACION_FALLIDA` (hasta `limite`, máx. 500), las devuelve a `AUTORIZADO` (así una segunda llamada no las reenvía otra vez) y publica a cada una el comando `REENVIAR_NOTIFICACION`; `comprobantes-service` lo atiende como el reenvío individual (vuelve a publicar `ComprobanteAutorizado`, o lo ignora si el comprobante ya no se puede reenviar). El resultado vuelve por el camino normal: `NOTIFICADO` si sale bien, o de nuevo `NOTIFICACION_FALLIDA` con el motivo nuevo. Si hay más de `limite`, se repite la llamada. Una saga que quedó en `AUTORIZADO` por un reenvío cuyo resultado nunca llegó (notificacion-service caído) se reenvía con `POST /comprobantes/{id}/reenviar-correo`.
+
+### 13.6 Vencimiento del certificado de firma
 
 Un certificado vencido no firma. Los estados del certificado son `ACTIVO`, `EXPIRADO` y `REVOCADO`; solo puede haber uno `ACTIVO` por empresa.
 

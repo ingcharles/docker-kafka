@@ -21,6 +21,7 @@ import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
 import com.facturacion.comprobantes.domain.model.enums.AmbienteSri;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
+import com.facturacion.comprobantes.domain.model.enums.RegimenRimpe;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.CampoAdicional;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha;
@@ -115,6 +116,36 @@ class RideGeneradorTest {
             "VALOR TOTAL"}) {
             assertTrue(texto.contains(esperado), "Falta en el RIDE: " + esperado + "\n" + texto);
         }
+    }
+
+    @Test
+    void elRideMuestraAgenteDeRetencionRimpeGranContribuyenteYLosDetallesAdicionalesDeLaLinea() throws IOException {
+        DetalleComprobante linea = detalle("5JNJ00K", "CARRITO BASICO", "5", "1.99", "0.30", "9.65", "15", "4", "1.45");
+        linea.setDetallesAdicionales(List.of(new CampoAdicional("Medida", "UN"),
+            new CampoAdicional("Centro Logistico", "23")));
+        Comprobante c = factura(List.of(linea));
+        c.setEmpresaAgenteRetencion("3257");
+        c.setEmpresaRegimenRimpe(RegimenRimpe.NEGOCIO_POPULAR);
+        c.setEmpresaEsGranContribuyente(true);
+        c.setEmpresaNumeroResolucionGranContribuyente("NAC-GCFOIOC21-00000868-E");
+
+        String texto = extraerTexto(generador.generar(c, null, null, catalogos()));
+
+        for (String esperado : new String[] {"Agente de Retención Resolución No. 3257",
+            "CONTRIBUYENTE NEGOCIO POPULAR - RÉGIMEN RIMPE", "Gran Contribuyente:", "NAC-GCFOIOC21-00000868-E",
+            "Medida: UN, Centro Logistico:", "Contribuyente Especial Nro:", "RUC Proveedor:"}) {
+            assertTrue(texto.contains(esperado), "Falta en el RIDE: " + esperado + "\n" + texto);
+        }
+    }
+
+    @Test
+    void sinAgenteNiRimpeElRideNoLosMuestra() throws IOException {
+        String texto = extraerTexto(generador.generar(factura(List.of(
+            detalle("A", "Linea", "1", "1.00", "0", "1.00", "15", "4", "0.15"))), null, null, catalogos()));
+
+        assertFalse(texto.contains("Agente de Retención"));
+        assertFalse(texto.contains("RIMPE"));
+        assertFalse(texto.contains("Gran Contribuyente"));
     }
 
     @Test

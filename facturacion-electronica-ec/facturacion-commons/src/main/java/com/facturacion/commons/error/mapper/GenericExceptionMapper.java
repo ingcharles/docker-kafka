@@ -8,7 +8,9 @@ import jakarta.ws.rs.ext.Provider;
 import org.jboss.logging.Logger;
 
 import com.facturacion.commons.error.ApiErrorResponse;
+import com.facturacion.commons.error.CodigoLogComun;
 import com.facturacion.commons.error.ErrorComun;
+import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.commons.error.Mensajes;
 
 /**
@@ -26,7 +28,7 @@ public class GenericExceptionMapper implements ExceptionMapper<Exception> {
         if (exception instanceof WebApplicationException webEx) {
             return webEx.getResponse();
         }
-        LOG.error("Excepción no manejada", exception);
+        LogCodificado.error(LOG, exception, CodigoLogComun.EXCEPCION_NO_CONTROLADA, null);
         ApiErrorResponse body = new ApiErrorResponse(500, "Internal Server Error",
             Mensajes.obtenerTexto(ErrorComun.ERROR_INTERNO), null, ErrorComun.ERROR_INTERNO.codigo());
         return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(body).build();

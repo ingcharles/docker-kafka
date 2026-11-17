@@ -9,11 +9,14 @@ import org.jboss.logging.Logger;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.error.LogCodificado;
+import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.notificacion.application.event.ComprobanteEventMessage;
 import com.facturacion.notificacion.application.service.NotificacionService;
 import com.facturacion.notificacion.infrastructure.inbox.ProcessedMessageEntity;
 import com.facturacion.notificacion.infrastructure.inbox.ProcessedMessageRepository;
 import com.facturacion.notificacion.shared.constant.MessagingConstants;
+import com.facturacion.notificacion.shared.error.CodigoLog;
 
 /**
  * {@code facturacion.comprobante.eventos.v1} lleva más de un tipo de
@@ -38,6 +41,7 @@ public class ComprobanteEventConsumer {
         this.processedMessageRepository = processedMessageRepository;
     }
 
+    @LogFallosMensajeria
     @Incoming("comprobante-events-in")
     @WithTransaction
     public Uni<Void> procesarEvento(ComprobanteEventMessage evento) {
@@ -45,15 +49,14 @@ public class ComprobanteEventConsumer {
             return Uni.createFrom().voidItem();
         }
         if (evento.compradorCorreo() == null || evento.compradorCorreo().isBlank()) {
-            LOG.warnf("ComprobanteAutorizado %s sin compradorCorreo — no debería haberse publicado, se descarta",
-                evento.comprobanteId());
+            LogCodificado.warn(LOG, CodigoLog.SIN_CORREO_RECEPTOR, "comprobanteId=" + evento.comprobanteId());
             return Uni.createFrom().voidItem();
         }
         return processedMessageRepository.alreadyProcessed(evento.eventId())
             .onItem().transformToUni(processed -> {
                 if (Boolean.TRUE.equals(processed)) {
-                    LOG.infof("Se descarta el evento %s (comprobante %s) — ya se procesó antes", evento.eventId(),
-                        evento.comprobanteId());
+                    LogCodificado.info(LOG, CodigoLog.EVENTO_DUPLICADO_DESCARTADO, "comprobanteId=" + evento.comprobanteId(),
+                        evento.eventId());
                     return Uni.createFrom().voidItem();
                 }
                 return notificacionService.procesarComprobanteAutorizado(evento)

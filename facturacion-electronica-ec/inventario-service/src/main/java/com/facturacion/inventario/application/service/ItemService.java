@@ -163,6 +163,7 @@ public class ItemService {
             item.getCodigoPrincipal(),
             item.getCodigoAuxiliar(),
             item.getDescripcion(),
+            item.getUnidadMedida(),
             item.getCodigoImpuesto(),
             item.getCodigoPorcentaje(),
             item.isTieneIce(),

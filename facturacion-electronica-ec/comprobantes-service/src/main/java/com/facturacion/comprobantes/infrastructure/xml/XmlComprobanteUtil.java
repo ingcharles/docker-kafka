@@ -80,8 +80,21 @@ final class XmlComprobanteUtil {
         agregarTexto(doc, detalle, "descripcion", d.getDescripcion());
         agregarTexto(doc, detalle, "cantidad", d.getCantidad().toPlainString());
         agregarTexto(doc, detalle, "precioUnitario", formatearMonto(d.getPrecioUnitario()));
+        if (d.getPrecioSinSubsidio() != null) {
+            agregarTexto(doc, detalle, "precioSinSubsidio", formatearMonto(d.getPrecioSinSubsidio()));
+        }
         agregarTexto(doc, detalle, "descuento", formatearMonto(d.getDescuento() == null ? BigDecimal.ZERO : d.getDescuento()));
         agregarTexto(doc, detalle, "precioTotalSinImpuesto", formatearMonto(d.precioTotalSinImpuesto()));
+        if (d.getDetallesAdicionales() != null && !d.getDetallesAdicionales().isEmpty()) {
+            Element adicionales = doc.createElement("detallesAdicionales");
+            for (CampoAdicional adicional : d.getDetallesAdicionales()) {
+                Element detAdicional = doc.createElement("detAdicional");
+                detAdicional.setAttribute("nombre", adicional.nombre());
+                detAdicional.setAttribute("valor", adicional.valor());
+                adicionales.appendChild(detAdicional);
+            }
+            detalle.appendChild(adicionales);
+        }
 
         Element impuestos = doc.createElement("impuestos");
         for (Impuesto imp : d.getImpuestos()) {
@@ -105,8 +118,22 @@ final class XmlComprobanteUtil {
     }
 
     /**
-     * {@code <infoAdicional>} completo: el campo "granContribuyente" (Anexo
-     * 24, solo cuando la empresa es Gran Contribuyente), luego "RUC Proveedor"
+     * {@code <agenteRetencion>} (Anexo 21: número de resolución sin ceros a la izquierda) y {@code <contribuyenteRimpe>}
+     * (Anexo 22: leyenda del régimen), en ese orden y al final de {@code <infoTributaria>}. Solo se escriben los que
+     * aplican a la empresa.
+     */
+    static void agregarAgenteYRegimen(Document doc, Element info, Comprobante c) {
+        if (c.getEmpresaAgenteRetencion() != null && !c.getEmpresaAgenteRetencion().isBlank()) {
+            agregarTexto(doc, info, "agenteRetencion", c.getEmpresaAgenteRetencion());
+        }
+        if (c.getEmpresaRegimenRimpe() != null) {
+            agregarTexto(doc, info, "contribuyenteRimpe", c.getEmpresaRegimenRimpe().leyenda());
+        }
+    }
+
+    /**
+     * {@code <infoAdicional>} completo: el campo "Gran Contribuyente" (Anexo
+     * 24: nombre "Gran Contribuyente" y, como valor, el número de resolución; solo si la empresa es Gran Contribuyente), luego "RUC Proveedor"
      * (Anexo 26, Res. NAC-DGERCGC26-00000027 — solo cuando la empresa
      * configuró {@code sri.proveedor.ruc} en {@code configuracion_empresa},
      * ver {@code ComprobanteService.emitir}) — ambos calculados por el
@@ -116,7 +143,9 @@ final class XmlComprobanteUtil {
      * en el XSD del SRI).
      */
     static Element construirInfoAdicional(Document doc, Comprobante c) {
-        boolean hayGranContribuyente = c.isEmpresaEsGranContribuyente();
+        boolean hayGranContribuyente = c.isEmpresaEsGranContribuyente()
+            && c.getEmpresaNumeroResolucionGranContribuyente() != null
+            && !c.getEmpresaNumeroResolucionGranContribuyente().isBlank();
         boolean hayProveedorRuc = c.getProveedorRuc() != null && !c.getProveedorRuc().isBlank();
         boolean hayCamposAdicionales = c.getCamposAdicionales() != null && !c.getCamposAdicionales().isEmpty();
         if (!hayGranContribuyente && !hayProveedorRuc && !hayCamposAdicionales) {
@@ -125,8 +154,8 @@ final class XmlComprobanteUtil {
         Element infoAdicional = doc.createElement("infoAdicional");
         if (hayGranContribuyente) {
             Element campo = doc.createElement("campoAdicional");
-            campo.setAttribute("nombre", "granContribuyente");
-            campo.setTextContent("Gran Contribuyente " + c.getEmpresaNumeroResolucionGranContribuyente());
+            campo.setAttribute("nombre", "Gran Contribuyente");
+            campo.setTextContent(c.getEmpresaNumeroResolucionGranContribuyente());
             infoAdicional.appendChild(campo);
         }
         if (hayProveedorRuc) {

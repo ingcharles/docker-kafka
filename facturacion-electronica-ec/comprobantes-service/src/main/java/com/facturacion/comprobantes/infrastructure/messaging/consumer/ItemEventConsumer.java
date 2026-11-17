@@ -8,6 +8,7 @@ import org.eclipse.microprofile.reactive.messaging.Incoming;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.comprobantes.application.event.ItemEventMessage;
 import com.facturacion.comprobantes.domain.model.entity.ItemLocal;
 import com.facturacion.comprobantes.domain.repository.ItemLocalRepository;
@@ -27,6 +28,7 @@ public class ItemEventConsumer {
         this.repository = repository;
     }
 
+    @LogFallosMensajeria
     @Incoming("item-events-in")
     @WithTransaction
     public Uni<Void> procesarEvento(ItemEventMessage evento) {
@@ -35,6 +37,7 @@ public class ItemEventConsumer {
         item.setRuc(evento.ruc());
         item.setCodigoPrincipal(evento.codigoPrincipal());
         item.setDescripcion(evento.descripcion());
+        item.setUnidadMedida(evento.unidadMedida());
         item.setCodigoImpuesto(evento.codigoImpuesto());
         item.setCodigoPorcentaje(evento.codigoPorcentaje());
         item.setTieneIce(evento.tieneIce());

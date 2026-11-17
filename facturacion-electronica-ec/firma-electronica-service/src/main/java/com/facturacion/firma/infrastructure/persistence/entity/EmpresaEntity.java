@@ -44,9 +44,6 @@ public class EmpresaEntity extends PanacheEntityBase {
     @Column(name = "numero_resolucion_gran_contribuyente")
     public String numeroResolucionGranContribuyente;
 
-    @Column(name = "vende_combustibles", nullable = false)
-    public boolean vendeCombustibles;
-
     @Column(nullable = false)
     public String ambiente;
 

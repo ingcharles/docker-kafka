@@ -17,6 +17,7 @@ import io.vertx.core.Vertx;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.notificacion.application.dto.NotificacionEnviadaResponse;
 import com.facturacion.notificacion.application.event.ComprobanteEventMessage;
@@ -31,7 +32,9 @@ import com.facturacion.notificacion.domain.port.EventosSalientes;
 import com.facturacion.notificacion.domain.repository.ConfiguracionEmpresaLocalRepository;
 import com.facturacion.notificacion.domain.repository.NotificacionEnviadaRepository;
 import com.facturacion.notificacion.domain.service.ClaveAcceso;
+import com.facturacion.notificacion.domain.service.MotivoFalla;
 import com.facturacion.notificacion.shared.constant.MessagingConstants;
+import com.facturacion.notificacion.shared.error.CodigoLog;
 
 /**
  * Dueño del agregado NotificacionEnviada. {@link #procesarComprobanteAutorizado}
@@ -92,34 +95,46 @@ public class NotificacionService {
                             evento.tipoComprobante(), ridePdf, evento.xmlAutorizado(), asunto, remitenteNombre)
                         .onItem().transform(ignorado -> (String) null)
                         .onFailure().recoverWithItem(falla -> {
-                            LOG.errorf(falla, "No se pudo enviar el correo del comprobante %s a %s",
-                                evento.claveAcceso(), evento.compradorCorreo());
-                            return falla.getMessage();
+                            LogCodificado.error(LOG, falla, CodigoLog.CORREO_FALLIDO, "claveAcceso=" + evento.claveAcceso());
+                            return MotivoFalla.de(falla);
                         });
                 }))
             .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
             .onItem().transformToUni(motivoError -> guardarResultado(evento, motivoError));
     }
 
+    /**
+     * Un comprobante tiene una sola notificacion (índice único): el primer envío la crea y un reenvío (evento nuevo
+     * del mismo comprobante) actualiza su resultado.
+     */
     private Uni<Void> guardarResultado(ComprobanteEventMessage evento, String motivoError) {
         Instant ahora = Instant.now();
-        NotificacionEnviada notificacion = new NotificacionEnviada();
-        notificacion.setId(UUID.randomUUID());
-        notificacion.setComprobanteId(evento.comprobanteId());
-        notificacion.setClaveAcceso(evento.claveAcceso());
-        notificacion.setDestinatario(evento.compradorCorreo());
-        notificacion.setEstado(motivoError == null ? EstadoNotificacion.ENVIADA : EstadoNotificacion.FALLIDA);
-        notificacion.setMotivoError(motivoError);
-        notificacion.setEnviadoEn(ahora);
+        return notificacionRepository.findByComprobanteId(evento.comprobanteId())
+            .onItem().transformToUni(existente -> {
+                NotificacionEnviada notificacion = existente != null ? existente : new NotificacionEnviada();
+                if (existente == null) {
+                    notificacion.setId(UUID.randomUUID());
+                    notificacion.setComprobanteId(evento.comprobanteId());
+                    notificacion.setClaveAcceso(evento.claveAcceso());
+                }
+                notificacion.setDestinatario(evento.compradorCorreo());
+                notificacion.setEstado(motivoError == null ? EstadoNotificacion.ENVIADA : EstadoNotificacion.FALLIDA);
+                notificacion.setMotivoError(motivoError);
+                notificacion.setEnviadoEn(ahora);
+                Uni<NotificacionEnviada> guardada = existente != null ? notificacionRepository.actualizar(notificacion)
+                    : notificacionRepository.persist(notificacion);
+                return guardada.chain(() -> registrarResultado(evento, motivoError, ahora));
+            });
+    }
 
+    private Uni<Void> registrarResultado(ComprobanteEventMessage evento, String motivoError, Instant ahora) {
         String eventType = motivoError == null ? MessagingConstants.EVENT_TYPE_NOTIFICACION_ENVIADA
             : MessagingConstants.EVENT_TYPE_NOTIFICACION_FALLIDA;
         NotificacionResultadoEventMessage mensaje = new NotificacionResultadoEventMessage(UUID.randomUUID(),
             evento.comprobanteId(), eventType, evento.compradorCorreo(), motivoError, ahora);
 
-        return notificacionRepository.persist(notificacion)
-            .chain(guardado -> salientes.registrar(new EventoSaliente(evento.comprobanteId(), eventType,
-                MessagingConstants.NOTIFICACION_EVENTS_TOPIC, serializarAJson(mensaje))))
+        return salientes.registrar(new EventoSaliente(evento.comprobanteId(), eventType,
+                MessagingConstants.NOTIFICACION_EVENTS_TOPIC, serializarAJson(mensaje)))
             .replaceWithVoid();
     }
 

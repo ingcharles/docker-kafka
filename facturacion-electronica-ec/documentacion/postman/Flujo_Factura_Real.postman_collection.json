@@ -71,7 +71,7 @@
             "url": { "raw": "{{firma_url}}", "host": ["{{firma_url}}"] },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"ruc\": \"{{ruc}}\",\n  \"razonSocial\": \"{{razon_social}}\",\n  \"nombreComercial\": \"Prueba\",\n  \"direccionMatriz\": \"LLANO CHICO\",\n  \"obligadoContabilidad\": false,\n  \"contribuyenteEspecial\": false,\n  \"esGranContribuyente\": false,\n  \"vendeCombustibles\": false,\n  \"ambiente\": \"PRUEBAS\",\n  \"establecimientoDefecto\": \"001\",\n  \"puntoEmisionDefecto\": \"001\"\n}"
+              "raw": "{\n  \"ruc\": \"{{ruc}}\",\n  \"razonSocial\": \"{{razon_social}}\",\n  \"nombreComercial\": \"Prueba\",\n  \"direccionMatriz\": \"LLANO CHICO\",\n  \"obligadoContabilidad\": false,\n  \"contribuyenteEspecial\": false,\n  \"esGranContribuyente\": false,\n\n  \"ambiente\": \"PRUEBAS\",\n  \"establecimientoDefecto\": \"001\",\n  \"puntoEmisionDefecto\": \"001\"\n}"
             },
             "description": "Con el token de sesión. El usuario queda ADMIN de la empresa (evento de Kafka: puede tardar unos segundos) y se crea el establecimiento 001 / punto 001."
           },

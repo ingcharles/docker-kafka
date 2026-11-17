@@ -49,4 +49,9 @@ public final class Respuestas {
     public static Response aceptado() {
         return Response.accepted().build();
     }
+
+    /** 202 con cuerpo: la orden se aceptó y se atiende de forma asíncrona, y el cuerpo dice cuánto se pidió (p. ej. un lote). */
+    public static Response aceptado(Object cuerpo) {
+        return Response.accepted(cuerpo).build();
+    }
 }

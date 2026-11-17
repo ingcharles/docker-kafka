@@ -19,9 +19,11 @@ import org.w3c.dom.NodeList;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 
+import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.sri.domain.model.enums.AmbienteSri;
 import com.facturacion.sri.domain.port.RecepcionResultado;
 import com.facturacion.sri.domain.port.RecepcionSri;
+import com.facturacion.sri.shared.error.CodigoLog;
 
 /**
  * Cliente real (no simulado) del Web Service de Recepción del SRI —
@@ -84,7 +86,7 @@ public class SriRecepcionClient implements RecepcionSri {
                 .POST(HttpRequest.BodyPublishers.ofString(sobre, StandardCharsets.UTF_8))
                 .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            LOG.infof("SRI Recepción respondió HTTP %d para ambiente %s", response.statusCode(), ambiente);
+            LogCodificado.info(LOG, CodigoLog.HTTP_RECEPCION, null, response.statusCode(), ambiente);
             return parsear(response.body());
         } catch (Exception e) {
             throw new IllegalStateException("No se pudo contactar al WS de Recepción del SRI (" + url + ")", e);

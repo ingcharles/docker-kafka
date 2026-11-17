@@ -1,0 +1,31 @@
+package com.facturacion.commons.error;
+
+/**
+ * Logs del código compartido (facturacion-commons), con su código estable. El primer dígito del número es el nivel:
+ * 1 DEBUG, 2 INFO, 3 WARN, 4 ERROR, 5 FATAL.
+ */
+public enum CodigoLogComun implements MensajeCatalogo {
+
+    TOKEN_RECHAZADO("GEN-101", "comun.log_token_rechazado"),
+    REVOCACION_IGNORADA("GEN-301", "comun.log_revocacion_ignorada"),
+    EXCEPCION_NO_CONTROLADA("GEN-401", "comun.log_excepcion_no_controlada"),
+    MENSAJE_FALLIDO("GEN-402", "comun.log_mensaje_fallido");
+
+    private final String codigo;
+    private final String claveMensaje;
+
+    CodigoLogComun(String codigo, String claveMensaje) {
+        this.codigo = codigo;
+        this.claveMensaje = claveMensaje;
+    }
+
+    @Override
+    public String codigo() {
+        return codigo;
+    }
+
+    @Override
+    public String claveMensaje() {
+        return claveMensaje;
+    }
+}

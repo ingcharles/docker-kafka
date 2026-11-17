@@ -76,6 +76,7 @@ public class GeneradorXmlFactura implements GeneradorXmlComprobante {
         XmlComprobanteUtil.agregarTexto(doc, info, "ptoEmi", c.getPuntoEmision());
         XmlComprobanteUtil.agregarTexto(doc, info, "secuencial", c.getSecuencial());
         XmlComprobanteUtil.agregarTexto(doc, info, "dirMatriz", c.getEmpresaDireccionMatriz());
+        XmlComprobanteUtil.agregarAgenteYRegimen(doc, info, c);
         return info;
     }
 
@@ -99,6 +100,10 @@ public class GeneradorXmlFactura implements GeneradorXmlComprobante {
         XmlComprobanteUtil.agregarTexto(doc, info, "propina", "0.00");
         XmlComprobanteUtil.agregarTexto(doc, info, "importeTotal", XmlComprobanteUtil.formatearMonto(c.getImporteTotal()));
         XmlComprobanteUtil.agregarTexto(doc, info, "moneda", c.getMoneda());
+        if (c.getPlaca() != null) {
+            // Anexos 12 y 25: entre moneda y pagos.
+            XmlComprobanteUtil.agregarTexto(doc, info, "placa", c.getPlaca());
+        }
         info.appendChild(XmlComprobanteUtil.construirPagos(doc, c.getPagos()));
         return info;
     }

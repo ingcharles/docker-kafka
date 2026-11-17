@@ -75,7 +75,6 @@ ARQUITECTURA.md sección 8, "Bootstrap de una empresa nueva")
   "obligadoContabilidad": false,
   "contribuyenteEspecial": false,
   "esGranContribuyente": false,
-  "vendeCombustibles": false,
   "ambiente": "PRUEBAS",
   "establecimientoDefecto": "001",
   "puntoEmisionDefecto": "001"
@@ -210,7 +209,6 @@ cambiar el certificado más adelante.
   "obligadoContabilidad": false,
   "contribuyenteEspecial": false,
   "esGranContribuyente": false,
-  "vendeCombustibles": false,
   "ambiente": "PRUEBAS",
   "establecimientoDefecto": "001",
   "puntoEmisionDefecto": "001",
@@ -745,6 +743,7 @@ poller). Usa estos endpoints para seguirla sin volver a tocar comprobantes-servi
 `GET http://localhost:8096/sagas/api/v1/{comprobanteId}` — estado y línea de tiempo completa de la saga
 `GET http://localhost:8096/sagas/api/v1?limit=20&page=0&state=FAILED` — listar (filtro opcional por estado)
 `POST http://localhost:8096/sagas/api/v1/{comprobanteId}/retry` — reintentar una saga atascada (sin body)
+`POST http://localhost:8096/sagas/api/v1/reenviar-notificaciones?limite=100` — reenvío masivo de correos (api-key de escritura, sin body). Toma las sagas **de la empresa de la api-key** que están en `NOTIFICACION_FALLIDA` (hasta `limite`, de 1 a 500; por defecto 100), las devuelve a `AUTORIZADO` y le pide a comprobantes-service que vuelva a publicar cada comprobante autorizado. Responde `202` con `{ "solicitados": N }`: es asíncrono, así que `N` es cuántas se mandaron a reenviar, no cuántos correos salieron. Unos segundos después, cada saga está en `NOTIFICADO` (el envío salió bien) o de nuevo en `NOTIFICACION_FALLIDA` con el motivo nuevo. Una segunda llamada inmediata responde `{ "solicitados": 0 }` (ya no están en `NOTIFICACION_FALLIDA`). Si hay más sagas que `limite`, repite la llamada. Para un solo comprobante: `POST http://localhost:8093/comprobantes/api/v1/comprobantes/{comprobanteId}/reenviar-correo` (`202`; `409` si no está autorizado o no tiene correo del receptor).
 
 ---
 
@@ -1002,4 +1001,4 @@ Ajustes (variables de entorno del servicio): `SAGA_WATCHDOG_HABILITADO`, `SAGA_W
 
 Otros estados terminales que verás en `GET /sagas`: `AUTORIZADO_SIN_NOTIFICACION` (el comprobante se autorizó pero no tiene correo del
 receptor, así que no habrá notificación) `STOCK_NO_DISPONIBLE` (con el descuento de inventario habilitado, no había stock: el comprobante queda en `STOCK_INSUFICIENTE`) y `EXPIRADA` (el watchdog agotó los reintentos).
-Cada saga se reintenta en su propia transacción: si una falla, queda una nota `ORQ-003` en su bitácora y cuenta como intento, sin afectar a las demás.
+Cada saga se reintenta en su propia transacción: si una falla, queda una nota `ORQ-402` en su bitácora y cuenta como intento, sin afectar a las demás.

@@ -27,6 +27,7 @@ class FirmaErrorTest {
         }
         Set<String> sobrantes = new HashSet<>(Mensajes.listarClaves());
         sobrantes.removeAll(Arrays.stream(FirmaError.values()).map(FirmaError::claveMensaje).collect(Collectors.toSet()));
+        Arrays.stream(CodigoLog.values()).forEach(log -> sobrantes.remove(log.claveMensaje()));
         assertTrue(sobrantes.isEmpty(), "Claves sin código de error: " + sobrantes);
     }
 

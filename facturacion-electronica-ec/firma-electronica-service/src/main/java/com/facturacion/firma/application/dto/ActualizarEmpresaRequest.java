@@ -23,8 +23,6 @@ public class ActualizarEmpresaRequest {
 
     private String numeroResolucionGranContribuyente;
 
-    private boolean vendeCombustibles;
-
     @NotNull
     private String ambiente;
 
@@ -96,14 +94,6 @@ public class ActualizarEmpresaRequest {
 
     public void setNumeroResolucionGranContribuyente(String numeroResolucionGranContribuyente) {
         this.numeroResolucionGranContribuyente = numeroResolucionGranContribuyente;
-    }
-
-    public boolean isVendeCombustibles() {
-        return vendeCombustibles;
-    }
-
-    public void setVendeCombustibles(boolean vendeCombustibles) {
-        this.vendeCombustibles = vendeCombustibles;
     }
 
     public String getAmbiente() {

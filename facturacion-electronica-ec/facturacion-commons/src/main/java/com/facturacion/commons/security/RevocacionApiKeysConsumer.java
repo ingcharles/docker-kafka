@@ -3,6 +3,9 @@ package com.facturacion.commons.security;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import com.facturacion.commons.error.CodigoLogComun;
+import com.facturacion.commons.error.LogCodificado;
+
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
 
@@ -31,7 +34,7 @@ public class RevocacionApiKeysConsumer {
             revocaciones.revocar(revocacion.jti(), revocacion.venceEn());
         } catch (IllegalArgumentException e) {
             // Un mensaje ilegible no debe detener el canal: se descarta y queda en el log.
-            LOG.warnf("Revocación ignorada: %s", e.getMessage());
+            LogCodificado.warn(LOG, CodigoLogComun.REVOCACION_IGNORADA, null, e.getMessage());
         }
     }
 }

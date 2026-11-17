@@ -18,6 +18,7 @@ import io.vertx.core.Vertx;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.sri.application.dto.EnvioSriResponse;
 import com.facturacion.sri.application.event.EnviarComprobanteCommand;
@@ -36,6 +37,7 @@ import com.facturacion.sri.domain.port.RecepcionSri;
 import com.facturacion.sri.domain.repository.ConfiguracionEmpresaLocalRepository;
 import com.facturacion.sri.domain.repository.EnvioSriRepository;
 import com.facturacion.sri.shared.constant.MessagingConstants;
+import com.facturacion.sri.shared.error.CodigoLog;
 
 /**
  * Dueño del agregado EnvioSri. {@link #procesarComando} arranca el flujo
@@ -121,8 +123,11 @@ public class SriConectorService {
         SriResultadoEventMessage mensaje = new SriResultadoEventMessage(UUID.randomUUID(), command.comprobanteId(),
             command.claveAcceso(), eventType, null, null, null, resultado.mensajes(), ahora);
 
-        LOG.infof("Recepción SRI para %s: %s%s", command.claveAcceso(), envio.getEstado(),
-            resultado.mensajes() != null ? " — " + resultado.mensajes() : "");
+        if (resultado.recibida()) {
+            LogCodificado.info(LOG, CodigoLog.RECEPCION_RESULTADO, "claveAcceso=" + command.claveAcceso(), envio.getEstado());
+        } else {
+            LogCodificado.error(LOG, CodigoLog.SRI_RECHAZA_RECEPCION, "claveAcceso=" + command.claveAcceso(), resultado.mensajes());
+        }
 
         return envioSriRepository.persist(envio)
             .chain(guardado -> salientes.registrar(new EventoSaliente(command.comprobanteId(), eventType,
@@ -182,10 +187,9 @@ public class SriConectorService {
                 // Se agotaron los intentos sin que el SRI diera una respuesta
                 // final — requiere intervención manual (ver EstadoEnvioSri).
                 envio.setEstado(EstadoEnvioSri.ERROR_CONSULTA);
-                LOG.warnf("Autorización SRI para %s: se agotaron los %d intentos sin respuesta final",
-                    envio.getClaveAcceso(), maxIntentos);
+                LogCodificado.error(LOG, CodigoLog.SRI_SIN_RESPUESTA_FINAL, "claveAcceso=" + envio.getClaveAcceso(), maxIntentos);
             } else {
-                LOG.infof("Autorización SRI para %s: pendiente (intento %d de %d)", envio.getClaveAcceso(),
+                LogCodificado.info(LOG, CodigoLog.AUTORIZACION_PENDIENTE, "claveAcceso=" + envio.getClaveAcceso(),
                     envio.getIntentosAutorizacion(), maxIntentos);
             }
             return envioSriRepository.update(envio).replaceWithVoid();
@@ -203,7 +207,11 @@ public class SriConectorService {
             envio.getClaveAcceso(), eventType, resultado.xmlAutorizacionCompleto(), resultado.numeroAutorizacion(),
             resultado.fechaAutorizacion(), resultado.motivoRechazo(), Instant.now());
 
-        LOG.infof("Autorización SRI para %s: %s", envio.getClaveAcceso(), envio.getEstado());
+        if (resultado.autorizado()) {
+            LogCodificado.info(LOG, CodigoLog.AUTORIZACION_RESULTADO, "claveAcceso=" + envio.getClaveAcceso(), envio.getEstado());
+        } else {
+            LogCodificado.error(LOG, CodigoLog.SRI_NO_AUTORIZA, "claveAcceso=" + envio.getClaveAcceso(), resultado.motivoRechazo());
+        }
 
         return envioSriRepository.update(envio)
             .chain(guardado -> salientes.registrar(new EventoSaliente(envio.getComprobanteId(), eventType,

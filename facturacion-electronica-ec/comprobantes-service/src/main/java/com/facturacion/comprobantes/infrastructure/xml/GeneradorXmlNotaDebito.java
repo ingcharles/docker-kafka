@@ -76,6 +76,7 @@ public class GeneradorXmlNotaDebito implements GeneradorXmlComprobante {
         XmlComprobanteUtil.agregarTexto(doc, info, "ptoEmi", c.getPuntoEmision());
         XmlComprobanteUtil.agregarTexto(doc, info, "secuencial", c.getSecuencial());
         XmlComprobanteUtil.agregarTexto(doc, info, "dirMatriz", c.getEmpresaDireccionMatriz());
+        XmlComprobanteUtil.agregarAgenteYRegimen(doc, info, c);
         return info;
     }
 

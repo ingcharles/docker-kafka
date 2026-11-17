@@ -9,10 +9,13 @@ import org.jboss.logging.Logger;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.error.LogCodificado;
+import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.sri.application.event.EnviarComprobanteCommand;
 import com.facturacion.sri.application.service.SriConectorService;
 import com.facturacion.sri.infrastructure.inbox.ProcessedMessageEntity;
 import com.facturacion.sri.infrastructure.inbox.ProcessedMessageRepository;
+import com.facturacion.sri.shared.error.CodigoLog;
 
 /**
  * Arranca el envío al SRI cuando facturacion-orchestrator-service lo pide
@@ -35,6 +38,7 @@ public class EnviarComprobanteCommandConsumer {
         this.processedMessageRepository = processedMessageRepository;
     }
 
+    @LogFallosMensajeria
     @Incoming("sri-comandos-in")
     @WithTransaction
     public Uni<Void> procesarComando(EnviarComprobanteCommand command) {
@@ -47,8 +51,8 @@ public class EnviarComprobanteCommandConsumer {
         return processedMessageRepository.alreadyProcessed(command.eventId())
             .onItem().transformToUni(processed -> {
                 if (Boolean.TRUE.equals(processed)) {
-                    LOG.infof("Se descarta el comando %s (comprobante %s) — ya se procesó antes",
-                        command.eventId(), command.comprobanteId());
+                    LogCodificado.info(LOG, CodigoLog.COMANDO_DUPLICADO_DESCARTADO, "comprobanteId=" + command.comprobanteId(),
+                        command.eventId());
                     return Uni.createFrom().voidItem();
                 }
                 return sriConectorService.procesarComando(command)

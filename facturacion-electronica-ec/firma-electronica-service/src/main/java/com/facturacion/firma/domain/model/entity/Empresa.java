@@ -22,7 +22,6 @@ public class Empresa {
     private String numeroContribuyenteEspecial;
     private boolean esGranContribuyente;
     private String numeroResolucionGranContribuyente;
-    private boolean vendeCombustibles;
     private AmbienteSri ambiente;
     private String establecimientoDefecto;
     private String puntoEmisionDefecto;
@@ -38,7 +37,7 @@ public class Empresa {
 
     public Empresa(UUID id, String ruc, String razonSocial, String nombreComercial, String direccionMatriz,
             boolean obligadoContabilidad, boolean contribuyenteEspecial, String numeroContribuyenteEspecial,
-            boolean esGranContribuyente, String numeroResolucionGranContribuyente, boolean vendeCombustibles,
+            boolean esGranContribuyente, String numeroResolucionGranContribuyente,
             AmbienteSri ambiente, String establecimientoDefecto,
             String puntoEmisionDefecto, boolean activo, Instant creadoEn, Instant actualizadoEn) {
         this.id = id;
@@ -51,7 +50,6 @@ public class Empresa {
         this.numeroContribuyenteEspecial = numeroContribuyenteEspecial;
         this.esGranContribuyente = esGranContribuyente;
         this.numeroResolucionGranContribuyente = numeroResolucionGranContribuyente;
-        this.vendeCombustibles = vendeCombustibles;
         this.ambiente = ambiente;
         this.establecimientoDefecto = establecimientoDefecto;
         this.puntoEmisionDefecto = puntoEmisionDefecto;
@@ -138,14 +136,6 @@ public class Empresa {
 
     public void setNumeroResolucionGranContribuyente(String numeroResolucionGranContribuyente) {
         this.numeroResolucionGranContribuyente = numeroResolucionGranContribuyente;
-    }
-
-    public boolean isVendeCombustibles() {
-        return vendeCombustibles;
-    }
-
-    public void setVendeCombustibles(boolean vendeCombustibles) {
-        this.vendeCombustibles = vendeCombustibles;
     }
 
     public AmbienteSri getAmbiente() {

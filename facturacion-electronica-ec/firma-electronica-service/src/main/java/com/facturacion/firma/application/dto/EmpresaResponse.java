@@ -15,7 +15,6 @@ public class EmpresaResponse {
     private String numeroContribuyenteEspecial;
     private boolean esGranContribuyente;
     private String numeroResolucionGranContribuyente;
-    private boolean vendeCombustibles;
     private String ambiente;
     private String establecimientoDefecto;
     private String puntoEmisionDefecto;
@@ -101,14 +100,6 @@ public class EmpresaResponse {
 
     public void setNumeroResolucionGranContribuyente(String numeroResolucionGranContribuyente) {
         this.numeroResolucionGranContribuyente = numeroResolucionGranContribuyente;
-    }
-
-    public boolean isVendeCombustibles() {
-        return vendeCombustibles;
-    }
-
-    public void setVendeCombustibles(boolean vendeCombustibles) {
-        this.vendeCombustibles = vendeCombustibles;
     }
 
     public String getAmbiente() {

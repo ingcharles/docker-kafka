@@ -41,6 +41,7 @@ import com.facturacion.comprobantes.application.dto.CrearRetencionRequest;
 import com.facturacion.comprobantes.application.dto.EmpresaRequest;
 import com.facturacion.comprobantes.application.service.ComprobanteConsultaService;
 import com.facturacion.comprobantes.application.service.ComprobanteService;
+import com.facturacion.comprobantes.application.service.ReenvioNotificacionService;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
 
@@ -59,13 +60,15 @@ public class ComprobanteResource {
 
     private final ComprobanteService comprobanteService;
     private final ComprobanteConsultaService consultaService;
+    private final ReenvioNotificacionService reenvioService;
     private final TokenPrincipal tokenPrincipal;
 
     @Inject
     public ComprobanteResource(ComprobanteService comprobanteService, ComprobanteConsultaService consultaService,
-            TokenPrincipal tokenPrincipal) {
+            ReenvioNotificacionService reenvioService, TokenPrincipal tokenPrincipal) {
         this.comprobanteService = comprobanteService;
         this.consultaService = consultaService;
+        this.reenvioService = reenvioService;
         this.tokenPrincipal = tokenPrincipal;
     }
 
@@ -264,5 +267,19 @@ public class ComprobanteResource {
                 .header("Content-Disposition", "inline; filename=\"" + c.getClaveAcceso() + ".pdf\"")
                 .build();
         });
+    }
+
+    @POST
+    @Path("/comprobantes/{id}/reenviar-correo")
+    @Operation(summary = "Reenviar el correo del comprobante",
+        description = "Vuelve a enviar al receptor el RIDE y el XML autorizado, p. ej. cuando el primer envío falló "
+            + "(NOTIFICACION_FALLIDA). Es asíncrono: el resultado queda en GET /notificaciones/comprobante/{id}.")
+    @APIResponse(responseCode = "202", description = "Reenvío aceptado")
+    @APIResponse(responseCode = "404", description = "Comprobante no encontrado")
+    @APIResponse(responseCode = "409", description = "No está autorizado, no tiene RIDE o no tiene correo del receptor")
+    public Uni<Response> reenviarCorreo(
+            @Parameter(description = "Id del comprobante", required = true) @PathParam("id") UUID id) {
+        tokenPrincipal.exigirEscritura();
+        return reenvioService.reenviarCorreo(id, tokenPrincipal.getRuc()).map(v -> Respuestas.aceptado());
     }
 }

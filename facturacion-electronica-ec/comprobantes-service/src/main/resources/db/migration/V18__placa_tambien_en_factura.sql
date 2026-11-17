@@ -1,0 +1,3 @@
+-- La factura también lleva placa: Anexo 12 (venta de combustibles líquidos) y Anexo 25 (transporte terrestre comercial).
+-- Corre contra el esquema "comprobantes". No cambia la estructura, solo documenta la columna.
+comment on column comprobante.placa is 'Placa del vehículo. Guía de remisión: la del transportista. Factura: obligatoria en la venta de combustibles líquidos (Anexo 12) y en el transporte terrestre comercial (Anexo 25); va en la etiqueta placa de infoFactura, entre moneda y pagos. Letras y números sin espacios (Tabla 29), p. ej. ABC1234, CU104634, ZZZ9999. Vacío en cualquier otra factura.';

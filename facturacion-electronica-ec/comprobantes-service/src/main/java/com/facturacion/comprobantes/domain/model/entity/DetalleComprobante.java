@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
+import com.facturacion.comprobantes.domain.model.vo.CampoAdicional;
 import com.facturacion.comprobantes.domain.model.vo.Impuesto;
 
 /** Una línea de {@code <detalle>} — sirve igual para un producto o un servicio, el SRI no distingue entre los dos a este nivel. */
@@ -17,7 +18,10 @@ public class DetalleComprobante {
     private BigDecimal cantidad;
     private BigDecimal precioUnitario;
     private BigDecimal descuento;
+    private BigDecimal precioSinSubsidio;
     private List<Impuesto> impuestos;
+    /** Detalles adicionales de la línea (nombre/valor), hasta 3. */
+    private List<CampoAdicional> detallesAdicionales = List.of();
 
     /** Solo para Guía de Remisión: a qué {@link DestinatarioGuiaRemision} pertenece esta línea. Null en el resto de tipos. */
     private UUID destinatarioId;
@@ -42,6 +46,14 @@ public class DetalleComprobante {
     /** Tabla 1 del Anexo 1: cantidad * precioUnitario - descuento. */
     public BigDecimal precioTotalSinImpuesto() {
         return cantidad.multiply(precioUnitario).subtract(descuento == null ? BigDecimal.ZERO : descuento);
+    }
+
+    public List<CampoAdicional> getDetallesAdicionales() {
+        return detallesAdicionales;
+    }
+
+    public void setDetallesAdicionales(List<CampoAdicional> detallesAdicionales) {
+        this.detallesAdicionales = detallesAdicionales;
     }
 
     public UUID getId() {
@@ -106,6 +118,14 @@ public class DetalleComprobante {
 
     public void setDescuento(BigDecimal descuento) {
         this.descuento = descuento;
+    }
+
+    public BigDecimal getPrecioSinSubsidio() {
+        return precioSinSubsidio;
+    }
+
+    public void setPrecioSinSubsidio(BigDecimal precioSinSubsidio) {
+        this.precioSinSubsidio = precioSinSubsidio;
     }
 
     public List<Impuesto> getImpuestos() {

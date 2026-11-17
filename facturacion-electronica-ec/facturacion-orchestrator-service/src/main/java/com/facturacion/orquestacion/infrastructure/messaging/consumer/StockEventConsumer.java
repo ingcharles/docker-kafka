@@ -8,6 +8,7 @@ import org.jboss.logging.Logger;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.orquestacion.application.event.StockEventMessage;
 import com.facturacion.orquestacion.application.service.SagaOrchestratorService;
 
@@ -24,6 +25,7 @@ public class StockEventConsumer {
         this.orchestratorService = orchestratorService;
     }
 
+    @LogFallosMensajeria
     @Incoming("inventario-events-in")
     public Uni<Void> procesarEvento(StockEventMessage event) {
         return orchestratorService.procesarEventoStock(event)

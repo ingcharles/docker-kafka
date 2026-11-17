@@ -15,6 +15,8 @@ import io.smallrye.mutiny.Uni;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.facturacion.commons.error.LogCodificado;
+import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.firma.application.event.ComprobanteFirmadoEventMessage;
 import com.facturacion.firma.application.event.FirmarComprobanteCommand;
 import com.facturacion.firma.application.service.FirmaXadesService;
@@ -23,6 +25,7 @@ import com.facturacion.firma.infrastructure.inbox.ProcessedMessageRepository;
 import com.facturacion.firma.infrastructure.outbox.OutboxEventEntity;
 import com.facturacion.firma.infrastructure.outbox.OutboxEventRepository;
 import com.facturacion.firma.shared.constant.MessagingConstants;
+import com.facturacion.firma.shared.error.CodigoLog;
 
 /**
  * Firma el XML de un comprobante con el certificado activo de la empresa
@@ -49,6 +52,7 @@ public class FirmarComprobanteConsumer {
         this.objectMapper = objectMapper;
     }
 
+    @LogFallosMensajeria
     @Incoming("firma-comandos-in")
     @WithTransaction
     public Uni<Void> procesarComando(FirmarComprobanteCommand command) {
@@ -62,14 +66,14 @@ public class FirmarComprobanteConsumer {
         return processedMessageRepository.alreadyProcessed(command.eventId())
             .onItem().transformToUni(processed -> {
                 if (Boolean.TRUE.equals(processed)) {
-                    LOG.infof("Se descarta el comando de firma %s (comprobante %s) — ya se procesó antes",
-                        command.eventId(), command.comprobanteId());
+                    LogCodificado.info(LOG, CodigoLog.COMANDO_DUPLICADO_DESCARTADO, "comprobanteId=" + command.comprobanteId(),
+                        command.eventId());
                     return Uni.createFrom().voidItem();
                 }
                 return firmaXadesService.firmarXml(command.ruc(), command.xmlSinFirmar())
                     .onItem().transformToUni(xmlFirmado -> registrarResultado(command, true, xmlFirmado, null))
                     .onFailure().recoverWithUni(falla -> {
-                        LOG.errorf(falla, "Falló la firma del comprobante %s", command.comprobanteId());
+                        LogCodificado.error(LOG, falla, CodigoLog.FIRMA_FALLIDA, "comprobanteId=" + command.comprobanteId());
                         return registrarResultado(command, false, null, falla.getMessage());
                     })
                     .chain(() -> processedMessageRepository.persist(ProcessedMessageEntity.of(command.eventId())))

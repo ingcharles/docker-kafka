@@ -220,12 +220,16 @@ public class RideGenerador implements GeneradorRide {
             datos.add(new Fila("Contribuyente Especial Nro:", c.getEmpresaNumeroContribuyenteEspecial()));
         }
         datos.add(new Fila("Obligado A Llevar Contabilidad:", c.isEmpresaObligadoContabilidad() ? "SI" : "NO"));
-        if (c.isEmpresaEsGranContribuyente() && c.getEmpresaNumeroResolucionGranContribuyente() != null) {
-            datos.add(new Fila("Gran Contribuyente Res.:", c.getEmpresaNumeroResolucionGranContribuyente()));
+        // Anexo 21 y Anexo 22: la leyenda va completa en negrita, sin valor aparte.
+        if (c.getEmpresaAgenteRetencion() != null && !c.getEmpresaAgenteRetencion().isBlank()) {
+            datos.add(new Fila("Agente de Retención Resolución No. " + c.getEmpresaAgenteRetencion(), ""));
+        }
+        if (c.getEmpresaRegimenRimpe() != null) {
+            datos.add(new Fila(c.getEmpresaRegimenRimpe().leyenda(), ""));
         }
         for (Fila dato : datos) {
-            y = filaLineas(cs, x + 8, y, ANCHO_ETIQUETA_EMISOR, dato.etiqueta(),
-                ajustar(dato.valor(), fuenteNormal, 7, ANCHO_COLUMNA_IZQUIERDA - 16 - ANCHO_ETIQUETA_EMISOR), 7);
+            List<String> lineas = ajustar(dato.valor(), fuenteNormal, 7, ANCHO_COLUMNA_IZQUIERDA - 16 - ANCHO_ETIQUETA_EMISOR);
+            y = filaLineas(cs, x + 8, y, ANCHO_ETIQUETA_EMISOR, dato.etiqueta(), lineas.isEmpty() ? List.of("") : lineas, 7);
         }
     }
 
@@ -436,12 +440,16 @@ public class RideGenerador implements GeneradorRide {
         l.y -= alto;
     }
 
-    /** Hoy solo se muestra el código auxiliar, si existe: el detalle no guarda otros datos adicionales por línea. */
+    /** Código auxiliar (si existe) y los detalles adicionales de la línea ("Medida: UN, Centro Logistico: 23"). */
     private String detalleAdicional(DetalleComprobante d) {
-        if (d.getCodigoAuxiliar() == null || d.getCodigoAuxiliar().isBlank()) {
-            return "";
+        List<String> partes = new ArrayList<>();
+        if (d.getCodigoAuxiliar() != null && !d.getCodigoAuxiliar().isBlank()) {
+            partes.add("Cod. Auxiliar: " + d.getCodigoAuxiliar());
         }
-        return "Cod. Auxiliar: " + d.getCodigoAuxiliar();
+        if (d.getDetallesAdicionales() != null) {
+            d.getDetallesAdicionales().forEach(adicional -> partes.add(adicional.nombre() + ": " + nulo(adicional.valor())));
+        }
+        return String.join(", ", partes);
     }
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -511,7 +519,7 @@ public class RideGenerador implements GeneradorRide {
         }
     }
 
-    /** Forma de pago, RUC proveedor (Anexo 26) y los campos adicionales que mandó el llamador, en ese orden. */
+    /** Forma de pago, RUC proveedor (Anexo 26), Gran Contribuyente (Anexo 24) y los campos adicionales del llamador, en ese orden. */
     private List<Fila> construirInformacionAdicional(Comprobante c, CatalogosSriAFecha catalogos) {
         List<Fila> filas = new ArrayList<>();
         if (c.getPagos() != null) {
@@ -524,6 +532,10 @@ public class RideGenerador implements GeneradorRide {
         }
         if (c.getProveedorRuc() != null && !c.getProveedorRuc().isBlank()) {
             filas.add(new Fila("RUC Proveedor:", c.getProveedorRuc()));
+        }
+        if (c.isEmpresaEsGranContribuyente() && c.getEmpresaNumeroResolucionGranContribuyente() != null
+                && !c.getEmpresaNumeroResolucionGranContribuyente().isBlank()) {
+            filas.add(new Fila("Gran Contribuyente:", c.getEmpresaNumeroResolucionGranContribuyente()));
         }
         if (c.getCamposAdicionales() != null) {
             for (var campo : c.getCamposAdicionales()) {

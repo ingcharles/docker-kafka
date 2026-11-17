@@ -21,9 +21,11 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.kafka.api.OutgoingKafkaRecordMetadata;
 import io.vertx.core.Vertx;
 
+import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.firma.infrastructure.outbox.OutboxEventEntity;
 import com.facturacion.firma.infrastructure.outbox.OutboxEventRepository;
 import com.facturacion.firma.shared.constant.MessagingConstants;
+import com.facturacion.firma.shared.error.CodigoLog;
 
 /**
  * A diferencia del relay de outbox de un solo tópico fijo, este servicio produce hacia
@@ -88,8 +90,7 @@ public class OutboxRelay {
     private Uni<OutboxEventEntity> publish(OutboxEventEntity event) {
         Emitter<String> emitter = emittersByTopic.get(event.topic);
         if (emitter == null) {
-            LOG.errorf("No hay emitter configurado para el tópico %s (outbox event %s) — se reintenta luego",
-                event.topic, event.id);
+            LogCodificado.error(LOG, CodigoLog.OUTBOX_SIN_EMISOR, "eventoId=" + event.id + ", topico=" + event.topic);
             return Uni.createFrom().item(event);
         }
 
@@ -115,9 +116,8 @@ public class OutboxRelay {
             .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
             .onItem().invoke(() -> event.publishedAt = Instant.now())
             .replaceWith(event)
-            .onFailure().invoke(failure -> LOG.errorf(failure,
-                "No se pudo publicar el evento de outbox %s (tópico %s) en Kafka, se reintenta en el siguiente tick",
-                event.id, event.topic))
+            .onFailure().invoke(failure -> LogCodificado.error(LOG, failure, CodigoLog.OUTBOX_PUBLICACION_FALLIDA,
+                "eventoId=" + event.id + ", topico=" + event.topic))
             .onFailure().recoverWithItem(event);
     }
 }

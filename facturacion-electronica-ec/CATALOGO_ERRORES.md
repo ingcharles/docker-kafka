@@ -59,10 +59,13 @@ Toda respuesta de error de los microservicios tiene el mismo cuerpo (`ApiErrorRe
 | `COMP-400-501` | 400 | El ítem '{0}' ({1}) está dado de baja en inventario y no se puede facturar. |
 | `COMP-400-502` | 400 | La línea '{0}' no trae impuestos y tampoco un itemId del que derivarlos. |
 | `COMP-400-503` | 400 | La línea '{0}' no trae impuestos y el itemId {1} no está (todavía) en el catálogo local de inventario-service para esta empresa — puede que el evento ItemCreado no haya llegado aún, que el ítem no exista, o que pertenezca a otra empresa. |
+| `COMP-400-504` | 400 | La línea con el código de combustible {0} requiere la placa del vehículo en la factura (Anexo 12 de la ficha técnica) |
 | `COMP-400-601` | 400 | El establecimiento '{0}' no está registrado (o no está activo) para el ruc {1} — puede que el evento EstablecimientoRegistrado no haya llegado aún, que el establecimiento no exista, o que pertenezca a otra empresa. |
 | `COMP-400-602` | 400 | El punto de emisión '{0}' no está registrado (o no está activo) para el establecimiento '{1}' del ruc {2}. |
 | `COMP-400-603` | 400 | empresa.ambiente debe ser PRUEBAS o PRODUCCION, se recibió: {0} |
 | `COMP-400-801` | 400 | El tipo de comprobante {0} todavía no está soportado en esta versión |
+| `COMP-409-901` | 409 | El comprobante está {0}: solo se reenvía el correo de un comprobante autorizado por el SRI y con RIDE |
+| `COMP-409-902` | 409 | El comprobante no tiene correo del receptor al cual reenviarlo |
 | `COMP-404-701` | 404 | No existe el catálogo '{0}'. Disponibles: {1}. |
 | `COMP-403-701` | 403 | La escritura de catálogos está deshabilitada: configura CATALOGOS_ADMIN_TOKEN. |
 | `COMP-403-702` | 403 | Falta o es inválido el header {0}. |
@@ -112,11 +115,104 @@ Toda respuesta de error de los microservicios tiene el mismo cuerpo (`ApiErrorRe
 
 Motivos que el orquestador registra en la saga (`failure_reason` y bitácora `saga_step`); no se devuelven como error HTTP.
 
-| Código | Mensaje |
-|---|---|
-| `ORQ-001` | Reintento automático {0} de {1}: sin respuesta en estado {2}, se vuelve a publicar el último comando. |
-| `ORQ-002` | Sin respuesta en estado {0} tras {1} reintentos automáticos; requiere revisión manual (POST /sagas/{id}/retry para forzar otro intento). |
-| `ORQ-003` | El reintento automático {0} de {1} falló y se descartó: {2} |
+Sus códigos son logs (`ORQ-2xx` informativos, `ORQ-4xx` de error) y están en la sección "Logs" de este documento.
+
+## Logs — `<PREFIJO>-<NNN>`
+
+Todo log del código propio lleva un código estable: `[FIR-401] texto (comprobanteId=…)`. El **primer dígito del número es el nivel**; el prefijo es el del servicio.
+
+| Nivel | Identificador | Ejemplo | Cuándo se usa |
+|---|---|---|---|
+| DEBUG | 100 | 101, 102, … 199 | Solo al investigar un error específico. |
+| INFO | 200 | 201, 202, … 299 | Información general (inicio, decisiones importantes, cambios de configuración, hechos del flujo). |
+| WARN | 300 | 301, 302, … 399 | Advertencia o información que no representa un problema por sí misma. |
+| ERROR | 400 | 401, 402, … 499 | Un problema sobre el que hay que tomar acción. |
+| FATAL | 500 | 501, 502, … 599 | Estado irrecuperable de la aplicación (p. ej. `OutOfMemoryError`, apagado del servidor). Hoy ningún servicio lo emite. |
+
+- Cada servicio declara sus logs en un enum `CodigoLog` (`codigo`, `claveMensaje`) y se registran con `LogCodificado` (en `facturacion-commons`): `debug`, `info`, `warn`, `error` y `fatal`. El texto vive en su `mensajes.properties`, igual que el de los errores. El orquestador usa su `CodigoError` (los motivos de la saga son también logs).
+- El contexto lleva solo identificadores (`comprobanteId`, `claveAcceso`, `eventoId`), nunca correos, razón social, tokens ni contraseñas.
+- Un código nuevo: agrégalo al enum con el primer dígito de su nivel, escribe su texto en `mensajes.properties` y añádelo aquí. Todo consumidor de Kafka (`@Incoming`) debe llevar `@LogFallosMensajeria`.
+- Quedan fuera los logs propios de las librerías (SmallRye, Quarkus, Hibernate). Los mensajes que fallan en un consumidor de Kafka (y van a su DLQ o se descartan) los registra `GEN-402` con el canal y los ids.
+
+### facturacion-commons (compartido) — `GEN`
+
+| Código | Nivel | Texto |
+|---|---|---|
+| `GEN-101` | DEBUG | Token rechazado: {0} |
+| `GEN-301` | WARN | Revocación de api-key ignorada: {0} |
+| `GEN-401` | ERROR | Excepción no controlada en un endpoint; el cliente recibe el 500 genérico |
+| `GEN-402` | ERROR | Falló el procesamiento de un mensaje del canal {0} ({1}): según la estrategia del canal pasa a su DLQ (.dlq) o se descarta |
+
+### comprobantes-service — `COMP`
+
+| Código | Nivel | Texto |
+|---|---|---|
+| `COMP-201` | INFO | Se descarta el comando {0}: ya se procesó antes |
+| `COMP-202` | INFO | Comando {0} ({1}): {2} |
+| `COMP-301` | WARN | Se ignora el comando {0} ({1}): no se puede pasar de {2} a {3} |
+| `COMP-302` | WARN | No se reenvía la notificación: {0} |
+| `COMP-303` | WARN | El ajuste ride.logo no es base64 válido; el RIDE sale sin logo |
+| `COMP-401` | ERROR | El comando {0} ({1}) salta pasos del ciclo ({2} -> {3}): el comprobante puede quedar atascado |
+| `COMP-402` | ERROR | No se pudo publicar el evento del outbox en Kafka; se reintenta en el siguiente ciclo |
+
+### firma-electronica-service — `FIR`
+
+| Código | Nivel | Texto |
+|---|---|---|
+| `FIR-201` | INFO | Se descarta el comando {0}: ya se procesó antes |
+| `FIR-301` | WARN | {0} certificado(s) de firma vencieron y pasaron a EXPIRADO: hay que subir uno nuevo |
+| `FIR-401` | ERROR | Falló la firma del comprobante: revisa el certificado de la empresa (activo, vigente y con su clave correcta) |
+| `FIR-402` | ERROR | No se pudo publicar el evento del outbox en Kafka; se reintenta en el siguiente ciclo |
+| `FIR-403` | ERROR | No hay emitter configurado para el tópico del evento del outbox (error de configuración); se reintenta luego |
+
+### inventario-service — `INV`
+
+| Código | Nivel | Texto |
+|---|---|---|
+| `INV-201` | INFO | Se descarta el comando {0}: ya se procesó antes |
+| `INV-301` | WARN | No hay stock para el comprobante: faltan {0} ítem(s) y la saga lo cancela |
+| `INV-302` | WARN | Tipo de comando de stock desconocido: {0} |
+| `INV-401` | ERROR | No se pudo publicar el evento del outbox en Kafka; se reintenta en el siguiente ciclo |
+
+### notificacion-service — `NOT`
+
+| Código | Nivel | Texto |
+|---|---|---|
+| `NOT-201` | INFO | Se descarta el evento {0}: ya se procesó antes |
+| `NOT-301` | WARN | ComprobanteAutorizado sin correo del receptor: no debería haberse publicado, se descarta |
+| `NOT-401` | ERROR | No se pudo enviar el correo del comprobante; la saga queda en NOTIFICACION_FALLIDA y se reenvía con POST /comprobantes/{id}/reenviar-correo o en masa con POST /sagas/reenviar-notificaciones |
+| `NOT-402` | ERROR | No se pudo publicar el evento del outbox en Kafka; se reintenta en el siguiente ciclo |
+
+### sri-conector-service — `SRI`
+
+| Código | Nivel | Texto |
+|---|---|---|
+| `SRI-201` | INFO | Recepción SRI: {0} |
+| `SRI-202` | INFO | Autorización SRI pendiente (intento {0} de {1}) |
+| `SRI-203` | INFO | Autorización SRI: {0} |
+| `SRI-204` | INFO | Se descarta el comando {0}: ya se procesó antes |
+| `SRI-205` | INFO | El WS de Autorización del SRI respondió HTTP {0} |
+| `SRI-206` | INFO | El WS de Recepción del SRI respondió HTTP {0} para el ambiente {1} |
+| `SRI-301` | WARN | Se ignora el override de URL del SRI {0}: no es https o su host no está en sri.url.hosts-permitidos; se usa la URL oficial |
+| `SRI-401` | ERROR | El SRI rechazó la recepción del comprobante: {0} |
+| `SRI-402` | ERROR | El SRI no autorizó el comprobante: {0} |
+| `SRI-403` | ERROR | El SRI no dio una respuesta final tras {0} intentos: requiere revisión manual |
+| `SRI-404` | ERROR | Falló la consulta de autorización al SRI; se reintenta en el siguiente ciclo |
+| `SRI-405` | ERROR | No se pudo publicar el evento del outbox en Kafka; se reintenta en el siguiente ciclo |
+
+### facturacion-orchestrator-service — `ORQ`
+
+| Código | Nivel | Texto |
+|---|---|---|
+| `ORQ-201` | INFO | Reintento automático {0} de {1}: sin respuesta en estado {2}, se vuelve a publicar el último comando. |
+| `ORQ-202` | INFO | {0} saga(s) reintentadas o expiradas |
+| `ORQ-401` | ERROR | Sin respuesta en estado {0} tras {1} reintentos automáticos; requiere revisión manual (POST /sagas/{id}/retry para forzar otro intento). |
+| `ORQ-402` | ERROR | El reintento automático {0} de {1} falló y se descartó: {2} |
+| `ORQ-403` | ERROR | No se pudo publicar el evento del outbox en Kafka; se reintenta en el siguiente ciclo |
+| `ORQ-404` | ERROR | No hay emitter configurado para el tópico del evento del outbox (error de configuración); se reintenta luego |
+| `ORQ-405` | ERROR | Falló la revisión periódica de sagas; se vuelve a intentar en el siguiente ciclo |
+| `ORQ-406` | ERROR | Falló el reintento automático de la saga; se cuenta como intento |
+| `ORQ-407` | ERROR | No se pudo registrar el reintento fallido de la saga |
 
 ## Cómo agregar un error
 

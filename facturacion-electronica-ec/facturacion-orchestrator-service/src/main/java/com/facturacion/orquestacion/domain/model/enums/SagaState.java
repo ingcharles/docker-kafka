@@ -37,6 +37,7 @@ public enum SagaState {
     AUTORIZADO_SIN_NOTIFICACION(true, false),
     NO_AUTORIZADO(true, false),
     NOTIFICADO(true, false),
+    /** El correo falló; el comprobante sigue autorizado. Solo se sale con un reenvío exitoso del correo (-> NOTIFICADO). */
     NOTIFICACION_FALLIDA(true, false),
     /** El watchdog agotó los reintentos sin recibir respuesta: requiere atención humana. */
     EXPIRADA(true, false);

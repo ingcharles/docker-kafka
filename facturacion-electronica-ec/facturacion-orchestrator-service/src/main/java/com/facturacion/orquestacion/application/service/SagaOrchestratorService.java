@@ -11,13 +11,17 @@ import jakarta.inject.Inject;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import org.jboss.logging.Logger;
+
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
+import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.commons.error.Mensajes;
 import com.facturacion.orquestacion.application.event.ActualizarComprobanteCommand;
 import com.facturacion.orquestacion.application.event.ComprobanteEventMessage;
@@ -56,6 +60,8 @@ import com.facturacion.orquestacion.shared.error.CodigoError;
  */
 @ApplicationScoped
 public class SagaOrchestratorService {
+
+    private static final Logger LOG = Logger.getLogger(SagaOrchestratorService.class);
 
     /** Código de la nota que guarda el comando de firma mientras se espera la reserva de stock. */
     private static final String NOTA_FIRMA_PENDIENTE = "FIRMA_PENDIENTE";
@@ -235,6 +241,38 @@ public class SagaOrchestratorService {
     }
 
     /**
+     * Reenvío masivo de correos: las sagas de la empresa en NOTIFICACION_FALLIDA (hasta {@code limite}) vuelven a
+     * AUTORIZADO (esperan la notificación, así una segunda llamada no las reenvía otra vez) y a cada una se le pide a
+     * comprobantes-service que vuelva a publicar ComprobanteAutorizado. El resultado vuelve por el camino normal:
+     * NotificacionEnviada la lleva a NOTIFICADO y NotificacionFallida de nuevo a NOTIFICACION_FALLIDA, con el motivo
+     * nuevo.
+     *
+     * @return cuántas sagas se mandaron a reenviar
+     */
+    @WithTransaction
+    public Uni<Integer> reenviarNotificacionesFallidas(String empresaRuc, int limite) {
+        return sagaInstanceRepository.findPaged(0, limite, SagaState.NOTIFICACION_FALLIDA, empresaRuc)
+            .onItem().transformToUni(pagina -> Multi.createFrom().iterable(pagina.items())
+                .onItem().transformToUniAndConcatenate(saga -> solicitarReenvio(saga.getId()))
+                .collect().with(Collectors.summingInt(solicitada -> solicitada ? 1 : 0)));
+    }
+
+    private Uni<Boolean> solicitarReenvio(UUID comprobanteId) {
+        return sagaInstanceRepository.transicionarEstado(comprobanteId, SagaState.AUTORIZADO, null,
+                SagaState.NOTIFICACION_FALLIDA)
+            .onItem().transformToUni(saga -> {
+                if (saga == null) {
+                    return Uni.createFrom().item(false);
+                }
+                ActualizarComprobanteCommand command = new ActualizarComprobanteCommand(UUID.randomUUID(),
+                    comprobanteId, MessagingConstants.COMANDO_REENVIAR_NOTIFICACION, null, null, null, null, null,
+                    Instant.now());
+                return emitir(comprobanteId, MessagingConstants.COMANDO_REENVIAR_NOTIFICACION,
+                    MessagingConstants.COMPROBANTE_COMMANDS_TOPIC, command).replaceWith(true);
+            });
+    }
+
+    /**
      * Vuelve a publicar el comando enviado más recientemente (estado SENT)
      * para esta saga, usando exactamente el mismo contenido — y por lo
      * tanto el mismo {@code eventId} incrustado — que se emitió la primera
@@ -326,9 +364,15 @@ public class SagaOrchestratorService {
         }
         String motivo = Mensajes.obtenerTexto(CodigoError.SAGA_EXPIRADA, saga.getState(), plazos.maxReintentos());
         return sagaInstanceRepository.transicionarEstado(id, SagaState.EXPIRADA, motivo, saga.getState())
-            .onItem().transformToUni(actualizada -> actualizada == null
-                ? Uni.createFrom().item(false)
-                : sagaStepRepository.persist(SagaStep.nota(id, CodigoError.SAGA_EXPIRADA.codigo(), motivo)).replaceWith(true));
+            .onItem().transformToUni(actualizada -> {
+                if (actualizada == null) {
+                    return Uni.createFrom().item(false);
+                }
+                LogCodificado.error(LOG, CodigoError.SAGA_EXPIRADA, "comprobanteId=" + id, saga.getState(),
+                    plazos.maxReintentos());
+                return sagaStepRepository.persist(SagaStep.nota(id, CodigoError.SAGA_EXPIRADA.codigo(), motivo))
+                    .replaceWith(true);
+            });
     }
 
     // --- Camino feliz -----------------------------------------------------
@@ -382,7 +426,8 @@ public class SagaOrchestratorService {
     }
 
     private Uni<ResultadoEvento> procesarNotificacionEnviada(UUID comprobanteId) {
-        return sagaInstanceRepository.transicionarEstado(comprobanteId, SagaState.NOTIFICADO, null, SagaState.AUTORIZADO)
+        return sagaInstanceRepository.transicionarEstadoLimpiandoMotivo(comprobanteId, SagaState.NOTIFICADO,
+                SagaState.AUTORIZADO, SagaState.NOTIFICACION_FALLIDA)
             .onItem().transformToUni(saga -> {
                 if (saga == null) {
                     return Uni.createFrom().item(ResultadoEvento.IGNORADO_ESTADO_NO_ESPERADO);

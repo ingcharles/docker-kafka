@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 
 /**
  * API genérica a propósito: no distingue si los ítems facturados son
@@ -36,6 +37,13 @@ public class CrearFacturaRequest {
     private String compradorCorreo;
 
     private String moneda = "DOLAR";
+
+    /**
+     * Anexos 12 y 25: obligatoria en la venta de combustibles líquidos y en el transporte terrestre comercial (excepto
+     * taxis); vacía en cualquier otra factura. Letras y números sin espacios (Tabla 29), p. ej. ABC1234, CU104634 o ZZZ9999.
+     */
+    @Pattern(regexp = "[A-Za-z0-9]{1,20}", message = "placa debe tener solo letras y números, sin espacios (máximo 20)")
+    private String placa;
 
     @NotEmpty
     @Valid
@@ -102,6 +110,14 @@ public class CrearFacturaRequest {
 
     public void setMoneda(String moneda) {
         this.moneda = moneda;
+    }
+
+    public String getPlaca() {
+        return placa;
+    }
+
+    public void setPlaca(String placa) {
+        this.placa = placa;
     }
 
     public List<DetalleComprobanteRequest> getDetalles() {

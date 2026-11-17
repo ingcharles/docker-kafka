@@ -94,7 +94,6 @@ public class EmpresaService {
                     request.getNumeroContribuyenteEspecial(),
                     request.isEsGranContribuyente(),
                     request.getNumeroResolucionGranContribuyente(),
-                    request.isVendeCombustibles(),
                     AmbienteSri.valueOf(request.getAmbiente()),
                     request.getEstablecimientoDefecto(),
                     request.getPuntoEmisionDefecto(),
@@ -169,7 +168,6 @@ public class EmpresaService {
                 existente.setNumeroContribuyenteEspecial(request.getNumeroContribuyenteEspecial());
                 existente.setEsGranContribuyente(request.isEsGranContribuyente());
                 existente.setNumeroResolucionGranContribuyente(request.getNumeroResolucionGranContribuyente());
-                existente.setVendeCombustibles(request.isVendeCombustibles());
                 existente.setAmbiente(AmbienteSri.valueOf(request.getAmbiente()));
                 if (request.getEstablecimientoDefecto() != null) {
                     existente.setEstablecimientoDefecto(request.getEstablecimientoDefecto());
@@ -222,7 +220,6 @@ public class EmpresaService {
             empresa.getNumeroContribuyenteEspecial(),
             empresa.isEsGranContribuyente(),
             empresa.getNumeroResolucionGranContribuyente(),
-            empresa.isVendeCombustibles(),
             empresa.getAmbiente().name(),
             empresa.getEstablecimientoDefecto(),
             empresa.getPuntoEmisionDefecto(),

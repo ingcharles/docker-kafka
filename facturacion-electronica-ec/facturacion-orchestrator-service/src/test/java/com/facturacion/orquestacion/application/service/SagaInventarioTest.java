@@ -282,7 +282,7 @@ class SagaInventarioTest {
 
     // ---- dobles en memoria ----
 
-    private static final class FakeSagas implements SagaInstanceRepository {
+    static final class FakeSagas implements SagaInstanceRepository {
         final Map<UUID, SagaInstance> datos = new HashMap<>();
 
         SagaInstance get(UUID id) {
@@ -306,7 +306,10 @@ class SagaInventarioTest {
 
         @Override
         public Uni<PageResult<SagaInstance>> findPaged(int page, int limit, SagaState state, String empresaRuc) {
-            throw new UnsupportedOperationException();
+            List<SagaInstance> items = datos.values().stream()
+                .filter(s -> s.getState() == state && (empresaRuc == null || empresaRuc.equals(s.getEmpresaRuc())))
+                .limit(limit).toList();
+            return Uni.createFrom().item(new PageResult<>(items, items.size()));
         }
 
         @Override
@@ -320,6 +323,15 @@ class SagaInventarioTest {
         }
 
         @Override
+        public Uni<SagaInstance> transicionarEstadoLimpiandoMotivo(UUID id, SagaState to, SagaState... permitidos) {
+            return transicionarEstado(id, to, null, permitidos).invoke(s -> {
+                if (s != null) {
+                    s.setFailureReason(null);
+                }
+            });
+        }
+
+        @Override
         public Uni<List<SagaInstance>> findByEstados(List<SagaState> estados, int limite) {
             throw new UnsupportedOperationException();
         }
@@ -330,7 +342,7 @@ class SagaInventarioTest {
         }
     }
 
-    private static final class FakePasos implements SagaStepRepository {
+    static final class FakePasos implements SagaStepRepository {
         final List<SagaStep> pasos = new ArrayList<>();
 
         boolean hayNota(String codigo) {
@@ -364,7 +376,7 @@ class SagaInventarioTest {
         }
     }
 
-    private static final class FakeSalientes implements EventosSalientes {
+    static final class FakeSalientes implements EventosSalientes {
         final List<EventoSaliente> eventos = new ArrayList<>();
 
         List<String> topicos() {
@@ -378,7 +390,7 @@ class SagaInventarioTest {
         }
     }
 
-    private static final class FakeInbox implements MensajesProcesados {
+    static final class FakeInbox implements MensajesProcesados {
         final Set<UUID> vistos = new HashSet<>();
 
         @Override

@@ -17,6 +17,8 @@ public class ItemLocal {
     private String ruc;
     private String codigoPrincipal;
     private String descripcion;
+    /** Unidad de medida del ítem (p. ej. UN); sale en los detalles adicionales de la línea como "Medida". */
+    private String unidadMedida;
     private String codigoImpuesto;
     private String codigoPorcentaje;
     private boolean tieneIce;
@@ -55,6 +57,14 @@ public class ItemLocal {
 
     public void setDescripcion(String descripcion) {
         this.descripcion = descripcion;
+    }
+
+    public String getUnidadMedida() {
+        return unidadMedida;
+    }
+
+    public void setUnidadMedida(String unidadMedida) {
+        this.unidadMedida = unidadMedida;
     }
 
     public String getCodigoImpuesto() {

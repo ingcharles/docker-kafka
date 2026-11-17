@@ -8,6 +8,8 @@ import org.jboss.logging.Logger;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.error.LogCodificado;
+import com.facturacion.commons.exception.ConflictoException;
 import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.comprobantes.application.event.ActualizarComprobanteCommand;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
@@ -19,6 +21,7 @@ import com.facturacion.comprobantes.domain.repository.ComprobanteRepository;
 import com.facturacion.comprobantes.domain.repository.ConfiguracionEmpresaLocalRepository;
 import com.facturacion.comprobantes.shared.constant.MessagingConstants;
 import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
+import com.facturacion.comprobantes.shared.error.CodigoLog;
 
 /**
  * Aplica al comprobante las transiciones de estado que llegan del orquestador de la saga (ver
@@ -75,20 +78,22 @@ public class ActualizacionComprobanteService {
             .onItem().ifNull().failWith(() ->
                 new NotFoundException("Comprobante no encontrado: " + command.comprobanteId()))
             .onItem().transformToUni(comprobante -> {
+                if (MessagingConstants.COMANDO_REENVIAR_NOTIFICACION.equals(command.tipoComando())) {
+                    return reenviarNotificacion(comprobante);
+                }
                 EstadoComprobante destino = estadoDestino(command.tipoComando());
                 if (comprobante.saltaPasos(destino)) {
                     // No se descarta en silencio: el comprobante quedaría atascado aunque el SRI ya lo autorizó.
-                    LOG.errorf("Comando %s (%s) fuera de orden en el comprobante %s: %s -> %s se salta pasos del ciclo",
-                        command.tipoComando(), command.eventId(), comprobante.getId(), comprobante.getEstado(), destino);
+                    LogCodificado.error(LOG, CodigoLog.COMANDO_FUERA_DE_ORDEN, "comprobanteId=" + comprobante.getId(),
+                        command.tipoComando(), command.eventId(), comprobante.getEstado(), destino);
                     return Uni.<ResultadoComando>createFrom().failure(new IllegalStateException(
                         "Comando " + command.tipoComando() + " fuera de orden: el comprobante " + comprobante.getId()
                             + " está " + comprobante.getEstado() + " y no puede pasar a " + destino
                             + " sin aplicar antes los pasos intermedios"));
                 }
                 if (!comprobante.puedePasarA(destino)) {
-                    LOG.warnf("Se ignora el comando %s (%s) del comprobante %s: no se puede pasar de %s a %s",
-                        command.tipoComando(), command.eventId(), comprobante.getId(), comprobante.getEstado(),
-                        destino);
+                    LogCodificado.warn(LOG, CodigoLog.COMANDO_IGNORADO, "comprobanteId=" + comprobante.getId(), command.tipoComando(),
+                        command.eventId(), comprobante.getEstado(), destino);
                     return Uni.createFrom().item(ResultadoComando.IGNORADO_TRANSICION_NO_PERMITIDA);
                 }
                 if (destino == EstadoComprobante.AUTORIZADO) {
@@ -97,6 +102,18 @@ public class ActualizacionComprobanteService {
                 aplicarTransicion(comprobante, destino, command);
                 return comprobanteRepository.update(comprobante).replaceWith(ResultadoComando.APLICADO);
             });
+    }
+
+    /** Pedido por el orquestador al reenviar en masa las notificaciones fallidas; no cambia el estado del comprobante. */
+    private Uni<ResultadoComando> reenviarNotificacion(Comprobante comprobante) {
+        try {
+            ReenvioNotificacionService.exigirReenviable(comprobante);
+        } catch (ConflictoException e) {
+            LogCodificado.warn(LOG, CodigoLog.REENVIO_NO_APLICA, "comprobanteId=" + comprobante.getId(), e.getMessage());
+            return Uni.createFrom().item(ResultadoComando.REENVIO_NO_APLICA);
+        }
+        return salientes.registrar(eventos.construirEventoAutorizado(comprobante))
+            .replaceWith(ResultadoComando.REENVIO_PUBLICADO);
     }
 
     private static void aplicarTransicion(Comprobante comprobante, EstadoComprobante destino,
@@ -144,7 +161,7 @@ public class ActualizacionComprobanteService {
         try {
             return java.util.Base64.getDecoder().decode(base64);
         } catch (IllegalArgumentException e) {
-            LOG.warnf("El ajuste ride.logo no es base64 válido; el RIDE sale sin logo");
+            LogCodificado.warn(LOG, CodigoLog.LOGO_NO_VALIDO, null);
             return null;
         }
     }

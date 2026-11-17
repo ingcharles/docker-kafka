@@ -8,6 +8,7 @@ import org.jboss.logging.Logger;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.orquestacion.application.event.NotificacionResultadoEventMessage;
 import com.facturacion.orquestacion.application.service.SagaOrchestratorService;
 
@@ -23,6 +24,7 @@ public class NotificacionEventConsumer {
         this.orchestratorService = orchestratorService;
     }
 
+    @LogFallosMensajeria
     @Incoming("notificacion-events-in")
     public Uni<Void> procesarEvento(NotificacionResultadoEventMessage event) {
         return orchestratorService.procesarEventoNotificacion(event)

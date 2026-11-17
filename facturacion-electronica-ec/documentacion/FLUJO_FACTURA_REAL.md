@@ -67,7 +67,7 @@ TOKEN=$(curl -s -X POST $ID/usuarios/login -H 'Content-Type: application/json' \
 curl -s -X POST $FIR -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{
   "ruc":"1722039953001","razonSocial":"ANCHUNDIA VALENCIA CARLOS EDUARDO","nombreComercial":"Prueba",
   "direccionMatriz":"LLANO CHICO","obligadoContabilidad":false,"contribuyenteEspecial":false,
-  "esGranContribuyente":false,"vendeCombustibles":false,"ambiente":"PRUEBAS",
+  "esGranContribuyente":false,"ambiente":"PRUEBAS",
   "establecimientoDefecto":"001","puntoEmisionDefecto":"001"}'      # guarda el "id" → EMPRESA_ID
 # El rol ADMIN llega por un evento de Kafka: espera a que aparezca la empresa
 curl -s -H "Authorization: Bearer $TOKEN" $ID/usuarios/me/empresas
@@ -102,6 +102,15 @@ curl -s -X POST $COM/facturas -H "Authorization: Bearer $APIKEY" -H 'Content-Typ
   "detalles":[{"itemId":"'$ITEM_ID'","codigoPrincipal":"TABLET02","descripcion":"Tablet 10 pulgadas","cantidad":1,"precioUnitario":300.00}]}'
 # 201 + "id" → COMPROBANTE_ID. Comprobante BORRADOR; la saga arranca sola.
 ```
+Datos opcionales que la ficha del SRI exige cuando aplican (ver `ARQUITECTURA.md`, sección 13.4):
+- En `empresa`: `contribuyenteEspecial` + `numeroContribuyenteEspecial`, `agenteRetencion` (número de resolución, p. ej. `"3257"`),
+  `regimenRimpe` (`"RIMPE"` o `"NEGOCIO_POPULAR"`), `esGranContribuyente` + `numeroResolucionGranContribuyente`.
+- En cada línea de `detalles`: `"detallesAdicionales":[{"nombre":"Centro Logistico","valor":"23"}]` (hasta 3). Si el producto tiene
+  `unidadMedida`, la línea agrega sola `Medida: <unidad>`.
+- Campos adicionales del comprobante: `"campoAdicional":[{"nombre":"Lugar Venta","valor":"CORAL 10 DE AGOSTO"}]`.
+- `"placa":"PCM4567"` en la factura (nivel raíz, junto a `moneda`): obligatoria en la venta de combustibles líquidos (Anexo 12) y en el transporte comercial (Anexo 25). En combustibles, la línea usa `codigoPrincipal` y `descripcion` de la Tabla 30 (Anexo 16), p. ej. `0103` y `SÚPER`.
+- En una línea, `"precioSinSubsidio": 2.50` (opcional, cuando corresponda). Una línea con código de combustible (`0103`, `0101`, `0174`, `0121`, `0104`) sin `placa` en la factura responde `400 COMP-400-504`.
+- El RUC del proveedor del sistema de facturación (Anexo 26) sale de la configuración `sri.proveedor.ruc` de la empresa.
 
 ## 5. Seguir la saga hasta el final
 ```bash
@@ -122,14 +131,33 @@ curl -s -H "Authorization: Bearer $APIKEY" "$INV/items/$ITEM_ID"                
 ```
 El correo llega a `e.du.ingcharles@hotmail.com` con el RIDE (PDF) y el XML autorizado adjuntos.
 
+Si la notificación quedó `FALLIDA` (saga `NOTIFICACION_FALLIDA`), reenvía el correo sin emitir otra factura:
+```bash
+curl -s -X POST -H "Authorization: Bearer $APIKEY" $COM/comprobantes/$COMPROBANTE_ID/reenviar-correo   # 202
+# unos segundos después: la notificación pasa a ENVIADA y la saga a NOTIFICADO (si falla otra vez, la notificación queda `FALLIDA` con el nuevo motivo; la saga conserva el primero)
+curl -s -H "Authorization: Bearer $APIKEY" $NOT/notificaciones/comprobante/$COMPROBANTE_ID
+curl -s -H "Authorization: Bearer $APIKEY" $SAG/$COMPROBANTE_ID
+```
+Responde `409` si el comprobante aún no está autorizado o no tiene correo del receptor.
+
+Para reenviar **todos** los fallidos de la empresa de una vez:
+```bash
+curl -s -X POST -H "Authorization: Bearer $APIKEY" "$SAG/reenviar-notificaciones?limite=100"   # 202 {"solicitados":N}
+curl -s -H "Authorization: Bearer $APIKEY" "$SAG?state=NOTIFICACION_FALLIDA"                     # los que siguen fallando
+```
+Cada una pasa a `NOTIFICADO` si el envío sale bien; las que fallan de nuevo vuelven a `NOTIFICACION_FALLIDA`. Si hay más de `limite`, repite la llamada.
+
 ## 7. Problemas frecuentes
 | Síntoma | Causa y solución |
 |---|---|
 | `403 IDE-403-003` al crear la api-key | El rol `ADMIN` se concede por Kafka tras crear la empresa; espera unos segundos (`GET $ID/usuarios/me/empresas` muestra cuándo ya está). |
 | `401 Falta el header Authorization` en registro o login | `identidad-service` debe correr con `facturacion.filtro-api-key.habilitado=false` (ya viene en su `application.properties`). |
+| `401 El token no es una api-key` en comprobantes, inventario, firma, sri-conector, notificacion u orquestador | Usaste el token de sesión (el del login). Ese solo vale en `identidad-service`; los otros 6 servicios piden la api-key (`POST $ID/api-keys`, paso 1). |
 | Saga en `FIRMA_FALLIDA` | Certificado vencido, sin certificado o clave del `.p12` incorrecta. |
 | Saga en `NOTIFICACION_FALLIDA` | SMTP: contraseña de aplicación incorrecta o cuenta sin verificación en dos pasos. El comprobante sigue autorizado. |
 | Saga en `RECHAZADO_RECEPCION` con `ERROR SECUENCIAL REGISTRADO` | El SRI recuerda los secuenciales ya autorizados para ese RUC, establecimiento y punto aunque la base local se reinicie, que vuelve a emitir desde el 1. Sube el contador por encima del último autorizado: `update comprobantes.secuencial_comprobante set ultimo_secuencial = 10 where ruc='1722039953001' and tipo_comprobante='FACTURA';` (en `docker exec <postgres> psql -U postgres -d facturacion`). Si la fila no existe, emite una factura para que se cree y repite. |
+| Saga `NOTIFICACION_FALLIDA` con motivo `ClosedChannelException` (o el log de notificacion con `Connection closed while SSL/TLS handshake was in progress`) | Algo en la red (firewall, antivirus con análisis de correo, ISP) corta el TLS en los puertos SMTP 587 y 465 aunque HTTPS funcione. Comprobación desde el contenedor: `docker exec <notificacion> sh -c 'echo QUIT \| openssl s_client -starttls smtp -connect smtp.gmail.com:587 -crlf'` debe terminar con `Cipher is TLS_AES_...`; si dice `unexpected eof`, el problema es de la red, no de la contraseña. Prueba desde otra red (p. ej. datos del celular) o pide al administrador abrir 587/465 hacia `smtp.gmail.com`.  Cuando la red ya lo permita, reenvía el correo sin emitir otra factura: `curl -s -X POST -H "Authorization: Bearer $APIKEY" $COM/comprobantes/$COMPROBANTE_ID/reenviar-correo` (`202`; si sale bien, la notificación pasa a `ENVIADA`, la saga a `NOTIFICADO` y el comprobante también; si falla, la notificación muestra el nuevo motivo). |
+| Notificación `FALLIDA` con `IOException: socket was closed unexpected` y en el log `AUTH XOAUTH2 failed: 535-5.7.8 Username and Password not accepted` | El TLS ya funciona pero el cliente de correo intentó `XOAUTH2` con la contraseña como si fuera un token y Gmail cerró la conexión. `notificacion-service` fija `quarkus.mailer.auth-methods=PLAIN LOGIN`. Si persiste con `PLAIN`, la contraseña de aplicación es incorrecta: prueba `AUTH PLAIN` a mano (debe responder `235 Accepted`). |
 | `409` al crear empresa o producto | Ya existen (RUC o `codigoPrincipal` únicos): reutiliza los ids o cambia el código. |
 
 ## 8. Con Postman
@@ -164,7 +192,7 @@ Imágenes reconstruidas con el código actual, base de datos vacía y los pasos 
 | Factura | `201`; saga `STOCK_RESERVADO` → `FIRMADO` → `NOTIFICADO` en ~45 s |
 | SRI pruebas | autorizada (`No. 001-001-000000011`) |
 | Stock | 20 → 19, reserva liberada |
-| Notificación | `ENVIADA` a `e.du.ingcharles@hotmail.com` con RIDE y XML |
+| Notificación | **No llegó el correo.** El envío falló (`ClosedChannelException`: la red cortó el TLS hacia `smtp.gmail.com`) pero el servicio lo guardó como `ENVIADA` y la saga como `NOTIFICADO`: un error de código ya corregido (el motivo salía vacío). Ver sección 7 |
 | RIDE | formato SRI con logo, código de barras y totales; el logo no tapa la razón social |
 
 Hallazgos de la corrida:
@@ -172,3 +200,58 @@ Hallazgos de la corrida:
   tras subir `ultimo_secuencial` la siguiente se autorizó.
 - Un `.p12` con otra contraseña responde `400 FIR-400-001` y la saga de una factura sin certificado queda en `FIRMA_FALLIDA`
   (`La empresa … no tiene un certificado activo`).
+
+### Segunda corrida: datos tributarios nuevos y correo
+Con las 7 imágenes reconstruidas (comprobantes en V17), sobre la misma base, una factura con `regimenRimpe: RIMPE`,
+`esGranContribuyente` con resolución y la línea con `detallesAdicionales` (`Centro Logistico: 23`):
+
+| Paso | Resultado |
+|---|---|
+| Factura | `201`; autorizada por el SRI (`No. 001-001-000000013`) |
+| XML autorizado | `<contribuyenteRimpe>`, `<detAdicional nombre="Medida" valor="UN"/>` (automático desde la unidad del ítem), `<detAdicional nombre="Centro Logistico" valor="23"/>` y `<campoAdicional nombre="Gran Contribuyente">…` |
+| RIDE | leyenda RIMPE en el recuadro del emisor, `Medida: UN, Centro Logistico: 23` en la línea y `Gran Contribuyente` en Información Adicional |
+| Notificación | `FALLIDA` con motivo `ClosedChannelException`; la saga quedó en `NOTIFICACION_FALLIDA` (la red corta el TLS hacia SMTP, sección 7) |
+
+- El SRI **valida `agenteRetencion` contra el RUC**: con una resolución inventada respondió `NO_AUTORIZADO` con
+  `ERROR AL VALIDAR AGENTE RETENCION`. Envíalo solo si el emisor figura como agente de retención.
+- Una factura rechazada por el SRI también consume el secuencial.
+
+### Reenvío del correo (misma factura, sin emitir otra)
+Tras pasar a una red que no corta el TLS hacia SMTP, `POST /comprobantes/{id}/reenviar-correo` sobre la factura `001-001-000000013`:
+
+| Intento | Resultado |
+|---|---|
+| 1.º | `202`; falló con `535-5.7.8` en `AUTH XOAUTH2` y el socket se cerró: el cliente probaba `XOAUTH2` antes que `PLAIN`. Se fijó `quarkus.mailer.auth-methods=PLAIN LOGIN` (la contraseña sí era válida: `AUTH PLAIN` respondió `235 Accepted`) |
+| 2.º | `202`; notificación `ENVIADA`, saga `NOTIFICADO` (sin motivo de fallo), comprobante `NOTIFICADO` |
+
+### Reenvío masivo de correos (`POST /sagas/reenviar-notificaciones`)
+Prueba real del 2026-11-17 sobre la empresa `1722039953001`, con una sola saga en `NOTIFICACION_FALLIDA` (factura
+`001-001-000000014`, motivo `ClosedChannelException`) y la red que todavía corta el TLS hacia SMTP:
+
+| Llamada | Resultado |
+|---|---|
+| Sin api-key | `401` |
+| `?limite=0` y `?limite=501` | `400` `GEN-400-001` (`must be greater than or equal to 1` / `less than or equal to 500`) |
+| `?limite=100` | `202` `{"solicitados":1}` |
+| La misma llamada otra vez, de inmediato | `202` `{"solicitados":0}`: la saga ya no estaba en `NOTIFICACION_FALLIDA` |
+
+Recorrido de esa saga, con los logs de cada servicio: el orquestador la pasó a `AUTORIZADO` y emitió el comando
+`REENVIAR_NOTIFICACION` (paso `SENT`); comprobantes-service lo atendió con `[COMP-202] … REENVIO_PUBLICADO`;
+notificacion-service intentó el envío (la fecha `enviadoEn` de la notificación se actualizó) y falló con
+`[NOT-401] … ClosedChannelException`; el orquestador recibió `NotificacionFallida` y la saga volvió a
+`NOTIFICACION_FALLIDA`, con los pasos nuevos en su línea de tiempo (unos 7 segundos en total).
+
+Cubierto: autenticación, validación del límite, filtro por estado, idempotencia de la segunda llamada, cadena completa
+orquestador → comprobantes → notificación y vuelta a `NOTIFICACION_FALLIDA` cuando el envío falla otra vez.
+
+#### Segunda corrida, en una red que no corta el TLS hacia SMTP
+Misma saga (`001-001-000000014`), tras comprobar que `openssl s_client -starttls smtp` conecta con TLS 1.3:
+
+| Llamada | Resultado |
+|---|---|
+| `?limite=100` | `202` `{"solicitados":1}` |
+| Unos 12 s después | saga `NOTIFICADO` sin motivo de fallo; notificación `ENVIADA` (`enviadoEn` actualizado) |
+| La misma llamada otra vez | `202` `{"solicitados":0}`: ya no hay sagas en `NOTIFICACION_FALLIDA` |
+
+Queda probado el camino completo: `NOTIFICACION_FALLIDA` → `AUTORIZADO` → `REENVIAR_NOTIFICACION` → `NOTIFICACION_FALLIDA` o `NOTIFICADO`
+según salga el correo. Probado con una sola saga; no se ejerció el límite ni el recorrido de varias a la vez.

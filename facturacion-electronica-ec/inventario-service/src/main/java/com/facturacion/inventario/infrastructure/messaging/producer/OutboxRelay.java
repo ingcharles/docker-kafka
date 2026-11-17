@@ -20,9 +20,11 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.kafka.api.OutgoingKafkaRecordMetadata;
 import io.vertx.core.Vertx;
 
+import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.inventario.infrastructure.outbox.OutboxEventEntity;
 import com.facturacion.inventario.infrastructure.outbox.OutboxEventRepository;
 import com.facturacion.inventario.shared.constant.MessagingConstants;
+import com.facturacion.inventario.shared.error.CodigoLog;
 
 /**
  * Revisa periódicamente la tabla {@code outbox_event} y reenvía a Kafka lo
@@ -89,8 +91,7 @@ public class OutboxRelay {
             .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
             .onItem().invoke(() -> event.publishedAt = Instant.now())
             .replaceWith(event)
-            .onFailure().invoke(failure -> LOG.errorf(failure,
-                "No se pudo publicar el evento de outbox %s en Kafka, se reintenta en el siguiente tick", event.id))
+            .onFailure().invoke(failure -> LogCodificado.error(LOG, failure, CodigoLog.OUTBOX_PUBLICACION_FALLIDA, "eventoId=" + event.id))
             .onFailure().recoverWithItem(event);
     }
 }

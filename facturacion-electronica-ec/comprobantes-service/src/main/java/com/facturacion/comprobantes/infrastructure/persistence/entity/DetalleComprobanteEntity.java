@@ -50,8 +50,15 @@ public class DetalleComprobanteEntity extends PanacheEntityBase {
     @Column(nullable = false)
     public BigDecimal descuento;
 
+    @Column(name = "precio_sin_subsidio")
+    public BigDecimal precioSinSubsidio;
+
     @Column(name = "precio_total_sin_impuesto", nullable = false)
     public BigDecimal precioTotalSinImpuesto;
+
+    /** Detalles adicionales de la línea como arreglo JSON de {nombre, valor}. */
+    @Column(name = "detalles_adicionales_json")
+    public String detallesAdicionalesJson;
 
     /** Impuestos de esta línea (código, código de porcentaje, tarifa, base, valor), en su propia tabla. */
     @OneToMany(mappedBy = "detalle", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)

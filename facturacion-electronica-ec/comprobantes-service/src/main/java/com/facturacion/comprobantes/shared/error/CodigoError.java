@@ -50,6 +50,7 @@ public enum CodigoError implements ErrorCatalogo {
     ITEM_DADO_DE_BAJA("COMP-400-501", 400, "item.dado_de_baja"),
     LINEA_SIN_IMPUESTOS_NI_ITEM("COMP-400-502", 400, "item.linea_sin_impuestos_ni_item"),
     ITEM_NO_ENCONTRADO_EN_CATALOGO_LOCAL("COMP-400-503", 400, "item.no_encontrado_en_catalogo_local"),
+    COMBUSTIBLE_SIN_PLACA("COMP-400-504", 400, "item.combustible_sin_placa"),
 
     // Empresa, establecimiento y punto de emisión
     ESTABLECIMIENTO_NO_REGISTRADO("COMP-400-601", 400, "empresa.establecimiento_no_registrado"),
@@ -58,6 +59,10 @@ public enum CodigoError implements ErrorCatalogo {
 
     // Tipo de comprobante
     TIPO_COMPROBANTE_NO_SOPORTADO("COMP-400-801", 400, "documento.tipo_no_soportado"),
+
+    // Reenvío del correo de un comprobante
+    REENVIO_NO_AUTORIZADO("COMP-409-901", 409, "reenvio.no_autorizado"),
+    REENVIO_SIN_CORREO("COMP-409-902", 409, "reenvio.sin_correo"),
 
     // Administración de catálogos (API /catalogos)
     CATALOGO_NO_ENCONTRADO("COMP-404-701", 404, "catalogo.no_encontrado"),

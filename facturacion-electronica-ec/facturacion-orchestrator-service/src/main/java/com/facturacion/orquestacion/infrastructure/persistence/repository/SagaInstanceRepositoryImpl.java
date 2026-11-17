@@ -69,10 +69,22 @@ public class SagaInstanceRepositoryImpl implements SagaInstanceRepository {
         for (SagaState state : allowedFrom) {
             allowedNames.add(state.name());
         }
-        return repository.update(
-                "state = ?1, failureReason = coalesce(?2, failureReason), updatedAt = ?3 "
-                    + "where id = ?4 and state in ?5",
-                to.name(), failureReason, Instant.now(), comprobanteId, allowedNames)
+        return repository.update("state = ?1, failureReason = coalesce(?2, failureReason), updatedAt = ?3 "
+                + "where id = ?4 and state in ?5", to.name(), failureReason, Instant.now(), comprobanteId, allowedNames)
+            .chain(rowsUpdated -> rowsUpdated == 0
+                ? Uni.createFrom().nullItem()
+                : findById(comprobanteId));
+    }
+
+    @Override
+    public Uni<SagaInstance> transicionarEstadoLimpiandoMotivo(UUID comprobanteId, SagaState to,
+            SagaState... allowedFrom) {
+        List<String> allowedNames = new ArrayList<>();
+        for (SagaState state : allowedFrom) {
+            allowedNames.add(state.name());
+        }
+        return repository.update("state = ?1, failureReason = null, updatedAt = ?2 where id = ?3 and state in ?4",
+                to.name(), Instant.now(), comprobanteId, allowedNames)
             .chain(rowsUpdated -> rowsUpdated == 0
                 ? Uni.createFrom().nullItem()
                 : findById(comprobanteId));

@@ -20,6 +20,7 @@ import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.AmbienteSri;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
 import com.facturacion.comprobantes.domain.model.enums.FormaPagoSri;
+import com.facturacion.comprobantes.domain.model.enums.RegimenRimpe;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.CampoAdicional;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha;
@@ -67,6 +68,8 @@ public class ConstructorComun {
         comprobante.setEmpresaNumeroContribuyenteEspecial(empresa.getNumeroContribuyenteEspecial());
         comprobante.setEmpresaEsGranContribuyente(empresa.isEsGranContribuyente());
         comprobante.setEmpresaNumeroResolucionGranContribuyente(empresa.getNumeroResolucionGranContribuyente());
+        comprobante.setEmpresaAgenteRetencion(empresa.getAgenteRetencion());
+        comprobante.setEmpresaRegimenRimpe(RegimenRimpe.desde(empresa.getRegimenRimpe()));
         comprobante.setFechaEmision(ahora);
         comprobante.setEstado(EstadoComprobante.BORRADOR);
         comprobante.setCreadoEn(ahora);

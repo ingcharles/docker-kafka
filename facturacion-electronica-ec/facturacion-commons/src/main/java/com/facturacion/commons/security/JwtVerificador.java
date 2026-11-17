@@ -14,6 +14,8 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 
+import com.facturacion.commons.error.CodigoLogComun;
+import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.commons.exception.TokenInvalidoException;
 
 /**
@@ -124,7 +126,7 @@ public class JwtVerificador {
             claims = Jwts.parser().verifyWith(clavePublica).requireIssuer(EMISOR).build().parseSignedClaims(token)
                 .getPayload();
         } catch (JwtException | IllegalArgumentException e) {
-            LOG.debugf("Token rechazado: %s", e.getMessage());
+            LogCodificado.debug(LOG, CodigoLogComun.TOKEN_RECHAZADO, null, e.getMessage());
             throw new TokenInvalidoException(MENSAJE_GENERICO, e);
         }
         // La firma, el emisor y el vencimiento ya son válidos; falta saber si identidad-service la revocó antes de que venza.
@@ -159,7 +161,7 @@ public class JwtVerificador {
     }
 
     private TokenInvalidoException rechazo(String motivo) {
-        LOG.debugf("Token rechazado: %s", motivo);
+        LogCodificado.debug(LOG, CodigoLogComun.TOKEN_RECHAZADO, null, motivo);
         return new TokenInvalidoException(MENSAJE_GENERICO);
     }
 }

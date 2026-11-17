@@ -13,8 +13,10 @@ import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.orquestacion.application.service.SagaOrchestratorService;
 import com.facturacion.orquestacion.domain.service.PoliticaReintentoSaga;
+import com.facturacion.orquestacion.shared.error.CodigoError;
 
 /**
  * Detecta sagas atascadas esperando a otro servicio y las recupera (ver {@link PoliticaReintentoSaga}). Antes la
@@ -62,10 +64,10 @@ public class SagaWatchdog {
             .invoke(resultados -> {
                 long hechas = resultados.stream().filter(Boolean::booleanValue).count();
                 if (hechas > 0) {
-                    LOG.infof("Watchdog de sagas: %d saga(s) reintentadas o expiradas", hechas);
+                    LogCodificado.info(LOG, CodigoError.WATCHDOG_SAGAS_RECUPERADAS, null, hechas);
                 }
             })
-            .onFailure().invoke(error -> LOG.error("Falló la revisión del watchdog de sagas", error))
+            .onFailure().invoke(error -> LogCodificado.error(LOG, error, CodigoError.WATCHDOG_REVISION_FALLIDA, null))
             .onFailure().recoverWithNull()
             .replaceWithVoid();
     }
@@ -74,9 +76,9 @@ public class SagaWatchdog {
     private Uni<Boolean> recuperar(UUID comprobanteId) {
         return servicio.recuperarSaga(comprobanteId, plazos)
             .onFailure().recoverWithUni(error -> {
-                LOG.errorf(error, "Falló el reintento automático de la saga %s", comprobanteId);
+                LogCodificado.error(LOG, error, CodigoError.REINTENTO_AUTOMATICO_FALLIDO, "comprobanteId=" + comprobanteId);
                 return servicio.contarReintentoFallido(comprobanteId, plazos, resumir(error))
-                    .onFailure().invoke(e -> LOG.errorf(e, "No se pudo registrar el reintento fallido de %s", comprobanteId))
+                    .onFailure().invoke(e -> LogCodificado.error(LOG, e, CodigoError.REINTENTO_NO_REGISTRADO, "comprobanteId=" + comprobanteId))
                     .onFailure().recoverWithNull()
                     .replaceWith(false);
             });
