@@ -27,6 +27,8 @@ public class SagaInstance {
     private Instant updatedAt;
     /** Reintentos automáticos del watchdog (ver SagaWatchdog); los manuales por REST no cuentan. */
     private int reintentos;
+    /** Reenvíos automáticos del correo hechos por el job (ver ReenvioNotificacionesJob); los manuales por REST no cuentan. */
+    private int reintentosNotificacion;
     /** false si el comprobante no tiene correo: tras la autorización la saga termina sin esperar una notificación. */
     private boolean notificacionEsperada = true;
     /** true si la saga usa inventario: al autorizar se confirma el stock y al fallar se libera. */
@@ -137,6 +139,14 @@ public class SagaInstance {
 
     public void setReintentos(int reintentos) {
         this.reintentos = reintentos;
+    }
+
+    public int getReintentosNotificacion() {
+        return reintentosNotificacion;
+    }
+
+    public void setReintentosNotificacion(int reintentosNotificacion) {
+        this.reintentosNotificacion = reintentosNotificacion;
     }
 
     public Instant getUpdatedAt() {

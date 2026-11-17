@@ -1002,3 +1002,16 @@ Ajustes (variables de entorno del servicio): `SAGA_WATCHDOG_HABILITADO`, `SAGA_W
 Otros estados terminales que verás en `GET /sagas`: `AUTORIZADO_SIN_NOTIFICACION` (el comprobante se autorizó pero no tiene correo del
 receptor, así que no habrá notificación) `STOCK_NO_DISPONIBLE` (con el descuento de inventario habilitado, no había stock: el comprobante queda en `STOCK_INSUFICIENTE`) y `EXPIRADA` (el watchdog agotó los reintentos).
 Cada saga se reintenta en su propia transacción: si una falla, queda una nota `ORQ-402` en su bitácora y cuenta como intento, sin afectar a las demás.
+
+### 10.1 Reenvío automático de correos fallidos (job, apagado por defecto)
+Además del reenvío manual (`POST /sagas/reenviar-notificaciones`, sección 6.3, que funciona siempre), el orquestador puede reenviar solo los
+correos que fallaron. Se enciende con `SAGA_REENVIO_NOTIFICACIONES_HABILITADO=true` en el `.env` y `docker compose up -d facturacion-orchestrator-service`:
+cada 5 min (`..._INTERVALO`) toma hasta 20 sagas (`..._LOTE`) en `NOTIFICACION_FALLIDA` quietas desde hace 15 min (`..._ESPERA_MINIMA`) y las reenvía;
+cada saga se reenvía a lo más 3 veces (`..._MAX_INTENTOS`). Si el resultado del envío no llega en 10 min (`..._PLAZO_RESPUESTA`), la saga vuelve
+a `NOTIFICACION_FALLIDA` (nota `ORQ-301`). Para probarlo sin esperar, baja los tiempos: `..._INTERVALO=20s` y `..._ESPERA_MINIMA=PT1M`.
+```
+GET http://localhost:8096/sagas/api/v1?state=NOTIFICACION_FALLIDA   # incluye "reintentosNotificacion": cuántos reenvíos automáticos lleva
+GET http://localhost:8096/sagas/api/v1/{comprobanteId}              # pasos NOTA ORQ-203 (cada reenvío) y ORQ-301 (resultado perdido)
+```
+Resultado esperado: la saga termina en `NOTIFICADO` en cuanto un envío sale bien. Con `reintentosNotificacion = 3` y la saga todavía en
+`NOTIFICACION_FALLIDA`, el job la dejó: corrige la causa (p. ej. la contraseña SMTP) y reenvíala por REST, que no tiene tope. Ver ARQUITECTURA.md 4.2.

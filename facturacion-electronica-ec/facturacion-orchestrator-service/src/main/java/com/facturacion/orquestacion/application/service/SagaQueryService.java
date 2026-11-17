@@ -68,6 +68,7 @@ public class SagaQueryService {
         response.setCreatedAt(saga.getCreatedAt());
         response.setUpdatedAt(saga.getUpdatedAt());
         response.setReintentos(saga.getReintentos());
+        response.setReintentosNotificacion(saga.getReintentosNotificacion());
         response.setSteps(steps.stream().map(this::toStepResponse).collect(Collectors.toList()));
         return response;
     }

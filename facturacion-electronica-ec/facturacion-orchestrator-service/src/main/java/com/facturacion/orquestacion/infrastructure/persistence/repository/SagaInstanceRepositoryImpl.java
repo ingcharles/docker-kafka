@@ -103,4 +103,24 @@ public class SagaInstanceRepositoryImpl implements SagaInstanceRepository {
                 Instant.now(), comprobanteId, estadoActual.name())
             .chain(filas -> filas == 0 ? Uni.createFrom().nullItem() : findById(comprobanteId));
     }
+
+    @Override
+    public Uni<List<SagaInstance>> findPendientesDeNotificacion(Instant fallidasAntesDe, Instant sinRespuestaAntesDe,
+            int maxIntentos, int limite) {
+        return repository.find("(state = ?1 and reintentosNotificacion < ?2 and updatedAt <= ?3) "
+                + "or (state = ?4 and notificacionEsperada = true and updatedAt <= ?5)",
+                Sort.ascending("updatedAt"), SagaState.NOTIFICACION_FALLIDA.name(), maxIntentos, fallidasAntesDe,
+                SagaState.AUTORIZADO.name(), sinRespuestaAntesDe)
+            .page(Page.ofSize(limite)).list()
+            .map(entidades -> entidades.stream().map(mapper::toDomain).collect(Collectors.toList()));
+    }
+
+    @Override
+    public Uni<SagaInstance> registrarReenvioAutomatico(UUID comprobanteId, int maxIntentos) {
+        return repository.update("state = ?1, reintentosNotificacion = reintentosNotificacion + 1, updatedAt = ?2 "
+                + "where id = ?3 and state = ?4 and reintentosNotificacion < ?5",
+                SagaState.AUTORIZADO.name(), Instant.now(), comprobanteId, SagaState.NOTIFICACION_FALLIDA.name(),
+                maxIntentos)
+            .chain(filas -> filas == 0 ? Uni.createFrom().nullItem() : findById(comprobanteId));
+    }
 }

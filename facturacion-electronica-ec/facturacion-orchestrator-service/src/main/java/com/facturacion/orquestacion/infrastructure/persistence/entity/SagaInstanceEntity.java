@@ -41,6 +41,9 @@ public class SagaInstanceEntity extends PanacheEntityBase {
     @Column(nullable = false)
     public int reintentos;
 
+    @Column(name = "reintentos_notificacion", nullable = false)
+    public int reintentosNotificacion;
+
     @Column(name = "notificacion_esperada", nullable = false)
     public boolean notificacionEsperada = true;
 

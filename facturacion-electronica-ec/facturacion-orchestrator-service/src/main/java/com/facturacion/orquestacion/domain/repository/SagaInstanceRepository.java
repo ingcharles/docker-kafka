@@ -1,5 +1,6 @@
 package com.facturacion.orquestacion.domain.repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,4 +44,24 @@ public interface SagaInstanceRepository {
      *
      * @return la saga actualizada, o vacío si ya no estaba en ese estado
      */
-    Uni<SagaInstance> registrarReintento(UUID comprobanteId, SagaState estadoActual);}
+    Uni<SagaInstance> registrarReintento(UUID comprobanteId, SagaState estadoActual);
+
+    /**
+     * Sagas que el job de reenvío de correos debe mirar, las más antiguas primero y como máximo {@code limite}: las
+     * NOTIFICACION_FALLIDA con menos de {@code maxIntentos} reenvíos automáticos y sin actividad desde
+     * {@code fallidasAntesDe}, y las AUTORIZADO que esperan una notificación y no tienen actividad desde
+     * {@code sinRespuestaAntesDe}. El filtro va en SQL a propósito: las que ya agotaron sus intentos no deben ocupar
+     * lugar en el lote.
+     */
+    Uni<List<SagaInstance>> findPendientesDeNotificacion(Instant fallidasAntesDe, Instant sinRespuestaAntesDe,
+            int maxIntentos, int limite);
+
+    /**
+     * Cuenta un reenvío automático y devuelve la saga a AUTORIZADO (a la espera del resultado) en una sola sentencia,
+     * solo si sigue en NOTIFICACION_FALLIDA y le quedan intentos: compare-and-set, así que dos instancias del job (o el
+     * job y un reenvío manual) no la reenvían dos veces.
+     *
+     * @return la saga, o vacío si ya no estaba en NOTIFICACION_FALLIDA o ya no tenía intentos
+     */
+    Uni<SagaInstance> registrarReenvioAutomatico(UUID comprobanteId, int maxIntentos);
+}

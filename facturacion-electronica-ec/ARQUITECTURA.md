@@ -187,6 +187,8 @@ stateDiagram-v2
     AUTORIZADO --> NOTIFICADO: NotificacionExitosa
     AUTORIZADO --> NOTIFICACION_FALLIDA: NotificacionFallida
     NOTIFICACION_FALLIDA --> NOTIFICADO: NotificacionExitosa (reenvío del correo)
+    NOTIFICACION_FALLIDA --> AUTORIZADO: reenvío del correo (manual por REST, o automático del job)
+    AUTORIZADO --> NOTIFICACION_FALLIDA: el job no recibió el resultado del envío a tiempo
 
     CREADO --> FIRMA_FALLIDA: ComprobanteFirmaFallida
     FIRMADO --> RECHAZADO_RECEPCION: SriRechazadoRecepcion
@@ -235,10 +237,55 @@ El reintento vuelve a publicar el **payload exacto** del último comando (mismo 
 
 - **DLQ sin consumidor ni alerta** (ver 6.5): un mensaje que falla se aparta pero nadie recibe aviso. Falta una alerta sobre el tamaño de los `.dlq` y una herramienta de reproceso.
 
-- **La saga no reintenta la notificación sola**: tras `NOTIFICACION_FALLIDA` el correo se reenvía a mano con `POST /comprobantes/{id}/reenviar-correo` (ver 13.5). No hay reenvío automático.
+- **La saga no reintenta la notificación sola, salvo que se encienda el job** (apagado por defecto): tras `NOTIFICACION_FALLIDA` el correo se reenvía a mano con `POST /comprobantes/{id}/reenviar-correo` o `POST /sagas/reenviar-notificaciones` (ver 13.5), o automáticamente con `ReenvioNotificacionesJob` (ver 4.2).
 
 
 `SriRecibido` queda registrado en la bitácora de pasos (`saga_step`) pero **no** cambia `SagaInstance.state` — es un checkpoint informativo entre Recepción y Autorización, no un estado de negocio nuevo. La validación de transición es atómica: `UPDATE saga_instance SET state = ? WHERE id = ? AND state IN (...)` atómico — una redelivery duplicada de Kafka simplemente no afecta ninguna fila.
+
+### 4.2 Reenvío automático de correos (`ReenvioNotificacionesJob`)
+
+El correo puede fallar por motivos pasajeros (la red, el SMTP). Hay **dos vías independientes** para reenviar:
+
+| Vía | Quién la dispara | Alcance | Tope |
+|---|---|---|---|
+| REST `POST /sagas/reenviar-notificaciones` | una persona (api-key de escritura) | las sagas **de su empresa** en `NOTIFICACION_FALLIDA`, hasta `limite` (máx. 500) | ninguno: siempre reenvía |
+| Job `ReenvioNotificacionesJob` | el orquestador, cada `intervalo` | las de **todas** las empresas | `max-intentos` por saga |
+
+La bandera `saga.reenvio-notificaciones.habilitado` (**apagada por defecto**, variable `SAGA_REENVIO_NOTIFICACIONES_HABILITADO`)
+gobierna **solo el job**; el REST está disponible siempre, con el job encendido o apagado.
+
+**Qué hace en cada ciclo** (lógica pura en `PoliticaReenvioNotificacion`, probada sin base de datos):
+- `NOTIFICACION_FALLIDA` con menos de `max-intentos` reenvíos automáticos y quieta desde hace `espera-minima` → cuenta un intento, la pasa a
+  `AUTORIZADO` y registra (outbox) el comando `REENVIAR_NOTIFICACION`. El resultado vuelve por el camino normal: `NOTIFICADO` si el
+  correo sale, o de nuevo `NOTIFICACION_FALLIDA` con el motivo nuevo.
+- `AUTORIZADO` que espera una notificación y no recibió el resultado en `plazo-respuesta` → vuelve a `NOTIFICACION_FALLIDA` (nota `ORQ-301`),
+  **sin gastar intento**. Así ninguna saga queda esperando para siempre un resultado que se perdió.
+- Con los intentos agotados la saga **se queda en `NOTIFICACION_FALLIDA`**, visible con `GET /sagas?state=NOTIFICACION_FALLIDA` (campo
+  `reintentosNotificacion`), y el job ya no la toca; solo el reenvío manual por REST la saca de ahí.
+
+| Variable | Por defecto | Qué controla |
+|---|---|---|
+| `SAGA_REENVIO_NOTIFICACIONES_HABILITADO` | `false` | enciende el job |
+| `SAGA_REENVIO_NOTIFICACIONES_INTERVALO` | `5m` | cada cuánto corre |
+| `SAGA_REENVIO_NOTIFICACIONES_LOTE` | `20` | sagas que atiende por ciclo (las demás, en el siguiente) |
+| `SAGA_REENVIO_NOTIFICACIONES_ESPERA_MINIMA` | `PT15M` | espera entre dos reenvíos de la misma saga |
+| `SAGA_REENVIO_NOTIFICACIONES_PLAZO_RESPUESTA` | `PT10M` | cuánto esperar el resultado del envío antes de darlo por perdido |
+| `SAGA_REENVIO_NOTIFICACIONES_MAX_INTENTOS` | `3` | reenvíos automáticos por saga |
+
+**Contador.** `saga_instance.reintentos_notificacion` (migración V8 del orquestador), separado de `reintentos` (el del watchdog de
+firma/SRI): una saga que ya gastó reintentos de firma no llega al reenvío con menos intentos. El reenvío manual no lo incrementa.
+
+**Cómo cuida los recursos.** Una ejecución a la vez (`ConcurrentExecution.SKIP`); un lote acotado por ciclo (20); las sagas **de a una, nunca
+en paralelo**, así que usa una conexión a la vez; la selección va en una sesión de solo lectura que se cierra antes de escribir; cada saga se
+procesa en **su propia transacción corta** (cambio de estado + comando del outbox, atómicos), igual que el watchdog, así que una que falla no
+deshace ni frena a las demás (se registra `ORQ-409` y se reintenta en el siguiente ciclo). El filtro (estado, intentos, antigüedad) y el
+orden por antigüedad van en SQL, con un índice parcial (`idx_saga_instance_notificacion_pendiente`): las sagas con los intentos agotados no
+ocupan lugar en el lote. El cambio de estado es compare-and-set, así que dos instancias del orquestador, o el job y un reenvío manual a la
+vez, no mandan el mismo correo dos veces. A 20 por ciclo y un ciclo cada 5 min el ritmo máximo es de 240 correos por hora, por debajo de la
+cuota diaria de un SMTP típico.
+
+**Al activarlo por primera vez:** las sagas que ya estén en `AUTORIZADO` con notificación esperada y sin actividad desde hace más de
+`plazo-respuesta` (p. ej. un resultado que se perdió antes) pasan a `NOTIFICACION_FALLIDA` y se reenvían de a 20 por ciclo.
 
 ## 5. Por qué esta saga casi no tiene compensación
 
@@ -662,7 +709,7 @@ Cómo se resolvió cada integración externa:
 - **Sin esquema de contingencia del SRI** — solo se implementó el esquema offline (el que usa el SRI en producción); el esquema de contingencia online queda fuera de alcance.
 - **IVA e ICE calculados de forma independiente sobre la misma base imponible** — la ley ecuatoriana real calcula IVA sobre (base + ICE) para ítems con ICE; documentado como simplificación conocida en el código de `comprobantes-service`.
 - **Factura 1.1.0 (bloque de reembolso)** — fuera de alcance; si se agrega en el futuro, cada tipo de comprobante nuevo o campo opcional nuevo debe re-verificarse contra una llamada real de Recepción antes de darse por bueno (la ficha técnica por sí sola no basta para detectar desajustes de XSD).
-- **No hay reintento automático de notificación** — si `NotificacionFallida` queda como estado terminal de la saga, reenviar el correo es una operación manual/aparte, no algo que el orquestador reintente solo (a propósito: reintentar SMTP indefinidamente sin intervención podría enmascarar un problema real de configuración, como una contraseña de aplicación inválida).
+- **El reintento automático de notificación es opcional y acotado** — por defecto, si `NotificacionFallida` deja la saga en `NOTIFICACION_FALLIDA`, reenviar el correo es una operación manual. El job `ReenvioNotificacionesJob` (4.2) lo automatiza solo si se enciende, y con un tope de intentos (3) a propósito: reintentar SMTP indefinidamente sin intervención podría enmascarar un problema real de configuración, como una contraseña de aplicación inválida, y agotar la cuota diaria del proveedor.
 
 ### Pendientes conocidos
 

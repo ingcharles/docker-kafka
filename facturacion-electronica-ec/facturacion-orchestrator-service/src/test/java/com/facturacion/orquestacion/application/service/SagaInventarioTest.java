@@ -319,6 +319,9 @@ class SagaInventarioTest {
                 return Uni.createFrom().nullItem();
             }
             saga.setState(to);
+            if (motivo != null) {
+                saga.setFailureReason(motivo);
+            }
             return Uni.createFrom().item(saga);
         }
 
@@ -339,6 +342,32 @@ class SagaInventarioTest {
         @Override
         public Uni<SagaInstance> registrarReintento(UUID id, SagaState estadoActual) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Uni<List<SagaInstance>> findPendientesDeNotificacion(java.time.Instant fallidasAntesDe,
+                java.time.Instant sinRespuestaAntesDe, int maxIntentos, int limite) {
+            List<SagaInstance> items = datos.values().stream()
+                .filter(s -> (s.getState() == SagaState.NOTIFICACION_FALLIDA && s.getReintentosNotificacion() < maxIntentos
+                        && !s.getUpdatedAt().isAfter(fallidasAntesDe))
+                    || (s.getState() == SagaState.AUTORIZADO && s.isNotificacionEsperada()
+                        && !s.getUpdatedAt().isAfter(sinRespuestaAntesDe)))
+                .sorted(java.util.Comparator.comparing(SagaInstance::getUpdatedAt))
+                .limit(limite).toList();
+            return Uni.createFrom().item(items);
+        }
+
+        @Override
+        public Uni<SagaInstance> registrarReenvioAutomatico(UUID id, int maxIntentos) {
+            SagaInstance saga = datos.get(id);
+            if (saga == null || saga.getState() != SagaState.NOTIFICACION_FALLIDA
+                    || saga.getReintentosNotificacion() >= maxIntentos) {
+                return Uni.createFrom().nullItem();
+            }
+            saga.setState(SagaState.AUTORIZADO);
+            saga.setReintentosNotificacion(saga.getReintentosNotificacion() + 1);
+            saga.setUpdatedAt(java.time.Instant.now());
+            return Uni.createFrom().item(saga);
         }
     }
 

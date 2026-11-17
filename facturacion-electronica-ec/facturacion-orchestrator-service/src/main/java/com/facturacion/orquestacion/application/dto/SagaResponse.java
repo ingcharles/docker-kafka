@@ -16,6 +16,8 @@ public class SagaResponse {
     private Instant updatedAt;
     /** Reintentos automáticos del watchdog; si la saga quedó EXPIRADA, es el máximo configurado. */
     private int reintentos;
+    /** Reenvíos automáticos del correo hechos por el job; si llegó al máximo configurado, el job ya no la toca. */
+    private int reintentosNotificacion;
     private List<SagaStepResponse> steps;
 
     public UUID getComprobanteId() {
@@ -80,6 +82,14 @@ public class SagaResponse {
 
     public void setReintentos(int reintentos) {
         this.reintentos = reintentos;
+    }
+
+    public int getReintentosNotificacion() {
+        return reintentosNotificacion;
+    }
+
+    public void setReintentosNotificacion(int reintentosNotificacion) {
+        this.reintentosNotificacion = reintentosNotificacion;
     }
 
     public Instant getUpdatedAt() {

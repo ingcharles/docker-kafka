@@ -33,6 +33,9 @@ openssl rand -base64 32                       # → FIRMA_CIFRADO_CLAVE_MAESTRA 
 ```
 Completa en el `.env`: `POSTGRES_*`, las siete `*_DB_PASSWORD`, `FIRMA_CIFRADO_CLAVE_MAESTRA`, `CORS_ORIGINS`, los puertos y el correo.
 
+> **Varios ambientes (desarrollo, pruebas, producción):** en vez de un solo `.env`, usa `env/<ambiente>.env` (versionado, sin secretos) y
+> `env/<ambiente>.secretos.env` (ignorado por git), y levanta con `./scripts/compose.sh <ambiente> up -d`. Guía completa: `env/README.md`.
+
 **4. Correo saliente (Gmail).** `notificacion-service` envía por SMTP con estas variables del `.env`:
 `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USERNAME=e.du.ingcharles@gmail.com`, `SMTP_FROM=e.du.ingcharles@gmail.com`
 y `SMTP_PASSWORD=<contraseña de aplicación>`. Gmail **no acepta la contraseña normal**: la cuenta necesita verificación en

@@ -206,6 +206,9 @@ Todo log del código propio lleva un código estable: `[FIR-401] texto (comproba
 |---|---|---|
 | `ORQ-201` | INFO | Reintento automático {0} de {1}: sin respuesta en estado {2}, se vuelve a publicar el último comando. |
 | `ORQ-202` | INFO | {0} saga(s) reintentadas o expiradas |
+| `ORQ-203` | INFO | Reenvío automático {0} de {1} del correo: se pide a comprobantes-service que vuelva a publicar el comprobante autorizado. |
+| `ORQ-204` | INFO | {0} correo(s) reenviado(s) y {1} saga(s) sin respuesta devuelta(s) a NOTIFICACION_FALLIDA |
+| `ORQ-301` | WARN | No llegó el resultado del envío del correo en {0} minuto(s); la saga vuelve a NOTIFICACION_FALLIDA para reintentarlo. |
 | `ORQ-401` | ERROR | Sin respuesta en estado {0} tras {1} reintentos automáticos; requiere revisión manual (POST /sagas/{id}/retry para forzar otro intento). |
 | `ORQ-402` | ERROR | El reintento automático {0} de {1} falló y se descartó: {2} |
 | `ORQ-403` | ERROR | No se pudo publicar el evento del outbox en Kafka; se reintenta en el siguiente ciclo |
@@ -213,6 +216,8 @@ Todo log del código propio lleva un código estable: `[FIR-401] texto (comproba
 | `ORQ-405` | ERROR | Falló la revisión periódica de sagas; se vuelve a intentar en el siguiente ciclo |
 | `ORQ-406` | ERROR | Falló el reintento automático de la saga; se cuenta como intento |
 | `ORQ-407` | ERROR | No se pudo registrar el reintento fallido de la saga |
+| `ORQ-408` | ERROR | Falló la revisión periódica de reenvío de correos; se vuelve a intentar en el siguiente ciclo |
+| `ORQ-409` | ERROR | Falló el reenvío automático del correo de la saga; no se contó como intento y se vuelve a intentar en el siguiente ciclo |
 
 ## Cómo agregar un error
 

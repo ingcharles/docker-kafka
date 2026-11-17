@@ -40,6 +40,7 @@ import com.facturacion.orquestacion.domain.port.EventosSalientes;
 import com.facturacion.orquestacion.domain.port.MensajesProcesados;
 import com.facturacion.orquestacion.domain.repository.SagaInstanceRepository;
 import com.facturacion.orquestacion.domain.repository.SagaStepRepository;
+import com.facturacion.orquestacion.domain.service.PoliticaReenvioNotificacion;
 import com.facturacion.orquestacion.domain.service.PoliticaReintentoSaga;
 import com.facturacion.orquestacion.shared.constant.MessagingConstants;
 import com.facturacion.orquestacion.shared.error.CodigoError;
@@ -260,16 +261,87 @@ public class SagaOrchestratorService {
     private Uni<Boolean> solicitarReenvio(UUID comprobanteId) {
         return sagaInstanceRepository.transicionarEstado(comprobanteId, SagaState.AUTORIZADO, null,
                 SagaState.NOTIFICACION_FALLIDA)
-            .onItem().transformToUni(saga -> {
-                if (saga == null) {
-                    return Uni.createFrom().item(false);
+            .onItem().transformToUni(saga -> saga == null
+                ? Uni.createFrom().item(false)
+                : emitirComandoDeReenvio(comprobanteId).replaceWith(true));
+    }
+
+    /** Registra (outbox) el comando que le pide a comprobantes-service volver a publicar el comprobante autorizado. */
+    private Uni<Void> emitirComandoDeReenvio(UUID comprobanteId) {
+        ActualizarComprobanteCommand command = new ActualizarComprobanteCommand(UUID.randomUUID(),
+            comprobanteId, MessagingConstants.COMANDO_REENVIAR_NOTIFICACION, null, null, null, null, null,
+            Instant.now());
+        return emitir(comprobanteId, MessagingConstants.COMANDO_REENVIAR_NOTIFICACION,
+            MessagingConstants.COMPROBANTE_COMMANDS_TOPIC, command);
+    }
+
+    /**
+     * Ids de las sagas que el job de reenvío automático debe atender (ver {@link PoliticaReenvioNotificacion}), a lo
+     * más {@code lote}. Solo lectura y en su propia sesión: se cierra antes de empezar a escribir, y cada saga se
+     * procesa después en su PROPIA transacción ({@link #reenviarNotificacionAutomaticamente}), igual que el watchdog.
+     */
+    @WithSession
+    public Uni<List<UUID>> idsParaReenvioAutomatico(PoliticaReenvioNotificacion.Plazos plazos, int lote) {
+        Instant ahora = Instant.now();
+        return sagaInstanceRepository.findPendientesDeNotificacion(ahora.minus(plazos.esperaMinima()),
+                ahora.minus(plazos.plazoRespuesta()), plazos.maxIntentos(), lote)
+            .map(sagas -> sagas.stream()
+                .filter(saga -> PoliticaReenvioNotificacion.decidir(saga, ahora, plazos)
+                    != PoliticaReenvioNotificacion.Accion.ESPERAR)
+                .map(SagaInstance::getId)
+                .collect(Collectors.toList()));
+    }
+
+    /**
+     * Atiende UNA saga del reenvío automático en una transacción corta: vuelve a leerla y a decidir (si algo la movió
+     * mientras tanto, no hace nada) y, según la política, o cuenta un intento y pide el reenvío del correo, o da por
+     * perdido el resultado y la devuelve a NOTIFICACION_FALLIDA. Todo es compare-and-set sobre el estado, así que dos
+     * instancias del job, o el job y un reenvío manual, no duplican el envío. El comando sale por el outbox en la misma
+     * transacción: o se registran el cambio de estado y el comando, o ninguno de los dos.
+     *
+     * @return la acción que se aplicó ({@code ESPERAR} si no hizo nada)
+     */
+    @WithTransaction
+    public Uni<PoliticaReenvioNotificacion.Accion> reenviarNotificacionAutomaticamente(UUID comprobanteId,
+            PoliticaReenvioNotificacion.Plazos plazos) {
+        return sagaInstanceRepository.findById(comprobanteId).onItem().transformToUni(saga -> {
+            if (saga == null) {
+                return Uni.createFrom().item(PoliticaReenvioNotificacion.Accion.ESPERAR);
+            }
+            return switch (PoliticaReenvioNotificacion.decidir(saga, Instant.now(), plazos)) {
+                case ESPERAR -> Uni.createFrom().item(PoliticaReenvioNotificacion.Accion.ESPERAR);
+                case REENVIAR -> reenviarYContar(saga, plazos);
+                case DAR_POR_SIN_RESPUESTA -> darPorSinRespuesta(saga, plazos);
+            };
+        });
+    }
+
+    private Uni<PoliticaReenvioNotificacion.Accion> reenviarYContar(SagaInstance saga,
+            PoliticaReenvioNotificacion.Plazos plazos) {
+        UUID id = saga.getId();
+        return sagaInstanceRepository.registrarReenvioAutomatico(id, plazos.maxIntentos())
+            .onItem().transformToUni(actualizada -> {
+                if (actualizada == null) {
+                    return Uni.createFrom().item(PoliticaReenvioNotificacion.Accion.ESPERAR);
                 }
-                ActualizarComprobanteCommand command = new ActualizarComprobanteCommand(UUID.randomUUID(),
-                    comprobanteId, MessagingConstants.COMANDO_REENVIAR_NOTIFICACION, null, null, null, null, null,
-                    Instant.now());
-                return emitir(comprobanteId, MessagingConstants.COMANDO_REENVIAR_NOTIFICACION,
-                    MessagingConstants.COMPROBANTE_COMMANDS_TOPIC, command).replaceWith(true);
+                // El contador de "saga" es el anterior al UPDATE (la sesión conserva la instancia ya cargada).
+                String nota = Mensajes.obtenerTexto(CodigoError.REENVIO_AUTOMATICO_NOTIFICACION,
+                    saga.getReintentosNotificacion() + 1, plazos.maxIntentos());
+                return sagaStepRepository.persist(SagaStep.nota(id, CodigoError.REENVIO_AUTOMATICO_NOTIFICACION.codigo(), nota))
+                    .chain(() -> emitirComandoDeReenvio(id))
+                    .replaceWith(PoliticaReenvioNotificacion.Accion.REENVIAR);
             });
+    }
+
+    private Uni<PoliticaReenvioNotificacion.Accion> darPorSinRespuesta(SagaInstance saga,
+            PoliticaReenvioNotificacion.Plazos plazos) {
+        UUID id = saga.getId();
+        String motivo = Mensajes.obtenerTexto(CodigoError.NOTIFICACION_SIN_RESPUESTA, plazos.plazoRespuesta().toMinutes());
+        return sagaInstanceRepository.transicionarEstado(id, SagaState.NOTIFICACION_FALLIDA, motivo, SagaState.AUTORIZADO)
+            .onItem().transformToUni(actualizada -> actualizada == null
+                ? Uni.createFrom().item(PoliticaReenvioNotificacion.Accion.ESPERAR)
+                : sagaStepRepository.persist(SagaStep.nota(id, CodigoError.NOTIFICACION_SIN_RESPUESTA.codigo(), motivo))
+                    .replaceWith(PoliticaReenvioNotificacion.Accion.DAR_POR_SIN_RESPUESTA));
     }
 
     /**

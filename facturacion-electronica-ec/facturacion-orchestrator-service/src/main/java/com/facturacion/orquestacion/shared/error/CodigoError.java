@@ -3,7 +3,7 @@ package com.facturacion.orquestacion.shared.error;
 import com.facturacion.commons.error.MensajeCatalogo;
 
 /**
- * Motivos que el orquestador registra en la saga (campo {@code failureReason} y bitácora {@code saga_step}) y logs del servicio. El primer dígito del número es el nivel: 2 INFO, 4 ERROR.
+ * Motivos que el orquestador registra en la saga (campo {@code failureReason} y bitácora {@code saga_step}) y logs del servicio. El primer dígito del número es el nivel: 2 INFO, 3 WARN, 4 ERROR.
  * Mismo esquema que en los demás servicios: {@code codigo} estable + {@code claveMensaje} del texto en
  * {@code mensajes.properties}. Aquí no hay respuestas HTTP de error, así que no llevan estado HTTP.
  */
@@ -11,13 +11,18 @@ public enum CodigoError implements MensajeCatalogo {
 
     SAGA_REINTENTO_AUTOMATICO("ORQ-201", "saga.reintento_automatico"),
     WATCHDOG_SAGAS_RECUPERADAS("ORQ-202", "log.watchdog_sagas_recuperadas"),
+    REENVIO_AUTOMATICO_NOTIFICACION("ORQ-203", "saga.reenvio_automatico_notificacion"),
+    REENVIO_NOTIFICACIONES_REVISADO("ORQ-204", "log.reenvio_notificaciones_revisado"),
+    NOTIFICACION_SIN_RESPUESTA("ORQ-301", "saga.notificacion_sin_respuesta"),
     SAGA_EXPIRADA("ORQ-401", "saga.expirada"),
     SAGA_REINTENTO_FALLIDO("ORQ-402", "saga.reintento_fallido"),
     OUTBOX_PUBLICACION_FALLIDA("ORQ-403", "log.outbox_publicacion_fallida"),
     OUTBOX_SIN_EMISOR("ORQ-404", "log.outbox_sin_emisor"),
     WATCHDOG_REVISION_FALLIDA("ORQ-405", "log.watchdog_revision_fallida"),
     REINTENTO_AUTOMATICO_FALLIDO("ORQ-406", "log.reintento_automatico_fallido"),
-    REINTENTO_NO_REGISTRADO("ORQ-407", "log.reintento_no_registrado");
+    REINTENTO_NO_REGISTRADO("ORQ-407", "log.reintento_no_registrado"),
+    REENVIO_NOTIFICACIONES_REVISION_FALLIDA("ORQ-408", "log.reenvio_notificaciones_revision_fallida"),
+    REENVIO_AUTOMATICO_FALLIDO("ORQ-409", "log.reenvio_automatico_fallido");
 
     private final String codigo;
     private final String claveMensaje;
