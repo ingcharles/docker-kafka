@@ -13,13 +13,14 @@ import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.inventario.application.dto.ImagenItemResponse;
 import com.facturacion.inventario.application.mapper.ImagenItemResponseMapper;
 import com.facturacion.inventario.domain.model.entity.ImagenItem;
 import com.facturacion.inventario.domain.repository.ImagenItemRepository;
 import com.facturacion.inventario.domain.repository.ItemRepository;
-import com.facturacion.inventario.shared.exception.ImagenInvalidaException;
+import com.facturacion.inventario.shared.error.CodigoError;
 
 /**
  * Imágenes de productos y servicios. El contenido se guarda directamente en
@@ -62,19 +63,19 @@ public class ImagenService {
     public Uni<ImagenItemResponse> subirImagen(UUID itemId, byte[] contenido, String nombreArchivo, String tipoMime,
             boolean esPrincipal, int orden) {
         if (contenido == null || contenido.length == 0) {
-            return Uni.createFrom().failure(new ImagenInvalidaException("El archivo de imagen está vacío"));
+            return Uni.createFrom().failure(new ErrorNegocioException(CodigoError.IMAGEN_VACIA));
         }
         if (contenido.length > TAMANO_MAXIMO_BYTES) {
-            return Uni.createFrom().failure(new ImagenInvalidaException(
-                "La imagen supera el tamaño máximo permitido de " + (TAMANO_MAXIMO_BYTES / 1024 / 1024) + " MB"));
+            return Uni.createFrom().failure(new ErrorNegocioException(
+                CodigoError.IMAGEN_MUY_GRANDE, TAMANO_MAXIMO_BYTES / 1024 / 1024));
         }
         if (tipoMime == null || !TIPOS_MIME_PERMITIDOS.contains(tipoMime.toLowerCase())) {
-            return Uni.createFrom().failure(new ImagenInvalidaException(
-                "Tipo de imagen no soportado: " + tipoMime + " (permitidos: " + TIPOS_MIME_PERMITIDOS + ")"));
+            return Uni.createFrom().failure(new ErrorNegocioException(
+                CodigoError.IMAGEN_TIPO_NO_ADMITIDO, tipoMime, TIPOS_MIME_PERMITIDOS));
         }
 
         return itemRepository.findById(itemId)
-            .onItem().ifNull().failWith(() -> new NotFoundException("Ítem no encontrado: " + itemId))
+            .onItem().ifNull().failWith(() -> new NotFoundException(CodigoError.ITEM_NO_ENCONTRADO, itemId))
             .onItem().transformToUni(item -> {
                 Uni<Integer> desmarcar = esPrincipal
                     ? imagenRepository.desmarcarPrincipal(itemId)
@@ -97,7 +98,7 @@ public class ImagenService {
     @WithSession
     public Uni<ImagenItem> obtenerParaDescarga(UUID imagenId) {
         return imagenRepository.findById(imagenId)
-            .onItem().ifNull().failWith(() -> new NotFoundException("Imagen no encontrada: " + imagenId));
+            .onItem().ifNull().failWith(() -> new NotFoundException(CodigoError.IMAGEN_NO_ENCONTRADA, imagenId));
     }
 
     @WithTransaction
@@ -105,6 +106,6 @@ public class ImagenService {
         return imagenRepository.deleteById(imagenId)
             .onItem().transformToUni(borrada -> Boolean.TRUE.equals(borrada)
                 ? Uni.createFrom().voidItem()
-                : Uni.createFrom().failure(new NotFoundException("Imagen no encontrada: " + imagenId)));
+                : Uni.createFrom().failure(new NotFoundException(CodigoError.IMAGEN_NO_ENCONTRADA, imagenId)));
     }
 }

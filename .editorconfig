@@ -1,0 +1,7 @@
+# Codificación del código del repositorio: UTF-8 sin BOM. No aplica a los archivos oficiales del SRI (XSD, fichas) que se
+# conservan tal como los publicó el SRI.
+root = true
+
+[*.{java,properties,sql,md,sh,yml,yaml}]
+charset = utf-8
+insert_final_newline = true

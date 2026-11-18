@@ -11,7 +11,7 @@ import com.facturacion.comprobantes.domain.model.entity.ItemLocal;
 public interface ItemLocalRepository {
 
     /** Upsert por id — se llama al recibir ItemCreado/ItemActualizado desde Kafka. */
-    Uni<ItemLocal> upsert(ItemLocal item);
+    Uni<ItemLocal> insertarOActualizar(ItemLocal item);
 
     /**
      * Trae varios de una vez, para no hacer N consultas al armar los

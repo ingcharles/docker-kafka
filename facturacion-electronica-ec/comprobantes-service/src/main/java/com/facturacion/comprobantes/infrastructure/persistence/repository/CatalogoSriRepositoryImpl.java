@@ -7,6 +7,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.comprobantes.domain.model.enums.TipoTarifa;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha.FormaPagoRow;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha.ImpuestoRow;
@@ -47,14 +48,14 @@ public class CatalogoSriRepositoryImpl implements CatalogoSriRepository {
                             .flatMap(impuestosRetencion -> RetencionEntity.<RetencionEntity>listAll()
                                 .flatMap(retenciones -> SustentoTributarioEntity.<SustentoTributarioEntity>listAll()
                                     .map(sustentos -> new CatalogosSriAFecha(fecha,
-                                        mapear(formasPago, CatalogoSriRepositoryImpl::formaPago),
+                                        mapear(formasPago, CatalogoSriRepositoryImpl::convertirFormaPago),
                                         mapear(impuestos, e -> new ImpuestoRow(e.codigo, e.descripcion, e.activo)),
-                                        mapear(tarifas, CatalogoSriRepositoryImpl::tarifa),
+                                        mapear(tarifas, CatalogoSriRepositoryImpl::convertirTarifa),
                                         mapear(tipos, e -> new TipoIdentificacionRow(e.codigo, e.descripcion,
                                             e.soloFactura, e.activo)),
                                         mapear(impuestosRetencion,
                                             e -> new ImpuestoRow(e.codigo, e.descripcion, e.activo)),
-                                        mapear(retenciones, CatalogoSriRepositoryImpl::retencion),
+                                        mapear(retenciones, CatalogoSriRepositoryImpl::convertirRetencion),
                                         mapear(sustentos, e -> new SustentoRow(e.codigo, e.descripcion, e.activo))))))))));
     }
 
@@ -62,16 +63,16 @@ public class CatalogoSriRepositoryImpl implements CatalogoSriRepository {
         return entidades.stream().map(mapeo).toList();
     }
 
-    private static FormaPagoRow formaPago(FormaPagoEntity e) {
+    private static FormaPagoRow convertirFormaPago(FormaPagoEntity e) {
         return new FormaPagoRow(e.codigo, e.descripcion, e.vigenteDesde, e.vigenteHasta, e.activo);
     }
 
-    private static TarifaRow tarifa(TarifaImpuestoEntity e) {
-        return new TarifaRow(e.impuestoCodigo, e.codigoPorcentaje, e.descripcion, e.tarifa, e.vigenteDesde,
-            e.vigenteHasta, e.activo);
+    private static TarifaRow convertirTarifa(TarifaImpuestoEntity e) {
+        return new TarifaRow(e.impuestoCodigo, e.codigoPorcentaje, e.descripcion, e.tarifa,
+            TipoTarifa.valueOf(e.tipoTarifa), e.vigenteDesde, e.vigenteHasta, e.activo);
     }
 
-    private static RetencionRow retencion(RetencionEntity e) {
+    private static RetencionRow convertirRetencion(RetencionEntity e) {
         return new RetencionRow(e.impuestoCodigo, e.codigo, e.vigenteDesde, e.descripcion, e.porcentaje,
             e.vigenteHasta, e.activo);
     }

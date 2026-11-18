@@ -26,6 +26,10 @@ asíncrono = `202`. Nunca un DTO suelto ni `Response.status(CREATED)` a mano. Er
 con el texto en `mensajes.properties`; un único `ApiExceptionMapper` los convierte. No devuelvas `boolean`/`null`/códigos para
 errores.
 
+**Excepciones.** Toda excepción que puede llegar al cliente es una `ApiException` con su entrada del catálogo y parámetros, nunca con texto fijo: `new NotFoundException(CodigoError.ITEM_NO_ENCONTRADO, id)`, `new ConflictoException(...)`, `new SinPermisoException(...)`, `new ErrorNegocioException(...)`; el estado y el texto salen del enum y del `mensajes.properties`, y no existen constructores que reciban un `String`. Lo que es del tipo de api-key (otro RUC, otro establecimiento, rol) se pide con `TokenPrincipal.exigirEmpresa/exigirAlcance/exigirEscritura/exigirAdmin`, no con un `throw` en cada recurso. Una falla de infraestructura que puede ocurrir en ejecución (serializar un payload, generar un XML o un PDF, cifrar, contactar al SRI) lanza `ErrorInternoException(causa, ENTRADA)`: el cliente recibe el texto genérico y el código (5xx), y el detalle con su causa queda en el log `GEN-403`. `IllegalStateException` / `IllegalArgumentException` quedan solo para invariantes de programación (un estado que no debería ocurrir) y validación de configuración al arrancar; nunca para un error que el usuario pueda ver ni para un mensaje de Kafka inválido (ese es una `ErrorNegocioException`).
+
+**Fechas y zona horaria.** Todo formato o lectura de fecha pasa por `FechasSri` y `ZonaHoraria` de `facturacion-commons` (`FechasSri.formatearFecha(instante)`, `leerFecha`, `obtenerHoy`, ...), siempre en hora de Ecuador. No se crea un `DateTimeFormatter`, un `ZoneOffset` ni un `LocalDate.now()` en un servicio: la fecha de "hoy" es la de Ecuador, no la del servidor.
+
 **`void` solo si no hay nada que informar** (consumidores de Kafka, `DELETE`). Si la operación puede no hacer nada (comando
 repetido, evento fuera de estado), devuelve un resultado (`ResultadoComando`, `ResultadoEvento`) y regístralo.
 
@@ -36,8 +40,10 @@ idempotentes por inbox (`MensajesProcesados`). No compartas records de mensaje n
 Una api-key vale para una sola empresa y un solo rol. No loguees cédulas, correos, razón social, tokens, api-keys ni
 contraseñas; usa ids (`comprobanteId`, `claveAcceso`).
 
+**Sin valores quemados.** Ningún literal con significado de negocio o de formato (códigos del SRI, porcentajes, anchos, valores por defecto, nombres de parámetros, rótulos, tipos de contenido, decimales, límites) va suelto en el código: o es una constante con nombre (`private static final`, y `public` si una anotación la necesita) o es un enum. Regla: los códigos estables del SRI que el código trata con lógica propia (tipo de impuesto, tipo de comprobante, ambiente, clasificación de IVA, tipo de tarifa) son enums del dominio con su comportamiento dentro (`ImpuestoSri.IVA.esCodigo(codigo)`), no `"2"` ni constantes repetidas por clase. Lo que cambia con la normativa (tarifas de IVA, ICE e IRBPNR, códigos y porcentajes de retención, formas de pago) NO va en código: vive en el catálogo (`tarifa_impuesto`, `retencion`...) y se cambia con `PUT /catalogos/{catalogo}` sin desplegar. Los valores por defecto de un parámetro REST son constantes del enum o clase del dominio al que pertenecen.
+
 **Estilo.** Métodos con nombre en español que empiece con verbo en infinitivo (`crear`, `obtener`, `registrar`); predicados
-`esX`/`tieneX`/`hayX`; los accesores de records y los métodos de MapStruct/Panache siguen su convención. Imports ordenados:
+`esX`/`tieneX`/`hayX`. Un método que calcula, arma o convierte lleva el verbo (`calcularAltoCajaComprador`, `armarEncabezado`, `convertirAMapa`), no un sustantivo suelto (`dinero`, `encabezado`, `texto`). Las únicas excepciones son las convenciones de otra herramienta: accesores de records, enums y `@ConfigMapping` (`codigo()`, `claveMensaje()`), `map*` de MapStruct, `existsBy*`/`find*`/`persist` de Panache, los niveles de `LogCodificado` (`error`, `info`...), las fábricas con nombre de `Respuestas` (`Respuestas.creado`) y los constructores de columnas del DSL de `CatalogoDef` (`texto`, `decimal`...). Imports ordenados:
 `java`/`javax`, `jakarta`, `org`, `io`, otros `com`, `com.facturacion`; separados por una línea en blanco y sin imports sin uso.
 
 **Base de datos.** Las migraciones Flyway ya aplicadas no se editan: un cambio es una migración nueva. Toda tabla o columna nueva lleva su

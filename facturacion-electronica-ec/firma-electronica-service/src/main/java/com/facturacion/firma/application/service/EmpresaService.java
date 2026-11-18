@@ -15,6 +15,8 @@ import io.smallrye.mutiny.Uni;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.facturacion.commons.error.ErrorComun;
+import com.facturacion.commons.exception.ErrorInternoException;
 import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.commons.paging.PagedResponse;
 import com.facturacion.firma.application.dto.ActualizarEmpresaRequest;
@@ -33,6 +35,7 @@ import com.facturacion.firma.domain.repository.EmpresaRepository;
 import com.facturacion.firma.domain.repository.EstablecimientoRepository;
 import com.facturacion.firma.domain.repository.PuntoEmisionRepository;
 import com.facturacion.firma.shared.constant.MessagingConstants;
+import com.facturacion.firma.shared.error.FirmaError;
 import com.facturacion.firma.shared.exception.RucDuplicadoException;
 
 @ApplicationScoped
@@ -158,7 +161,7 @@ public class EmpresaService {
     @WithTransaction
     public Uni<EmpresaResponse> actualizarEmpresa(UUID id, @Valid ActualizarEmpresaRequest request) {
         return repository.findById(id)
-            .onItem().ifNull().failWith(() -> new NotFoundException("Empresa no encontrada: " + id))
+            .onItem().ifNull().failWith(() -> new NotFoundException(FirmaError.EMPRESA_NO_ENCONTRADA, id))
             .onItem().transformToUni(existente -> {
                 existente.setRazonSocial(request.getRazonSocial());
                 existente.setNombreComercial(request.getNombreComercial());
@@ -188,7 +191,7 @@ public class EmpresaService {
     @WithSession
     public Uni<EmpresaResponse> obtenerPorId(UUID id) {
         return repository.findById(id)
-            .onItem().ifNull().failWith(() -> new NotFoundException("Empresa no encontrada: " + id))
+            .onItem().ifNull().failWith(() -> new NotFoundException(FirmaError.EMPRESA_NO_ENCONTRADA, id))
             .map(mapper::toResponse);
     }
 
@@ -234,7 +237,7 @@ public class EmpresaService {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("No se pudo serializar el payload del outbox", e);
+            throw new ErrorInternoException(e, ErrorComun.PAYLOAD_NO_SERIALIZABLE);
         }
     }
 }

@@ -43,17 +43,17 @@ public class LogFallosMensajeriaInterceptor {
     }
 
     private static void registrarFalla(InvocationContext contexto, Throwable falla) {
-        LogCodificado.error(LOG, CodigoLogComun.MENSAJE_FALLIDO, idsDelMensaje(contexto.getParameters()),
-            canal(contexto.getMethod()), falla.getClass().getSimpleName());
+        LogCodificado.error(LOG, CodigoLogComun.MENSAJE_FALLIDO, extraerIdsDelMensaje(contexto.getParameters()),
+            obtenerCanal(contexto.getMethod()), falla.getClass().getSimpleName());
     }
 
-    static String canal(Method metodo) {
+    static String obtenerCanal(Method metodo) {
         Incoming incoming = metodo == null ? null : metodo.getAnnotation(Incoming.class);
         return incoming == null ? "desconocido" : incoming.value();
     }
 
     /** {@code eventId=…, comprobanteId=…} del primer parámetro, si es un mensaje que los expone; vacío si no. */
-    static String idsDelMensaje(Object[] parametros) {
+    static String extraerIdsDelMensaje(Object[] parametros) {
         if (parametros == null || parametros.length == 0 || parametros[0] == null) {
             return null;
         }

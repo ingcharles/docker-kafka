@@ -30,17 +30,13 @@ public class Item {
     private BigDecimal stockMinimo;
     private boolean activo;
 
-    // Clasificación tributaria — fuente de verdad para que comprobantes-service
-    // tome el impuesto automáticamente cuando una línea solo trae itemId (ver
-    // ARQUITECTURA.md). codigoImpuesto/codigoPorcentaje son obligatorios
-    // (Tabla 16/17 del SRI) y la tarifa NO se guarda: se resuelve contra el
-    // catálogo (catalogos-service) a la fecha de uso; el bloque ICE es opcional
-    // y sí lleva su tarifa (la Tabla 18 no está en el catálogo).
-    private String codigoImpuesto;
-    private String codigoPorcentaje;
-    private boolean tieneIce;
-    private String codigoPorcentajeIce;
-    private BigDecimal tarifaIce;
+    // Clasificación tributaria: fuente de verdad para que comprobantes-service tome los impuestos cuando una línea solo
+    // trae itemId. Solo códigos (Tablas 17 y 18): la tarifa y su tipo salen del catálogo a la fecha de emisión.
+    private String codigoPorcentajeIva;
+    /** Código de ICE (Tabla 18) o null si el ítem no lleva ICE. */
+    private String codigoIce;
+    /** Código de IRBPNR (5001) o null si no lo lleva. */
+    private String codigoIrbpnr;
 
     private Instant creadoEn;
     private Instant actualizadoEn;
@@ -50,9 +46,9 @@ public class Item {
 
     public Item(UUID id, String ruc, TipoItem tipo, UUID categoriaId, String codigoPrincipal, String codigoAuxiliar,
             String descripcion, BigDecimal precioUnitario, String unidadMedida, BigDecimal cantidadDisponible,
-            BigDecimal cantidadReservada, BigDecimal stockMinimo, boolean activo, String codigoImpuesto,
-            String codigoPorcentaje, boolean tieneIce, String codigoPorcentajeIce,
-            BigDecimal tarifaIce, Instant creadoEn, Instant actualizadoEn) {
+            BigDecimal cantidadReservada, BigDecimal stockMinimo, boolean activo,
+            String codigoPorcentajeIva, String codigoIce, String codigoIrbpnr, Instant creadoEn,
+            Instant actualizadoEn) {
         this.id = id;
         this.ruc = ruc;
         this.tipo = tipo;
@@ -66,11 +62,9 @@ public class Item {
         this.cantidadReservada = cantidadReservada;
         this.stockMinimo = stockMinimo;
         this.activo = activo;
-        this.codigoImpuesto = codigoImpuesto;
-        this.codigoPorcentaje = codigoPorcentaje;
-        this.tieneIce = tieneIce;
-        this.codigoPorcentajeIce = codigoPorcentajeIce;
-        this.tarifaIce = tarifaIce;
+        this.codigoPorcentajeIva = codigoPorcentajeIva;
+        this.codigoIce = codigoIce;
+        this.codigoIrbpnr = codigoIrbpnr;
         this.creadoEn = creadoEn;
         this.actualizadoEn = actualizadoEn;
     }
@@ -183,44 +177,12 @@ public class Item {
         this.activo = activo;
     }
 
-    public String getCodigoImpuesto() {
-        return codigoImpuesto;
+    public String getCodigoPorcentajeIva() {
+        return codigoPorcentajeIva;
     }
 
-    public void setCodigoImpuesto(String codigoImpuesto) {
-        this.codigoImpuesto = codigoImpuesto;
-    }
-
-    public String getCodigoPorcentaje() {
-        return codigoPorcentaje;
-    }
-
-    public void setCodigoPorcentaje(String codigoPorcentaje) {
-        this.codigoPorcentaje = codigoPorcentaje;
-    }
-
-    public boolean isTieneIce() {
-        return tieneIce;
-    }
-
-    public void setTieneIce(boolean tieneIce) {
-        this.tieneIce = tieneIce;
-    }
-
-    public String getCodigoPorcentajeIce() {
-        return codigoPorcentajeIce;
-    }
-
-    public void setCodigoPorcentajeIce(String codigoPorcentajeIce) {
-        this.codigoPorcentajeIce = codigoPorcentajeIce;
-    }
-
-    public BigDecimal getTarifaIce() {
-        return tarifaIce;
-    }
-
-    public void setTarifaIce(BigDecimal tarifaIce) {
-        this.tarifaIce = tarifaIce;
+    public void setCodigoPorcentajeIva(String codigoPorcentajeIva) {
+        this.codigoPorcentajeIva = codigoPorcentajeIva;
     }
 
     public Instant getCreadoEn() {
@@ -237,5 +199,21 @@ public class Item {
 
     public void setActualizadoEn(Instant actualizadoEn) {
         this.actualizadoEn = actualizadoEn;
+    }
+
+    public String getCodigoIce() {
+        return codigoIce;
+    }
+
+    public void setCodigoIce(String codigoIce) {
+        this.codigoIce = codigoIce;
+    }
+
+    public String getCodigoIrbpnr() {
+        return codigoIrbpnr;
+    }
+
+    public void setCodigoIrbpnr(String codigoIrbpnr) {
+        this.codigoIrbpnr = codigoIrbpnr;
     }
 }

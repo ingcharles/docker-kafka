@@ -23,8 +23,8 @@ class LogoEmpresaServiceTest {
 
     @Test
     void reconoceUnPngYUnJpegPorSuCabecera() {
-        assertEquals("image/png", LogoEmpresaService.tipoDe(conCabecera(PNG, 1000)));
-        assertEquals("image/jpeg", LogoEmpresaService.tipoDe(conCabecera(JPEG, 1000)));
+        assertEquals("image/png", LogoEmpresaService.detectarTipo(conCabecera(PNG, 1000)));
+        assertEquals("image/jpeg", LogoEmpresaService.detectarTipo(conCabecera(JPEG, 1000)));
     }
 
     @Test
@@ -33,15 +33,15 @@ class LogoEmpresaServiceTest {
         byte[] pdf = "%PDF-1.7".getBytes();
         byte[] ejecutable = {'M', 'Z', 0, 0, 0};
 
-        assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.tipoDe(gif));
-        assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.tipoDe(pdf));
-        assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.tipoDe(ejecutable));
+        assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.detectarTipo(gif));
+        assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.detectarTipo(pdf));
+        assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.detectarTipo(ejecutable));
     }
 
     @Test
     void rechazaUnArchivoVacioONulo() {
-        assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.tipoDe(new byte[0]));
-        assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.tipoDe(null));
+        assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.detectarTipo(new byte[0]));
+        assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.detectarTipo(null));
     }
 
     @Test
@@ -49,14 +49,14 @@ class LogoEmpresaServiceTest {
         byte[] justo = conCabecera(PNG, LogoEmpresaService.MAXIMO_BYTES);
         byte[] pasado = conCabecera(PNG, LogoEmpresaService.MAXIMO_BYTES + 1);
 
-        assertEquals("image/png", LogoEmpresaService.tipoDe(justo));
-        LogoInvalidoException e = assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.tipoDe(pasado));
+        assertEquals("image/png", LogoEmpresaService.detectarTipo(justo));
+        LogoInvalidoException e = assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.detectarTipo(pasado));
         assertEquals(true, e.getMessage().contains("máximo"));
     }
 
     @Test
     void unaCabeceraIncompletaNoEsUnPng() {
         byte[] truncado = Arrays.copyOf(PNG, 4);
-        assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.tipoDe(truncado));
+        assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.detectarTipo(truncado));
     }
 }

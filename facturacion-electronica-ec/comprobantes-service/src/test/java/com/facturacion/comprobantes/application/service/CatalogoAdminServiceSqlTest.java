@@ -17,15 +17,15 @@ import com.facturacion.comprobantes.domain.model.enums.Catalogo;
 class CatalogoAdminServiceSqlTest {
 
     private static String sql(Catalogo catalogo) {
-        return CatalogoAdminService.upsertSql(CatalogoDef.buscar(catalogo.nombre()).orElseThrow());
+        return CatalogoAdminService.armarUpsertSql(CatalogoDef.buscar(catalogo.nombre()).orElseThrow());
     }
 
     @Test
     void decimalesYFechasSeDeclaranComoTextoAntesDeConvertirse() {
         String sql = sql(Catalogo.TARIFA_IMPUESTO);
         assertTrue(sql.contains("$4::text::numeric"), sql); // tarifa
-        assertTrue(sql.contains("$5::text::date"), sql);    // vigente_desde
-        assertTrue(sql.contains("$6::text::date"), sql);    // vigente_hasta
+        assertTrue(sql.contains("$6::text::date"), sql);    // vigente_desde
+        assertTrue(sql.contains("$7::text::date"), sql);    // vigente_hasta
     }
 
     @Test

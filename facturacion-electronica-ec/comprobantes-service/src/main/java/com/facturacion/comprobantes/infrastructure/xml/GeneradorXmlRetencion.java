@@ -1,19 +1,20 @@
 package com.facturacion.comprobantes.infrastructure.xml;
 
-import java.time.format.DateTimeFormatter;
 
 import jakarta.enterprise.context.ApplicationScoped;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import com.facturacion.commons.exception.ErrorInternoException;
+import com.facturacion.commons.time.FechasSri;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.DocumentoSustento;
 import com.facturacion.comprobantes.domain.model.vo.Impuesto;
 import com.facturacion.comprobantes.domain.model.vo.ImpuestoDocSustento;
 import com.facturacion.comprobantes.domain.service.GeneradorXmlComprobante;
-import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /**
  * Genera el XML del Comprobante de Retención conforme a la ficha técnica
@@ -30,10 +31,9 @@ import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 public class GeneradorXmlRetencion implements GeneradorXmlComprobante {
 
     private static final String VERSION_XSD = "2.0.0";
-    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     @Override
-    public boolean soporta(TipoComprobante tipo) {
+    public boolean esTipoSoportado(TipoComprobante tipo) {
         return tipo == TipoComprobante.RETENCION;
     }
 
@@ -57,7 +57,7 @@ public class GeneradorXmlRetencion implements GeneradorXmlComprobante {
 
             return XmlComprobanteUtil.serializar(doc);
         } catch (Exception e) {
-            throw new IllegalStateException("No se pudo generar el XML del comprobante de retención " + c.getId(), e);
+            throw new ErrorInternoException(e, CodigoError.XML_NO_GENERADO, c.getTipoComprobante().nombre(), c.getId());
         }
     }
 
@@ -83,8 +83,8 @@ public class GeneradorXmlRetencion implements GeneradorXmlComprobante {
     private Element construirInfoCompRetencion(Document doc, Comprobante c) {
         Element info = doc.createElement("infoCompRetencion");
         XmlComprobanteUtil.agregarTexto(doc, info, "fechaEmision",
-            FORMATO_FECHA.format(c.getFechaEmision().atZone(ZonaHoraria.ECUADOR)));
-        XmlComprobanteUtil.agregarTexto(doc, info, "dirEstablecimiento", XmlComprobanteUtil.direccionEstablecimiento(c));
+            FechasSri.formatearFecha(c.getFechaEmision()));
+        XmlComprobanteUtil.agregarTexto(doc, info, "dirEstablecimiento", XmlComprobanteUtil.obtenerDireccionEstablecimiento(c));
         if (c.isEmpresaContribuyenteEspecial() && c.getEmpresaNumeroContribuyenteEspecial() != null) {
             XmlComprobanteUtil.agregarTexto(doc, info, "contribuyenteEspecial", c.getEmpresaNumeroContribuyenteEspecial());
         }

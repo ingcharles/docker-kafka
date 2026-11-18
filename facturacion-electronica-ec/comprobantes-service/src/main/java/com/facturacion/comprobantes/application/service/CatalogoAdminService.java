@@ -18,6 +18,7 @@ import io.vertx.mutiny.sqlclient.Tuple;
 import io.vertx.pgclient.PgException;
 
 import com.facturacion.commons.exception.ErrorNegocioException;
+import com.facturacion.commons.time.FechasSri;
 import com.facturacion.comprobantes.domain.catalogo.CatalogoDef;
 import com.facturacion.comprobantes.domain.catalogo.CatalogoDef.Columna;
 import com.facturacion.comprobantes.domain.catalogo.CatalogoDef.Tipo;
@@ -60,7 +61,7 @@ public class CatalogoAdminService {
             sql.append(" where activo = true");
             if (def.tieneVigencia()) {
                 sql.append(" and vigente_desde <= $1::text::date and (vigente_hasta is null or vigente_hasta >= $1::text::date)");
-                params.addString((fecha == null ? LocalDate.now() : fecha).toString());
+                params.addString((fecha == null ? FechasSri.obtenerHoy() : fecha).toString());
             }
         }
         sql.append(" order by ").append(def.listarClaves().stream().map(Columna::nombre).collect(Collectors.joining(", ")));
@@ -69,7 +70,7 @@ public class CatalogoAdminService {
             : pool.preparedQuery(sql.toString()).execute(params);
         return consulta.map(filas -> {
             List<Map<String, Object>> resultado = new ArrayList<>();
-            filas.forEach(fila -> resultado.add(aMapa(def, fila)));
+            filas.forEach(fila -> resultado.add(convertirAMapa(def, fila)));
             return resultado;
         });
     }
@@ -86,8 +87,8 @@ public class CatalogoAdminService {
                 params.addString((String) valor);
             }
         }
-        return pool.preparedQuery(upsertSql(def)).execute(params)
-            .map(filas -> aMapa(def, filas.iterator().next()))
+        return pool.preparedQuery(armarUpsertSql(def)).execute(params)
+            .map(filas -> convertirAMapa(def, filas.iterator().next()))
             .onFailure(PgException.class).transform(CatalogoAdminService::traducir);
     }
 
@@ -96,7 +97,7 @@ public class CatalogoAdminService {
      * {@code ::text} y de ahí se convierte. Con un simple {@code $n::numeric} el cliente de Postgres esperaría un
      * tipo numérico y rechazaría el String. Estático y sin estado para poder probar el SQL generado.
      */
-    static String upsertSql(CatalogoDef def) {
+    static String armarUpsertSql(CatalogoDef def) {
         List<Columna> columnas = def.columnas();
         String insertCols = columnas.stream().map(Columna::nombre).collect(Collectors.joining(", "));
         StringBuilder placeholders = new StringBuilder();
@@ -125,7 +126,7 @@ public class CatalogoAdminService {
         }).collect(Collectors.joining(", "));
     }
 
-    private static Map<String, Object> aMapa(CatalogoDef def, Row fila) {
+    private static Map<String, Object> convertirAMapa(CatalogoDef def, Row fila) {
         Map<String, Object> mapa = new LinkedHashMap<>();
         for (Columna c : def.columnas()) {
             mapa.put(c.nombre(), c.tipo() == Tipo.BOOLEANO ? fila.getBoolean(c.nombre()) : fila.getString(c.nombre()));

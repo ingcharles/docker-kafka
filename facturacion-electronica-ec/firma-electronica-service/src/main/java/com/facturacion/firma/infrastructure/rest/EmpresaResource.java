@@ -27,11 +27,10 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
-import io.smallrye.mutiny.infrastructure.Infrastructure;
-import io.vertx.core.Vertx;
 
+import com.facturacion.commons.exception.ErrorNegocioException;
+import com.facturacion.commons.reactive.TrabajoBloqueante;
 import com.facturacion.commons.rest.Respuestas;
-import com.facturacion.commons.exception.SinPermisoException;
 import com.facturacion.commons.paging.PageRequest;
 import com.facturacion.commons.paging.PagedResponse;
 import com.facturacion.commons.security.PermiteSesion;
@@ -49,6 +48,7 @@ import com.facturacion.firma.application.service.CertificadoService;
 import com.facturacion.firma.application.service.ConfiguracionEmpresaService;
 import com.facturacion.firma.application.service.EmpresaService;
 import com.facturacion.firma.infrastructure.security.AccesoEmpresa;
+import com.facturacion.firma.shared.error.FirmaError;
 
 /**
  * CRUD de empresas (multi-tenant) y carga del certificado de firma
@@ -107,9 +107,8 @@ public class EmpresaResource {
     public Uni<Response> crear(@Valid CrearEmpresaRequest request, @Context UriInfo uriInfo) {
         // tokenPrincipal.getRuc() == null significa token de sesión (sin
         // claim ruc) — nada que comparar todavía, ver el javadoc de arriba.
-        if (tokenPrincipal.getRuc() != null && !tokenPrincipal.esDeLaEmpresa(request.getRuc())) {
-            throw new SinPermisoException(
-                "La api-key usada es para el ruc " + tokenPrincipal.getRuc() + ", no para " + request.getRuc());
+        if (tokenPrincipal.getRuc() != null) {
+            tokenPrincipal.exigirEmpresa(request.getRuc());
         }
         return empresaService.crearEmpresa(request, tokenPrincipal.getUsuarioId())
             .map(response -> {
@@ -164,20 +163,13 @@ public class EmpresaResource {
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id,
             @Valid @BeanParam SubirCertificadoRequest form,
             @Context UriInfo uriInfo) {
-        // Leer el archivo subido es IO bloqueante — se corre en el worker
-        // pool, y se vuelve al contexto de Vert.x antes de que
-        // certificadoService.subirCertificado (que abre una sesión de
-        // Hibernate Reactive) siga la cadena. Mismo motivo que el salto de
-        // contexto dentro de CertificadoService.
-        io.vertx.core.Context callingContext = Vertx.currentContext();
+        // Leer el archivo subido es IO bloqueante: va por TrabajoBloqueante (fuera del event loop y de vuelta al contexto
+        // de Vert.x antes de que certificadoService abra una sesión de Hibernate Reactive).
         // Primero se comprueba que la empresa sea la de la api-key: no se lee el archivo subido si no lo es.
-        // OJO: el worker pool es SOLO para leer el archivo (IO bloqueante). La comprobación de acceso usa Hibernate
-        // Reactive y debe correr en el hilo de eventos de Vert.x; si runSubscriptionOn envolviera toda la cadena, fallaría
-        // con HR000068.
+        // OJO: solo la lectura del archivo va fuera del event loop; la comprobación de acceso usa Hibernate Reactive y
+        // debe correr en el hilo de eventos de Vert.x (envolver toda la cadena fallaría con HR000068).
         return acceso.exigirEmpresaAdmin(id)
-            .chain(() -> Uni.createFrom().item(() -> leerArchivo(form))
-                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run())))
+            .chain(() -> TrabajoBloqueante.ejecutar(() -> leerArchivo(form)))
             .onItem().transformToUni(contenido ->
                 certificadoService.subirCertificado(id, contenido, form.contrasena))
             .map(response -> Respuestas.creado(uriInfo.getAbsolutePath(), response));
@@ -220,12 +212,9 @@ public class EmpresaResource {
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id,
             @Valid @BeanParam SubirLogoRequest form,
             @Context UriInfo uriInfo) {
-        io.vertx.core.Context callingContext = Vertx.currentContext();
-        // Igual que el certificado: el archivo se lee en el worker pool y se vuelve al contexto de Vert.x para Hibernate.
+        // Igual que el certificado: el archivo se lee fuera del event loop y se vuelve al contexto de Vert.x para Hibernate.
         return acceso.exigirEmpresaAdmin(id)
-            .chain(() -> Uni.createFrom().item(() -> leerArchivoLogo(form))
-                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run())))
+            .chain(() -> TrabajoBloqueante.ejecutar(() -> leerArchivoLogo(form)))
             .onItem().transformToUni(contenido -> logoService.subir(id, contenido))
             .map(logo -> Respuestas.creado(uriInfo.getAbsolutePath(), logo));
     }
@@ -322,7 +311,7 @@ public class EmpresaResource {
         try {
             return Files.readAllBytes(form.archivo.uploadedFile());
         } catch (Exception e) {
-            throw new IllegalArgumentException("No se pudo leer el archivo del logo subido", e);
+            throw new ErrorNegocioException(FirmaError.ARCHIVO_LOGO_ILEGIBLE);
         }
     }
 
@@ -330,7 +319,7 @@ public class EmpresaResource {
         try {
             return Files.readAllBytes(form.archivo.uploadedFile());
         } catch (Exception e) {
-            throw new IllegalArgumentException("No se pudo leer el archivo del certificado subido", e);
+            throw new ErrorNegocioException(FirmaError.ARCHIVO_CERTIFICADO_ILEGIBLE);
         }
     }
 }

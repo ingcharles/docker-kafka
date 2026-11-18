@@ -52,7 +52,7 @@ public class ComprobanteEventConsumer {
             LogCodificado.warn(LOG, CodigoLog.SIN_CORREO_RECEPTOR, "comprobanteId=" + evento.comprobanteId());
             return Uni.createFrom().voidItem();
         }
-        return processedMessageRepository.alreadyProcessed(evento.eventId())
+        return processedMessageRepository.esMensajeProcesado(evento.eventId())
             .onItem().transformToUni(processed -> {
                 if (Boolean.TRUE.equals(processed)) {
                     LogCodificado.info(LOG, CodigoLog.EVENTO_DUPLICADO_DESCARTADO, "comprobanteId=" + evento.comprobanteId(),

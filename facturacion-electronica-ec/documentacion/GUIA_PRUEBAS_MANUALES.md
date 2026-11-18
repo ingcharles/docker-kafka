@@ -351,9 +351,7 @@ una categoría de otra empresa responde `404` (también al asignarla a un ítem)
   "cantidadInicial": 20,
   "costoInicial": 220.00,
   "stockMinimo": 5,
-  "codigoImpuesto": "2",
-  "codigoPorcentaje": "4",
-  "tieneIce": false
+  "codigoPorcentajeIva": "4"
 }
 ```
 Guarda el `id` de la respuesta — es el `itemId` opcional de la sección 5.
@@ -366,15 +364,15 @@ Guarda el `id` de la respuesta — es el `itemId` opcional de la sección 5.
   "codigoPrincipal": "SERV01",
   "descripcion": "Instalación y configuración",
   "precioUnitario": 50.00,
-  "codigoImpuesto": "2",
-  "codigoPorcentaje": "4"
+  "codigoPorcentajeIva": "4"
 }
 ```
 
-> **Tarifa de IVA:** el ítem guarda solo `codigoImpuesto` + `codigoPorcentaje` (Tabla 16/17). La tarifa no se manda ni se guarda
-> ni aparece en la respuesta: se resuelve al **facturar**, desde el catálogo de `comprobantes-service` (sección 9). Un
-> `codigoPorcentaje` inexistente se detecta al emitir la factura, no al crear el ítem. `tieneIce=true` exige
-> `codigoPorcentajeIce` y `tarifaIce`.
+> **Impuestos del ítem:** el ítem guarda solo **códigos**, nunca tarifas: `codigoPorcentajeIva` (Tabla 17, obligatorio; no tiene valor por defecto
+> porque la tarifa cambia con la normativa) y, si corresponde, `codigoIce` (Tabla 18, p. ej. `3031`) y `codigoIrbpnr` (`5001`).
+> La tarifa y su tipo (porcentaje o por unidad) se resuelven al **facturar**, desde el catálogo `tarifa_impuesto` de
+> `comprobantes-service` (sección 9) a la fecha de emisión; un código inexistente se detecta al emitir, no al crear el ítem.
+> Ejemplo con ICE e IRBPNR: `"codigoPorcentajeIva": "4", "codigoIce": "3031", "codigoIrbpnr": "5001"`.
 
 ### 4.4 Actualizar un ítem
 `PUT http://localhost:8092/inventario/api/v1/items/{id}`
@@ -386,9 +384,7 @@ Guarda el `id` de la respuesta — es el `itemId` opcional de la sección 5.
   "unidadMedida": "unidad",
   "stockMinimo": 5,
   "activo": true,
-  "codigoImpuesto": "2",
-  "codigoPorcentaje": "4",
-  "tieneIce": false
+  "codigoPorcentajeIva": "4"
 }
 ```
 > No permite tocar existencias directamente (`cantidadInicial`/stock actual) —
@@ -444,6 +440,8 @@ solo del catálogo — si prefieres no depender de inventario-service, quita
 `itemId` y manda el bloque `impuestos` a mano (ver el comentario en cada ejemplo).
 
 ### 5.1 Factura
+> **ICE e IRBPNR en las líneas.** Cada `impuestos[]` lleva `codigo`, `codigoPorcentaje` y, opcionales, `tarifa` (si se manda debe coincidir con el catálogo), `tipoTarifa` (`PORCENTAJE` | `ESPECIFICA`, solo si el código tiene las dos, p. ej. ICE 3031) y `baseImponible` (solo ICE e IRBPNR: la base cuando no es el subtotal de la línea, p. ej. la base por PVP, o las unidades de una tarifa específica). Base y valor: porcentaje = base × tarifa / 100; específica = unidades (por defecto la cantidad) × tarifa; IVA = % sobre subtotal + ICE. Un código ICE que no esté en la Tabla 18 vigente responde 400.
+
 
 > **Descuento de inventario (bandera `INVENTARIO_DESCUENTO_HABILITADO` del orquestador, por defecto `true`).** Con la
 > bandera encendida, una **factura** cuyas líneas llevan `itemId` de un `PRODUCTO` reserva su stock antes de firmar: si no
@@ -722,6 +720,7 @@ where p.comprobante_id = '{comprobanteId}' order by p.orden;
 `GET http://localhost:8093/comprobantes/api/v1/comprobantes?limit=20&page=0&estado=AUTORIZADO&empresaRuc=1722039953001` — listar (filtros opcionales)
 `GET http://localhost:8093/comprobantes/api/v1/comprobantes/{id}/xml?tipo=generado` — XML; `tipo` = `generado` (default, sin firmar, siempre existe) | `firmado` | `autorizado` — 404 si esa etapa todavía no ocurrió
 `GET http://localhost:8093/comprobantes/api/v1/comprobantes/{id}/ride` — RIDE en PDF (solo si ya está `AUTORIZADO`)
+`GET http://localhost:8093/comprobantes/api/v1/comprobantes/{id}/ticket?formato=texto&ancho=80` — ticket (recibo corto) para impresora de recibos; `formato` = `texto` (default, texto plano) | `escpos` (bytes ESC/POS, se guarda con `-o ticket.bin` y se envía a la impresora); `ancho` = `80` (default, 48 columnas) | `58` (32 columnas). Sirve en cualquier estado; solo factura, notas y liquidación (guía y retención responden 400)
 
 ---
 

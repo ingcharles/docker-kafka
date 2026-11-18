@@ -16,7 +16,7 @@ public record RecepcionResultado(String estado, String mensajes, boolean claveYa
         this(estado, mensajes, false);
     }
 
-    public boolean recibida() {
+    public boolean crearRecibida() {
         return "RECIBIDA".equalsIgnoreCase(estado) || claveYaRegistrada;
     }
 }

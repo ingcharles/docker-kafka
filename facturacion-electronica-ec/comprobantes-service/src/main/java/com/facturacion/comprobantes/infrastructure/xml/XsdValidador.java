@@ -15,8 +15,11 @@ import jakarta.enterprise.context.ApplicationScoped;
 
 import org.xml.sax.SAXException;
 
+import com.facturacion.commons.exception.ErrorInternoException;
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.port.ValidadorXml;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /**
  * Valida el XML sin firmar de cada comprobante contra el XSD real y más
@@ -56,7 +59,7 @@ public class XsdValidador implements ValidadorXml {
      * correrlo en el worker pool de Mutiny, mismo criterio que
      * {@code CertificadoService.validarYExtraerMetadata}.
      *
-     * @throws IllegalArgumentException si el XML no cumple el XSD del SRI para ese tipo —
+     * @throws ErrorNegocioException si el XML no cumple el XSD del SRI para ese tipo —
      *         el mensaje incluye el motivo SAX exacto (línea/columna + descripción).
      */
     public void validar(TipoComprobante tipo, String xml) {
@@ -65,23 +68,22 @@ public class XsdValidador implements ValidadorXml {
         try {
             validator.validate(new StreamSource(new StringReader(xml)));
         } catch (SAXException e) {
-            throw new IllegalArgumentException(
-                "El XML generado no cumple el esquema XSD del SRI (" + tipo + "): " + e.getMessage(), e);
+            throw new ErrorNegocioException(CodigoError.XML_NO_CUMPLE_XSD, tipo.nombre(), e.getMessage());
         } catch (IOException e) {
-            throw new IllegalStateException("Error de E/S validando el XML contra el XSD", e);
+            throw new ErrorInternoException(e, CodigoError.XSD_ERROR_DE_ENTRADA_SALIDA);
         }
     }
 
     private Schema cargarSchema(String archivo) {
         URL recurso = getClass().getClassLoader().getResource("xsd/" + archivo);
         if (recurso == null) {
-            throw new IllegalStateException("No se encontró el XSD empaquetado: xsd/" + archivo);
+            throw new ErrorInternoException(CodigoError.XSD_NO_ENCONTRADO, archivo);
         }
         try {
             SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
             return factory.newSchema(recurso);
         } catch (SAXException e) {
-            throw new IllegalStateException("No se pudo compilar el XSD " + archivo, e);
+            throw new ErrorInternoException(e, CodigoError.XSD_NO_COMPILABLE, archivo);
         }
     }
 }

@@ -26,7 +26,7 @@ public class EstablecimientoLocalRepositoryImpl implements EstablecimientoLocalR
     }
 
     @Override
-    public Uni<EstablecimientoLocal> upsert(EstablecimientoLocal domain) {
+    public Uni<EstablecimientoLocal> insertarOActualizar(EstablecimientoLocal domain) {
         return repository.<EstablecimientoLocalEntity>find("ruc = ?1 and codigo = ?2", domain.getRuc(),
                 domain.getCodigo())
             .firstResult()

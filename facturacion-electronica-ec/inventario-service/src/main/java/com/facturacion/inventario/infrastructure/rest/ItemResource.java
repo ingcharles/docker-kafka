@@ -27,7 +27,6 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.commons.rest.Respuestas;
-import com.facturacion.commons.exception.SinPermisoException;
 import com.facturacion.commons.paging.PageRequest;
 import com.facturacion.commons.paging.PagedResponse;
 import com.facturacion.commons.security.TokenPrincipal;
@@ -76,10 +75,7 @@ public class ItemResource {
     @APIResponse(responseCode = "403", description = "La api-key no es del ruc del ítem")
     public Uni<Response> crear(@Valid CrearItemRequest request, @Context UriInfo uriInfo) {
         tokenPrincipal.exigirEscritura();
-        if (!tokenPrincipal.esDeLaEmpresa(request.getRuc())) {
-            throw new SinPermisoException(
-                "La api-key usada es para el ruc " + tokenPrincipal.getRuc() + ", no para " + request.getRuc());
-        }
+        tokenPrincipal.exigirEmpresa(request.getRuc());
         return itemService.crear(request)
             .map(response -> {
                 URI location = uriInfo.getAbsolutePathBuilder().path(response.getId().toString()).build();
@@ -119,9 +115,8 @@ public class ItemResource {
             @QueryParam("tipo") TipoItem tipo, @QueryParam("categoriaId") UUID categoriaId,
             @QueryParam("ruc") String ruc) {
         // El listado es siempre de la empresa de la api-key; pedir el de otro RUC es un error, no un resultado vacío.
-        if (ruc != null && !tokenPrincipal.esDeLaEmpresa(ruc)) {
-            throw new SinPermisoException("La api-key usada es para el ruc " + tokenPrincipal.getRuc()
-                + ", no para " + ruc);
+        if (ruc != null) {
+            tokenPrincipal.exigirEmpresa(ruc);
         }
         return itemService.listarPaginado(pageRequest.getPage(), pageRequest.getLimit(), tipo, categoriaId,
                 tokenPrincipal.getRuc())

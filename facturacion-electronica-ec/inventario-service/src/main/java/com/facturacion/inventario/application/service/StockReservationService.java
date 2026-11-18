@@ -54,12 +54,12 @@ public class StockReservationService {
      * servicio daría "stock insuficiente"). Un ítem que no existe sí cuenta como insuficiente.
      */
     public Uni<ResultadoReserva> reservarTodos(UUID comprobanteId, List<ItemCantidadPayload> items) {
-        return sinServicios(items).onItem().transformToUni(productos -> productos.isEmpty()
+        return excluirServicios(items).onItem().transformToUni(productos -> productos.isEmpty()
             ? Uni.createFrom().item(new ResultadoReserva(true, List.of()))
             : reservarProductos(comprobanteId, productos));
     }
 
-    private Uni<List<ItemCantidadPayload>> sinServicios(List<ItemCantidadPayload> items) {
+    private Uni<List<ItemCantidadPayload>> excluirServicios(List<ItemCantidadPayload> items) {
         return Multi.createFrom().iterable(items)
             .onItem().transformToUniAndConcatenate(item -> itemRepository.findById(item.itemId())
                 .map(encontrado -> new Revisado(item, encontrado != null && encontrado.getTipo() != TipoItem.PRODUCTO)))
@@ -74,7 +74,7 @@ public class StockReservationService {
 
         return Multi.createFrom().iterable(items)
             .onItem().transformToUniAndConcatenate(item -> itemRepository
-                .tryReservar(item.itemId(), item.cantidad())
+                .intentarReservar(item.itemId(), item.cantidad())
                 .onItem().invoke(filas -> {
                     if (filas != null && filas > 0) {
                         reservados.add(item.itemId());

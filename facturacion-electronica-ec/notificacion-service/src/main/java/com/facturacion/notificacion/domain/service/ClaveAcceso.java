@@ -15,7 +15,7 @@ public final class ClaveAcceso {
     }
 
     /** El RUC del emisor, o {@code null} si la clave no tiene el formato de 49 dígitos. */
-    public static String rucDelEmisor(String claveAcceso) {
+    public static String obtenerRucDelEmisor(String claveAcceso) {
         if (claveAcceso == null || claveAcceso.length() != LONGITUD || !claveAcceso.chars().allMatch(Character::isDigit)) {
             return null;
         }

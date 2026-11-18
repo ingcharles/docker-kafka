@@ -88,7 +88,7 @@ public class ItemRepositoryImpl implements ItemRepository {
     }
 
     @Override
-    public Uni<Integer> tryReservar(UUID itemId, BigDecimal cantidad) {
+    public Uni<Integer> intentarReservar(UUID itemId, BigDecimal cantidad) {
         return repository.update(
             "cantidadDisponible = cantidadDisponible - ?1, cantidadReservada = cantidadReservada + ?1, "
                 + "actualizadoEn = ?2 where id = ?3 and tipo = 'PRODUCTO' and cantidadDisponible >= ?1",

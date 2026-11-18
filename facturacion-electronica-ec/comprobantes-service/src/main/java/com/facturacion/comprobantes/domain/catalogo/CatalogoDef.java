@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,7 @@ import java.util.Optional;
 import com.facturacion.commons.error.Mensajes;
 import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.comprobantes.domain.model.enums.Catalogo;
+import com.facturacion.comprobantes.domain.model.enums.TipoTarifa;
 import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /**
@@ -30,6 +32,7 @@ public record CatalogoDef(Catalogo catalogo, List<Columna> columnas) {
     public static final String COL_VIGENTE_HASTA = "vigente_hasta";
     public static final String COL_TARIFA = "tarifa";
     public static final String COL_PORCENTAJE = "porcentaje";
+    public static final String COL_TIPO_TARIFA = "tipo_tarifa";
 
     /** "La ficha no publica fecha de inicio" — mismo valor por defecto que las tablas. */
     public static final LocalDate SIN_FECHA_INICIO = LocalDate.of(1900, 1, 1);
@@ -57,6 +60,10 @@ public record CatalogoDef(Catalogo catalogo, List<Columna> columnas) {
             return new Columna(nombre, Tipo.BOOLEANO, false, false, 0, String.valueOf(porDefecto));
         }
 
+        static Columna claveConDefecto(String nombre, int maxLong, String valorPorDefecto) {
+            return new Columna(nombre, Tipo.TEXTO, true, false, maxLong, valorPorDefecto);
+        }
+
         static Columna activo() {
             return booleano(COL_ACTIVO, true);
         }
@@ -78,9 +85,10 @@ public record CatalogoDef(Catalogo catalogo, List<Columna> columnas) {
         new CatalogoDef(Catalogo.TARIFA_IMPUESTO, List.of(
             Columna.texto("impuesto_codigo", 2, true),
             Columna.texto("codigo_porcentaje", 4, true),
-            Columna.texto("descripcion", 100, false),
+            Columna.texto("descripcion", 200, false),
             Columna.decimal(COL_TARIFA),
-            Columna.fechaDesde(false),
+            Columna.claveConDefecto(COL_TIPO_TARIFA, 10, TipoTarifa.PORCENTAJE.name()),
+            Columna.fechaDesde(true),
             Columna.fechaHasta(),
             Columna.activo())),
         new CatalogoDef(Catalogo.FORMA_PAGO, List.of(
@@ -167,7 +175,7 @@ public record CatalogoDef(Catalogo catalogo, List<Columna> columnas) {
             }
         }
         if (!errores.isEmpty()) {
-            throw ErrorNegocioException.conDetalles(CodigoError.CAMPOS_INVALIDOS, errores, nombre());
+            throw ErrorNegocioException.crearConDetalles(CodigoError.CAMPOS_INVALIDOS, errores, nombre());
         }
         validarRangos(valores);
         return valores;
@@ -213,13 +221,22 @@ public record CatalogoDef(Catalogo catalogo, List<Columna> columnas) {
     private void validarRangos(Map<String, Object> valores) {
         validarRango(valores, COL_TARIFA, MAXIMO_TARIFA);
         validarRango(valores, COL_PORCENTAJE, MAXIMO_PORCENTAJE);
+        validarTipoTarifa(valores);
         if (valores.get(COL_VIGENTE_HASTA) != null) {
             LocalDate desde = LocalDate.parse((String) valores.get(COL_VIGENTE_DESDE));
             LocalDate hasta = LocalDate.parse((String) valores.get(COL_VIGENTE_HASTA));
             if (hasta.isBefore(desde)) {
-                throw ErrorNegocioException.conDetalles(CodigoError.CAMPOS_INVALIDOS,
+                throw ErrorNegocioException.crearConDetalles(CodigoError.CAMPOS_INVALIDOS,
                     List.of(Mensajes.obtenerTexto(CodigoError.VIGENCIA_INVERTIDA)), nombre());
             }
+        }
+    }
+
+    private void validarTipoTarifa(Map<String, Object> valores) {
+        Object tipo = valores.get(COL_TIPO_TARIFA);
+        if (tipo != null && Arrays.stream(TipoTarifa.values()).noneMatch(t -> t.name().equals(tipo))) {
+            throw ErrorNegocioException.crearConDetalles(CodigoError.CAMPOS_INVALIDOS, List.of(Mensajes.obtenerTexto(
+                CodigoError.CAMPO_VALOR_NO_PERMITIDO, COL_TIPO_TARIFA, Arrays.toString(TipoTarifa.values()))), nombre());
         }
     }
 
@@ -227,7 +244,7 @@ public record CatalogoDef(Catalogo catalogo, List<Columna> columnas) {
         if (valores.get(campo) != null) {
             BigDecimal valor = new BigDecimal((String) valores.get(campo));
             if (valor.signum() < 0 || valor.compareTo(maximo) > 0) {
-                throw ErrorNegocioException.conDetalles(CodigoError.CAMPOS_INVALIDOS,
+                throw ErrorNegocioException.crearConDetalles(CodigoError.CAMPOS_INVALIDOS,
                     List.of(Mensajes.obtenerTexto(CodigoError.RANGO_FUERA_DE_LIMITES, campo, maximo.toPlainString())),
                     nombre());
             }

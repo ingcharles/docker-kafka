@@ -7,7 +7,7 @@ import com.facturacion.identidad.domain.model.entity.EmpresaLocal;
 public interface EmpresaLocalRepository {
 
     /** Upsert por id (empresaId) — se llama al recibir EmpresaRegistrada/EmpresaActualizada desde Kafka. */
-    Uni<EmpresaLocal> upsert(EmpresaLocal empresa);
+    Uni<EmpresaLocal> insertarOActualizar(EmpresaLocal empresa);
 
     /** Null si no existe ninguna copia local para ese ruc todavía. */
     Uni<EmpresaLocal> findByRuc(String ruc);

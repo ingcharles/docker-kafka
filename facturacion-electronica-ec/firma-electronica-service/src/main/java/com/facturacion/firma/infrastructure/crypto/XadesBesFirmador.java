@@ -39,6 +39,7 @@ import javax.xml.transform.stream.StreamResult;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import com.facturacion.firma.shared.error.FirmaError;
 import com.facturacion.firma.shared.exception.CertificadoInvalidoException;
 
 /**
@@ -152,7 +153,7 @@ public final class XadesBesFirmador {
         } catch (CertificadoInvalidoException e) {
             throw e;
         } catch (Exception e) {
-            throw new CertificadoInvalidoException("No se pudo firmar el comprobante: " + e.getMessage(), e);
+            throw new CertificadoInvalidoException(FirmaError.FIRMA_NO_REALIZADA, e, e.getMessage());
         }
     }
 
@@ -225,7 +226,7 @@ public final class XadesBesFirmador {
     private static String obtenerPrimerAlias(KeyStore keyStore) throws Exception {
         var alias = keyStore.aliases();
         if (!alias.hasMoreElements()) {
-            throw new CertificadoInvalidoException("El archivo .p12 no contiene ningún alias/entrada");
+            throw new CertificadoInvalidoException(FirmaError.CERTIFICADO_SIN_ENTRADAS);
         }
         return alias.nextElement();
     }

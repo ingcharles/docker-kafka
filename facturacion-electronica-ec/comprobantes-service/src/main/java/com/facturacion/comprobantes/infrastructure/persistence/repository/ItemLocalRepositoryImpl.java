@@ -28,7 +28,7 @@ public class ItemLocalRepositoryImpl implements ItemLocalRepository {
     }
 
     @Override
-    public Uni<ItemLocal> upsert(ItemLocal domain) {
+    public Uni<ItemLocal> insertarOActualizar(ItemLocal domain) {
         return repository.<ItemLocalEntity>findById(domain.getId())
             .onItem().transformToUni(existente -> {
                 if (existente == null) {
@@ -38,11 +38,9 @@ public class ItemLocalRepositoryImpl implements ItemLocalRepository {
                 existente.codigoPrincipal = domain.getCodigoPrincipal();
                 existente.descripcion = domain.getDescripcion();
                 existente.unidadMedida = domain.getUnidadMedida();
-                existente.codigoImpuesto = domain.getCodigoImpuesto();
-                existente.codigoPorcentaje = domain.getCodigoPorcentaje();
-                existente.tieneIce = domain.isTieneIce();
-                existente.codigoPorcentajeIce = domain.getCodigoPorcentajeIce();
-                existente.tarifaIce = domain.getTarifaIce();
+                existente.codigoPorcentajeIva = domain.getCodigoPorcentajeIva();
+                existente.codigoIce = domain.getCodigoIce();
+                existente.codigoIrbpnr = domain.getCodigoIrbpnr();
                 existente.activo = domain.isActivo();
                 existente.actualizadoEn = domain.getActualizadoEn();
                 return Uni.createFrom().item(mapper.toDomain(existente));

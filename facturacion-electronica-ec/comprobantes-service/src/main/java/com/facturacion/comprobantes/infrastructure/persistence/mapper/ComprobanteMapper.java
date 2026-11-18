@@ -15,6 +15,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.facturacion.commons.exception.ErrorInternoException;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.AmbienteSri;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
@@ -23,6 +24,7 @@ import com.facturacion.comprobantes.domain.model.vo.CampoAdicional;
 import com.facturacion.comprobantes.domain.model.vo.Pago;
 import com.facturacion.comprobantes.infrastructure.persistence.entity.ComprobanteEntity;
 import com.facturacion.comprobantes.infrastructure.persistence.entity.ComprobantePagoEntity;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /**
  * {@code detalles} sí se mapea automáticamente (vía {@link DetalleComprobanteMapper}),
@@ -86,7 +88,7 @@ public interface ComprobanteMapper {
         try {
             return JSON.writeValueAsString(campos == null ? List.of() : campos);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("No se pudo serializar los campos adicionales del comprobante", e);
+            throw new ErrorInternoException(e, CodigoError.CAMPOS_ADICIONALES_NO_SERIALIZABLES);
         }
     }
 
@@ -98,7 +100,7 @@ public interface ComprobanteMapper {
             return JSON.readValue(camposAdicionalesJson, new TypeReference<List<CampoAdicional>>() {
             });
         } catch (Exception e) {
-            throw new IllegalStateException("No se pudo leer los campos adicionales del comprobante", e);
+            throw new ErrorInternoException(e, CodigoError.CAMPOS_ADICIONALES_NO_LEIBLES);
         }
     }
 

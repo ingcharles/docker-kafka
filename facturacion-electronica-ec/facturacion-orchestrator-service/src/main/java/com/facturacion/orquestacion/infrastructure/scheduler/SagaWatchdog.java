@@ -57,7 +57,7 @@ public class SagaWatchdog {
         if (!habilitado) {
             return Uni.createFrom().voidItem();
         }
-        return servicio.idsParaRecuperar(plazos, LOTE)
+        return servicio.listarIdsParaRecuperar(plazos, LOTE)
             .onItem().transformToMulti(ids -> Multi.createFrom().iterable(ids))
             .onItem().transformToUniAndConcatenate(this::recuperar)
             .collect().asList()

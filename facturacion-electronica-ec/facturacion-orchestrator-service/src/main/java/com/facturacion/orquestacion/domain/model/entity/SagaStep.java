@@ -40,7 +40,7 @@ public class SagaStep {
      * {@code codigo} es corto (va en {@code step_name}, varchar(100)); el {@code detalle}, que puede ser largo, va en
      * {@code payload} (text). Un detalle largo en step_name hacía fallar toda la transacción del watchdog.
      */
-    public static SagaStep nota(UUID sagaId, String codigo, String detalle) {
+    public static SagaStep crearNota(UUID sagaId, String codigo, String detalle) {
         SagaStep step = new SagaStep();
         step.id = UUID.randomUUID();
         step.sagaId = sagaId;

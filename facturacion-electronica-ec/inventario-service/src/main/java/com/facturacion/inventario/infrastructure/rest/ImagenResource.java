@@ -25,15 +25,16 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
-import io.smallrye.mutiny.infrastructure.Infrastructure;
-import io.vertx.core.Vertx;
 
+import com.facturacion.commons.exception.ErrorNegocioException;
+import com.facturacion.commons.reactive.TrabajoBloqueante;
 import com.facturacion.commons.rest.Respuestas;
 import com.facturacion.inventario.application.dto.ImagenItemResponse;
 import com.facturacion.inventario.application.dto.SubirImagenRequest;
 import com.facturacion.inventario.application.service.ImagenService;
 import com.facturacion.inventario.domain.model.entity.ImagenItem;
 import com.facturacion.inventario.infrastructure.security.AccesoEmpresa;
+import com.facturacion.inventario.shared.error.CodigoError;
 
 /**
  * Imágenes de productos y servicios. El contenido se guarda en Postgres
@@ -69,15 +70,11 @@ public class ImagenResource {
     public Uni<Response> subir(
             @Parameter(description = "Id del ítem", required = true) @PathParam("id") UUID id,
             @Valid @BeanParam SubirImagenRequest form, @Context UriInfo uriInfo) {
-        io.vertx.core.Context callingContext = Vertx.currentContext();
         // Primero se comprueba que el ítem sea de la empresa de la api-key: no se lee el archivo subido si no lo es.
-        // OJO: el worker pool es SOLO para leer el archivo (IO bloqueante). La comprobación de acceso usa Hibernate
-        // Reactive y debe correr en el hilo de eventos de Vert.x; si runSubscriptionOn envolviera toda la cadena, fallaría
-        // con HR000068.
+        // OJO: solo la lectura del archivo va fuera del event loop; la comprobación de acceso usa Hibernate Reactive y
+        // debe correr en el hilo de eventos de Vert.x (envolver toda la cadena fallaría con HR000068).
         return acceso.exigirItemEscritura(id)
-            .chain(() -> Uni.createFrom().item(() -> leerArchivo(form))
-                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run())))
+            .chain(() -> TrabajoBloqueante.ejecutar(() -> leerArchivo(form)))
             .onItem().transformToUni(contenido -> imagenService.subirImagen(id, contenido,
                 form.archivo.fileName(), form.archivo.contentType(), form.esPrincipal, form.orden))
             .map(response -> {
@@ -129,7 +126,7 @@ public class ImagenResource {
         try {
             return Files.readAllBytes(form.archivo.uploadedFile());
         } catch (Exception e) {
-            throw new IllegalArgumentException("No se pudo leer el archivo de imagen subido", e);
+            throw new ErrorNegocioException(CodigoError.ARCHIVO_IMAGEN_ILEGIBLE);
         }
     }
 }

@@ -16,6 +16,7 @@ import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.commons.exception.ConflictoException;
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.identidad.application.dto.ApiKeyCreadaResponse;
 import com.facturacion.identidad.application.dto.ApiKeyResponse;
@@ -28,6 +29,7 @@ import com.facturacion.identidad.domain.repository.ApiKeyRepository;
 import com.facturacion.identidad.domain.repository.EstablecimientoLocalRepository;
 import com.facturacion.identidad.domain.repository.PuntoEmisionLocalRepository;
 import com.facturacion.identidad.domain.repository.UsuarioEmpresaRolRepository;
+import com.facturacion.identidad.shared.error.IdentidadError;
 import com.facturacion.identidad.shared.exception.SinAsociacionException;
 
 /**
@@ -68,7 +70,7 @@ public class ApiKeyService {
     public Uni<ApiKeyCreadaResponse> crear(UUID usuarioId, @Valid CrearApiKeyRequest request) {
         if (request.getPuntoEmision() != null && request.getEstablecimiento() == null) {
             return Uni.createFrom().failure(
-                new IllegalArgumentException("puntoEmision requiere que también se indique establecimiento"));
+                new ErrorNegocioException(IdentidadError.PUNTO_EMISION_SIN_ESTABLECIMIENTO));
         }
         return empresaRolRepository.findByUsuarioIdAndRuc(usuarioId, request.getRuc())
             .onItem().transformToUni(asociacion -> {
@@ -80,7 +82,7 @@ public class ApiKeyService {
                     .onItem().transformToUni(existe -> {
                         if (Boolean.TRUE.equals(existe)) {
                             return Uni.createFrom().failure(
-                                new ConflictoException("Ya existe una api-key llamada '" + request.getNombre() + "' para este usuario"));
+                                new ConflictoException(IdentidadError.API_KEY_NOMBRE_DUPLICADO, request.getNombre()));
                         }
                         int dias = Math.min(request.getExpiracionEnDias() == null || request.getExpiracionEnDias() <= 0
                             ? maxDiasExpiracion
@@ -134,9 +136,8 @@ public class ApiKeyService {
         return establecimientoLocalRepository.findByRucAndCodigo(request.getRuc(), request.getEstablecimiento())
             .onItem().transformToUni(establecimiento -> {
                 if (establecimiento == null || !establecimiento.isActivo()) {
-                    return Uni.createFrom().failure(new NotFoundException(
-                        "No existe un establecimiento activo '" + request.getEstablecimiento() + "' para el ruc "
-                            + request.getRuc()));
+                    return Uni.createFrom().failure(new NotFoundException(IdentidadError.ESTABLECIMIENTO_ACTIVO_NO_ENCONTRADO,
+                        request.getEstablecimiento(), request.getRuc()));
                 }
                 if (request.getPuntoEmision() == null) {
                     return Uni.createFrom().voidItem();
@@ -145,10 +146,8 @@ public class ApiKeyService {
                         request.getEstablecimiento(), request.getPuntoEmision())
                     .onItem().transformToUni(puntoEmision -> {
                         if (puntoEmision == null || !puntoEmision.isActivo()) {
-                            return Uni.createFrom().failure(new NotFoundException(
-                                "No existe un punto de emisión activo '" + request.getPuntoEmision()
-                                    + "' para el establecimiento '" + request.getEstablecimiento() + "' del ruc "
-                                    + request.getRuc()));
+                            return Uni.createFrom().failure(new NotFoundException(IdentidadError.PUNTO_EMISION_ACTIVO_NO_ENCONTRADO,
+                                request.getPuntoEmision(), request.getEstablecimiento(), request.getRuc()));
                         }
                         return Uni.createFrom().voidItem();
                     });
@@ -171,8 +170,7 @@ public class ApiKeyService {
         return apiKeyRepository.findById(apiKeyId)
             .onItem().transformToUni(apiKey -> {
                 if (apiKey == null || !apiKey.getUsuarioId().equals(usuarioId)) {
-                    return Uni.createFrom().failure(new NotFoundException(
-                        "No hay una api-key " + apiKeyId + " para este usuario"));
+                    return Uni.createFrom().failure(new NotFoundException(IdentidadError.API_KEY_NO_ENCONTRADA, apiKeyId));
                 }
                 return revocarYAvisar(apiKey);
             });

@@ -1,29 +1,29 @@
 package com.facturacion.comprobantes.infrastructure.xml;
 
 import java.math.BigDecimal;
-import java.time.format.DateTimeFormatter;
 
 import jakarta.enterprise.context.ApplicationScoped;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import com.facturacion.commons.exception.ErrorInternoException;
+import com.facturacion.commons.time.FechasSri;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.Impuesto;
 import com.facturacion.comprobantes.domain.service.GeneradorXmlComprobante;
-import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /** Genera el XML de Nota de Crédito conforme al Anexo de la ficha técnica del SRI (versión 1.1.0, la última disponible — ver {@code xsd/NotaCredito_V1.1.0.xsd}). */
 @ApplicationScoped
 public class GeneradorXmlNotaCredito implements GeneradorXmlComprobante {
 
     private static final String VERSION_XSD = "1.1.0";
-    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     @Override
-    public boolean soporta(TipoComprobante tipo) {
+    public boolean esTipoSoportado(TipoComprobante tipo) {
         return tipo == TipoComprobante.NOTA_CREDITO;
     }
 
@@ -47,7 +47,7 @@ public class GeneradorXmlNotaCredito implements GeneradorXmlComprobante {
 
             return XmlComprobanteUtil.serializar(doc);
         } catch (Exception e) {
-            throw new IllegalStateException("No se pudo generar el XML de la nota de crédito " + c.getId(), e);
+            throw new ErrorInternoException(e, CodigoError.XML_NO_GENERADO, c.getTipoComprobante().nombre(), c.getId());
         }
     }
 
@@ -73,9 +73,9 @@ public class GeneradorXmlNotaCredito implements GeneradorXmlComprobante {
     private Element construirInfoNotaCredito(Document doc, Comprobante c) {
         Element info = doc.createElement("infoNotaCredito");
         XmlComprobanteUtil.agregarTexto(doc, info, "fechaEmision",
-            FORMATO_FECHA.format(c.getFechaEmision().atZone(ZonaHoraria.ECUADOR)));
+            FechasSri.formatearFecha(c.getFechaEmision()));
         XmlComprobanteUtil.agregarTexto(doc, info, "dirEstablecimiento",
-            XmlComprobanteUtil.direccionEstablecimiento(c));
+            XmlComprobanteUtil.obtenerDireccionEstablecimiento(c));
         XmlComprobanteUtil.agregarTexto(doc, info, "tipoIdentificacionComprador", c.getCompradorTipoIdentificacion());
         XmlComprobanteUtil.agregarTexto(doc, info, "razonSocialComprador", c.getCompradorRazonSocial());
         XmlComprobanteUtil.agregarTexto(doc, info, "identificacionComprador", c.getCompradorIdentificacion());
@@ -86,7 +86,7 @@ public class GeneradorXmlNotaCredito implements GeneradorXmlComprobante {
         XmlComprobanteUtil.agregarTexto(doc, info, "codDocModificado", c.getDocModificadoTipo());
         XmlComprobanteUtil.agregarTexto(doc, info, "numDocModificado", c.getDocModificadoNumero());
         XmlComprobanteUtil.agregarTexto(doc, info, "fechaEmisionDocSustento",
-            FORMATO_FECHA.format(c.getDocModificadoFecha().atZone(ZonaHoraria.ECUADOR)));
+            FechasSri.formatearFecha(c.getDocModificadoFecha()));
         XmlComprobanteUtil.agregarTexto(doc, info, "totalSinImpuestos", XmlComprobanteUtil.formatearMonto(c.getSubtotalSinImpuestos()));
         XmlComprobanteUtil.agregarTexto(doc, info, "valorModificacion", XmlComprobanteUtil.formatearMonto(c.getImporteTotal()));
         XmlComprobanteUtil.agregarTexto(doc, info, "moneda", c.getMoneda());
@@ -139,7 +139,7 @@ public class GeneradorXmlNotaCredito implements GeneradorXmlComprobante {
             XmlComprobanteUtil.agregarTexto(doc, detalle, "descuento",
                 XmlComprobanteUtil.formatearMonto(d.getDescuento() == null ? BigDecimal.ZERO : d.getDescuento()));
             XmlComprobanteUtil.agregarTexto(doc, detalle, "precioTotalSinImpuesto",
-                XmlComprobanteUtil.formatearMonto(d.precioTotalSinImpuesto()));
+                XmlComprobanteUtil.formatearMonto(d.calcularPrecioTotalSinImpuesto()));
 
             Element impuestos = doc.createElement("impuestos");
             for (Impuesto imp : d.getImpuestos()) {

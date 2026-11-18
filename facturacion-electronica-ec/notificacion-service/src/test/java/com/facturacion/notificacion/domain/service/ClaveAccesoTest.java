@@ -12,14 +12,14 @@ class ClaveAccesoTest {
 
     @Test
     void extraeElRucDelEmisorDeLaClave() {
-        assertEquals("1722039953001", ClaveAcceso.rucDelEmisor(CLAVE));
+        assertEquals("1722039953001", ClaveAcceso.obtenerRucDelEmisor(CLAVE));
     }
 
     @Test
     void unaClaveMalFormadaNoDaRuc() {
-        assertNull(ClaveAcceso.rucDelEmisor(null));
-        assertNull(ClaveAcceso.rucDelEmisor(""));
-        assertNull(ClaveAcceso.rucDelEmisor(CLAVE.substring(1)));
-        assertNull(ClaveAcceso.rucDelEmisor(CLAVE.substring(0, 48) + "X"));
+        assertNull(ClaveAcceso.obtenerRucDelEmisor(null));
+        assertNull(ClaveAcceso.obtenerRucDelEmisor(""));
+        assertNull(ClaveAcceso.obtenerRucDelEmisor(CLAVE.substring(1)));
+        assertNull(ClaveAcceso.obtenerRucDelEmisor(CLAVE.substring(0, 48) + "X"));
     }
 }

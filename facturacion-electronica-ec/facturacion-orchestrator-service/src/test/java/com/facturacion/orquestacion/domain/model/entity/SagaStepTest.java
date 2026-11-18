@@ -22,7 +22,7 @@ class SagaStepTest {
     @Test
     void laNotaGuardaElCodigoCortoEnElNombreYElMensajeLargoEnElPayload() {
         String mensaje = Mensajes.obtenerTexto(CodigoError.SAGA_EXPIRADA, "FIRMADO", 3);
-        SagaStep nota = SagaStep.nota(UUID.randomUUID(), CodigoError.SAGA_EXPIRADA.codigo(), mensaje);
+        SagaStep nota = SagaStep.crearNota(UUID.randomUUID(), CodigoError.SAGA_EXPIRADA.codigo(), mensaje);
 
         assertEquals("NOTA", nota.getStatus());
         assertEquals(CodigoError.SAGA_EXPIRADA.codigo(), nota.getStepName());

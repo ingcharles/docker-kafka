@@ -16,7 +16,9 @@ import io.smallrye.mutiny.Uni;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.facturacion.commons.error.ErrorComun;
 import com.facturacion.commons.error.LogCodificado;
+import com.facturacion.commons.exception.ErrorInternoException;
 import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.inventario.application.event.StockCommandMessage;
 import com.facturacion.inventario.application.event.StockEventMessage;
@@ -58,7 +60,7 @@ public class StockCommandConsumer {
     @Incoming("inventario-comandos-in")
     @WithTransaction
     public Uni<Void> procesarComando(StockCommandMessage command) {
-        return processedMessageRepository.alreadyProcessed(command.eventId())
+        return processedMessageRepository.esMensajeProcesado(command.eventId())
             .onItem().transformToUni(processed -> {
                 if (Boolean.TRUE.equals(processed)) {
                     LogCodificado.info(LOG, CodigoLog.COMANDO_DUPLICADO_DESCARTADO, "comprobanteId=" + command.comprobanteId(),
@@ -113,7 +115,7 @@ public class StockCommandConsumer {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("No se pudo serializar el payload del outbox", e);
+            throw new ErrorInternoException(e, ErrorComun.PAYLOAD_NO_SERIALIZABLE);
         }
     }
 }

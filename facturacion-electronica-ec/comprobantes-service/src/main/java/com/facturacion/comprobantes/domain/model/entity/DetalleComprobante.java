@@ -44,7 +44,7 @@ public class DetalleComprobante {
     }
 
     /** Tabla 1 del Anexo 1: cantidad * precioUnitario - descuento. */
-    public BigDecimal precioTotalSinImpuesto() {
+    public BigDecimal calcularPrecioTotalSinImpuesto() {
         return cantidad.multiply(precioUnitario).subtract(descuento == null ? BigDecimal.ZERO : descuento);
     }
 

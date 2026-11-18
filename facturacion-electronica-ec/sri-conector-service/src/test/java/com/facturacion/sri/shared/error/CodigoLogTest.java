@@ -35,6 +35,7 @@ class CodigoLogTest {
     @Test
     void mensajesNoUsadosNoSeAcumulan() {
         Set<String> usadas = Arrays.stream(CodigoLog.values()).map(CodigoLog::claveMensaje).collect(Collectors.toSet());
+        Arrays.stream(SriError.values()).forEach(e -> usadas.add(e.claveMensaje()));
         Set<String> sobrantes = new HashSet<>(Mensajes.listarClaves());
         sobrantes.removeAll(usadas);
         assertTrue(sobrantes.isEmpty(), "Claves sin código: " + sobrantes);

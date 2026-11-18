@@ -1,6 +1,5 @@
 package com.facturacion.comprobantes.domain.model.entity;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -19,11 +18,12 @@ public class ItemLocal {
     private String descripcion;
     /** Unidad de medida del ítem (p. ej. UN); sale en los detalles adicionales de la línea como "Medida". */
     private String unidadMedida;
-    private String codigoImpuesto;
-    private String codigoPorcentaje;
-    private boolean tieneIce;
-    private String codigoPorcentajeIce;
-    private BigDecimal tarifaIce;
+    /** Código de porcentaje de IVA del ítem (Tabla 17); la tarifa sale del catálogo al emitir. */
+    private String codigoPorcentajeIva;
+    /** Código de ICE (Tabla 18) o {@code null} si el ítem no lleva ICE. */
+    private String codigoIce;
+    /** Código de IRBPNR (5001) o {@code null} si el ítem no lo lleva. */
+    private String codigoIrbpnr;
     private boolean activo;
     private Instant actualizadoEn;
 
@@ -67,44 +67,28 @@ public class ItemLocal {
         this.unidadMedida = unidadMedida;
     }
 
-    public String getCodigoImpuesto() {
-        return codigoImpuesto;
+    public String getCodigoPorcentajeIva() {
+        return codigoPorcentajeIva;
     }
 
-    public void setCodigoImpuesto(String codigoImpuesto) {
-        this.codigoImpuesto = codigoImpuesto;
+    public void setCodigoPorcentajeIva(String codigoPorcentajeIva) {
+        this.codigoPorcentajeIva = codigoPorcentajeIva;
     }
 
-    public String getCodigoPorcentaje() {
-        return codigoPorcentaje;
+    public String getCodigoIce() {
+        return codigoIce;
     }
 
-    public void setCodigoPorcentaje(String codigoPorcentaje) {
-        this.codigoPorcentaje = codigoPorcentaje;
+    public void setCodigoIce(String codigoIce) {
+        this.codigoIce = codigoIce;
     }
 
-    public boolean isTieneIce() {
-        return tieneIce;
+    public String getCodigoIrbpnr() {
+        return codigoIrbpnr;
     }
 
-    public void setTieneIce(boolean tieneIce) {
-        this.tieneIce = tieneIce;
-    }
-
-    public String getCodigoPorcentajeIce() {
-        return codigoPorcentajeIce;
-    }
-
-    public void setCodigoPorcentajeIce(String codigoPorcentajeIce) {
-        this.codigoPorcentajeIce = codigoPorcentajeIce;
-    }
-
-    public BigDecimal getTarifaIce() {
-        return tarifaIce;
-    }
-
-    public void setTarifaIce(BigDecimal tarifaIce) {
-        this.tarifaIce = tarifaIce;
+    public void setCodigoIrbpnr(String codigoIrbpnr) {
+        this.codigoIrbpnr = codigoIrbpnr;
     }
 
     public boolean isActivo() {

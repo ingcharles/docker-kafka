@@ -2,11 +2,14 @@ package com.facturacion.comprobantes.domain.model.vo;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+
+import com.facturacion.comprobantes.domain.model.enums.TipoTarifa;
 
 /**
  * Los catálogos del SRI (tablas propias de este servicio, ver ARQUITECTURA.md 7.6) tal como están
@@ -30,7 +33,13 @@ public final class CatalogosSriAFecha {
     }
 
     public record TarifaRow(String impuestoCodigo, String codigoPorcentaje, String descripcion, BigDecimal tarifa,
-            LocalDate desde, LocalDate hasta, boolean activo) {
+            TipoTarifa tipoTarifa, LocalDate desde, LocalDate hasta, boolean activo) {
+
+        /** Tarifa porcentual (ad valorem), la más común: IVA y la mayoría del ICE. */
+        public TarifaRow(String impuestoCodigo, String codigoPorcentaje, String descripcion, BigDecimal tarifa,
+                LocalDate desde, LocalDate hasta, boolean activo) {
+            this(impuestoCodigo, codigoPorcentaje, descripcion, tarifa, TipoTarifa.PORCENTAJE, desde, hasta, activo);
+        }
     }
 
     public record TipoIdentificacionRow(String codigo, String descripcion, boolean soloFactura, boolean activo) {
@@ -114,9 +123,25 @@ public final class CatalogosSriAFecha {
     }
 
     public Optional<BigDecimal> tarifa(String impuestoCodigo, String codigoPorcentaje) {
+        return tarifaVigente(impuestoCodigo, codigoPorcentaje, null).map(TarifaRow::tarifa);
+    }
+
+    /**
+     * La fila de tarifa vigente a la fecha de emisión. Con {@code tipo} se pide una modalidad concreta (un código puede
+     * tener porcentaje y específica a la vez, p. ej. el ICE 3031); sin él se prefiere el porcentaje.
+     */
+    public Optional<TarifaRow> tarifaVigente(String impuestoCodigo, String codigoPorcentaje, TipoTarifa tipo) {
+        return tarifas.stream().filter(t -> t.impuestoCodigo().equals(impuestoCodigo)
+                && t.codigoPorcentaje().equals(codigoPorcentaje) && vigente(t.activo(), t.desde(), t.hasta())
+                && (tipo == null || t.tipoTarifa() == tipo))
+            .min(Comparator.comparing(TarifaRow::tipoTarifa));
+    }
+
+    /** Tipos de tarifa vigentes para un código de porcentaje (para el mensaje de error). */
+    public Set<TipoTarifa> tiposTarifaVigentes(String impuestoCodigo, String codigoPorcentaje) {
         return tarifas.stream().filter(t -> t.impuestoCodigo().equals(impuestoCodigo)
                 && t.codigoPorcentaje().equals(codigoPorcentaje) && vigente(t.activo(), t.desde(), t.hasta()))
-            .map(TarifaRow::tarifa).findFirst();
+            .map(TarifaRow::tipoTarifa).collect(Collectors.toCollection(TreeSet::new));
     }
 
     // ---- Tabla 6: tipos de identificación ----

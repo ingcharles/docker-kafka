@@ -42,7 +42,7 @@ public class ReenvioNotificacionService {
     public Uni<Void> reenviarCorreo(UUID comprobanteId, String empresaRuc) {
         return comprobanteRepository.findById(comprobanteId)
             .onItem().transform(c -> c != null && c.getEmpresaRuc().equals(empresaRuc) ? c : null)
-            .onItem().ifNull().failWith(() -> new NotFoundException("Comprobante no encontrado: " + comprobanteId))
+            .onItem().ifNull().failWith(() -> new NotFoundException(CodigoError.COMPROBANTE_NO_ENCONTRADO, comprobanteId))
             .onItem().invoke(ReenvioNotificacionService::exigirReenviable)
             .chain(c -> salientes.registrar(eventos.construirEventoAutorizado(c)));
     }

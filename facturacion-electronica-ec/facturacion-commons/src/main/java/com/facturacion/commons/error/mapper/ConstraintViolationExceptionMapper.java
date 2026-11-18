@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import jakarta.validation.ConstraintViolationException;
+import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
@@ -23,6 +24,6 @@ public class ConstraintViolationExceptionMapper implements ExceptionMapper<Const
             .collect(Collectors.toList());
         ApiErrorResponse body = new ApiErrorResponse(400, "Bad Request", Mensajes.obtenerTexto(ErrorComun.VALIDACION_FALLIDA),
             details, ErrorComun.VALIDACION_FALLIDA.codigo());
-        return Response.status(Response.Status.BAD_REQUEST).entity(body).build();
+        return Response.status(Response.Status.BAD_REQUEST).entity(body).type(MediaType.APPLICATION_JSON).build();
     }
 }

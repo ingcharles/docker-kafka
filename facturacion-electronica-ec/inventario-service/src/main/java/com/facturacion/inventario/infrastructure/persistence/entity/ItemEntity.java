@@ -54,20 +54,14 @@ public class ItemEntity extends PanacheEntityBase {
     @Column(nullable = false)
     public boolean activo;
 
-    @Column(name = "codigo_impuesto", nullable = false)
-    public String codigoImpuesto;
+    @Column(name = "codigo_porcentaje_iva", nullable = false)
+    public String codigoPorcentajeIva;
 
-    @Column(name = "codigo_porcentaje", nullable = false)
-    public String codigoPorcentaje;
+    @Column(name = "codigo_ice")
+    public String codigoIce;
 
-    @Column(name = "tiene_ice", nullable = false)
-    public boolean tieneIce;
-
-    @Column(name = "codigo_porcentaje_ice")
-    public String codigoPorcentajeIce;
-
-    @Column(name = "tarifa_ice")
-    public BigDecimal tarifaIce;
+    @Column(name = "codigo_irbpnr")
+    public String codigoIrbpnr;
 
     @Column(name = "creado_en", nullable = false)
     public Instant creadoEn;

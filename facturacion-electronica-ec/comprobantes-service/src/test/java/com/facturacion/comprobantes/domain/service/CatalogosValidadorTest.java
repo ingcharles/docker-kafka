@@ -16,6 +16,7 @@ import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.comprobantes.domain.model.enums.ImpuestoSri;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoIdentificacionSri;
+import com.facturacion.comprobantes.domain.model.enums.TipoTarifa;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha.FormaPagoRow;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha.ImpuestoRow;
@@ -47,7 +48,8 @@ class CatalogosValidadorTest {
         return new CatalogosSriAFecha(fecha,
             List.of(new FormaPagoRow("01", "SIN UTILIZACION DEL SISTEMA FINANCIERO", SIN_INICIO, null, true),
                 new FormaPagoRow("19", "TARJETA DE CREDITO", SIN_INICIO, LocalDate.of(2020, 1, 1), true)),
-            List.of(new ImpuestoRow(IVA, "IVA", true), new ImpuestoRow(ICE, "ICE", true)),
+            List.of(new ImpuestoRow(IVA, "IVA", true), new ImpuestoRow(ICE, "ICE", true),
+                new ImpuestoRow("5", "IRBPNR", true)),
             tarifas,
             List.of(new TipoIdentificacionRow(RUC, "RUC", false, true),
                 new TipoIdentificacionRow(CONSUMIDOR_FINAL, "VENTA A CONSUMIDOR FINAL", true, true)),
@@ -193,5 +195,73 @@ class CatalogosValidadorTest {
             List.of(new SustentoRow("01", "Crédito tributario", true)));
         assertDoesNotThrow(() -> CatalogosValidador.validarSustento(conSustentos, "01"));
         rechaza(() -> CatalogosValidador.validarSustento(conSustentos, "99"), CodigoError.SUSTENTO_NO_EXISTE);
+    }
+
+    // ---- ICE e IRBPNR en el catálogo: versionado por fecha y tipo de tarifa ----
+
+    private static final LocalDate FIN_ENERO_2023 = LocalDate.of(2023, 1, 31);
+    private static final LocalDate DESDE_FEBRERO_2023 = LocalDate.of(2023, 2, 1);
+
+    private static final List<TarifaRow> TARIFAS_ICE = List.of(
+        new TarifaRow(ICE, "3011", "Cigarrillos rubios", d("0.17"), TipoTarifa.ESPECIFICA, SIN_INICIO, FIN_ENERO_2023, true),
+        new TarifaRow(ICE, "3011", "Cigarrillos rubios", d("0.16"), TipoTarifa.ESPECIFICA, DESDE_FEBRERO_2023, null, true),
+        new TarifaRow(ICE, "3031", "Bebidas alcohólicas", d("75"), TipoTarifa.PORCENTAJE, SIN_INICIO, null, true),
+        new TarifaRow(ICE, "3031", "Bebidas alcohólicas", d("10.00"), TipoTarifa.ESPECIFICA, DESDE_FEBRERO_2023, null, true),
+        new TarifaRow("5", "5001", "IRBPNR", d("0.02"), TipoTarifa.ESPECIFICA, SIN_INICIO, null, true));
+
+    @Test
+    void unaTarifaQueCambiaDeValorSeResuelveSegunLaFechaDeEmision() {
+        CatalogosSriAFecha enero = catalogos(LocalDate.of(2023, 1, 15), TARIFAS_ICE, RETENCIONES, List.of());
+        CatalogosSriAFecha hoy = catalogos(HOY, TARIFAS_ICE, RETENCIONES, List.of());
+
+        assertTarifa("0.17", CatalogosValidador.resolverTarifaConTipo(enero, ICE, "3011", null, null).tarifa());
+        assertTarifa("0.16", CatalogosValidador.resolverTarifaConTipo(hoy, ICE, "3011", null, null).tarifa());
+    }
+
+    @Test
+    void elTipoDeLaTarifaSaleDelCatalogo() {
+        assertEquals(TipoTarifa.ESPECIFICA,
+            CatalogosValidador.resolverTarifaConTipo(completoConIce(), ICE, "3011", null, null).tipo());
+        assertEquals(TipoTarifa.ESPECIFICA,
+            CatalogosValidador.resolverTarifaConTipo(completoConIce(), "5", "5001", null, null).tipo());
+    }
+
+    @Test
+    void conDosModalidadesSePrefiereLaPorcentualYSePuedePedirLaOtra() {
+        CatalogosSriAFecha catalogos = completoConIce();
+
+        CatalogosValidador.TarifaResuelta porDefecto =
+            CatalogosValidador.resolverTarifaConTipo(catalogos, ICE, "3031", null, null);
+        CatalogosValidador.TarifaResuelta especifica =
+            CatalogosValidador.resolverTarifaConTipo(catalogos, ICE, "3031", null, TipoTarifa.ESPECIFICA);
+
+        assertEquals(TipoTarifa.PORCENTAJE, porDefecto.tipo());
+        assertTarifa("75", porDefecto.tarifa());
+        assertEquals(TipoTarifa.ESPECIFICA, especifica.tipo());
+        assertTarifa("10.00", especifica.tarifa());
+    }
+
+    @Test
+    void pedirUnaModalidadQueElCodigoNoTieneFallaConCodigoPropio() {
+        rechaza(() -> CatalogosValidador.resolverTarifaConTipo(completoConIce(), ICE, "3011", null,
+            TipoTarifa.PORCENTAJE), CodigoError.TIPO_TARIFA_NO_VIGENTE);
+    }
+
+    @Test
+    void unCodigoIceQueNoEstaEnLaTablaSeRechazaYLaTarifaMandadaDebeCoincidir() {
+        rechaza(() -> CatalogosValidador.resolverTarifaConTipo(completoConIce(), ICE, "9999", null, null),
+            CodigoError.PORCENTAJE_IMPUESTO_NO_VIGENTE);
+        rechaza(() -> CatalogosValidador.resolverTarifaConTipo(completoConIce(), ICE, "3031", d("50"), null),
+            CodigoError.TARIFA_NO_COINCIDE);
+    }
+
+    @Test
+    void conElCatalogoDeIrbpnrVacioSigueSiendoUnaTarifaPorUnidad() {
+        assertEquals(TipoTarifa.ESPECIFICA,
+            CatalogosValidador.resolverTarifaConTipo(completo, "5", "5001", d("0.02"), null).tipo());
+    }
+
+    private CatalogosSriAFecha completoConIce() {
+        return catalogos(HOY, TARIFAS_ICE, RETENCIONES, List.of());
     }
 }

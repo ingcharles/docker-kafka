@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 import com.facturacion.commons.error.Mensajes;
-import com.facturacion.identidad.shared.exception.CredencialesInvalidasException;
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.identidad.shared.exception.EmailDuplicadoException;
 import com.facturacion.identidad.shared.exception.RolInsuficienteException;
 import com.facturacion.identidad.shared.exception.SinAsociacionException;
@@ -54,7 +54,7 @@ class IdentidadErrorTest {
                 + "(POST /empresas/1790000000001/usuarios)",
             new SinAsociacionException("1790000000001").getMessage());
 
-        CredencialesInvalidasException credenciales = new CredencialesInvalidasException("Email o contraseña incorrectos");
+        ErrorNegocioException credenciales = new ErrorNegocioException(IdentidadError.CREDENCIALES_INVALIDAS);
         assertEquals("Email o contraseña incorrectos", credenciales.getMessage());
         assertEquals(401, credenciales.getError().estadoHttp());
     }

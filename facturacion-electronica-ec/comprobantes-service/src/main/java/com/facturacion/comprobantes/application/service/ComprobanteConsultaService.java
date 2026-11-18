@@ -18,6 +18,7 @@ import com.facturacion.comprobantes.application.mapper.ComprobanteResponseMapper
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
 import com.facturacion.comprobantes.domain.repository.ComprobanteRepository;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /**
  * Lado de consulta de los comprobantes (separado de la emisión, que es otra responsabilidad). Todas las consultas
@@ -45,7 +46,7 @@ public class ComprobanteConsultaService {
     public Uni<Comprobante> obtenerDominioPorId(UUID id, String empresaRuc) {
         return comprobanteRepository.findById(id)
             .onItem().transform(c -> filtrarPorEmpresa(c, empresaRuc))
-            .onItem().ifNull().failWith(() -> new NotFoundException("Comprobante no encontrado: " + id));
+            .onItem().ifNull().failWith(() -> new NotFoundException(CodigoError.COMPROBANTE_NO_ENCONTRADO, id));
     }
 
     /** @param empresaRuc siempre el de la api-key: el listado nunca cruza empresas. */

@@ -9,7 +9,8 @@ public enum CodigoLogComun implements MensajeCatalogo {
     TOKEN_RECHAZADO("GEN-101", "comun.log_token_rechazado"),
     REVOCACION_IGNORADA("GEN-301", "comun.log_revocacion_ignorada"),
     EXCEPCION_NO_CONTROLADA("GEN-401", "comun.log_excepcion_no_controlada"),
-    MENSAJE_FALLIDO("GEN-402", "comun.log_mensaje_fallido");
+    MENSAJE_FALLIDO("GEN-402", "comun.log_mensaje_fallido"),
+    FALLO_INTERNO("GEN-403", "comun.log_fallo_interno");
 
     private final String codigo;
     private final String claveMensaje;

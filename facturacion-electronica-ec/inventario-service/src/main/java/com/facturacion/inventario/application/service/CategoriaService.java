@@ -23,6 +23,7 @@ import com.facturacion.inventario.application.mapper.CategoriaResponseMapper;
 import com.facturacion.inventario.domain.model.entity.Categoria;
 import com.facturacion.inventario.domain.model.enums.TipoCategoria;
 import com.facturacion.inventario.domain.repository.CategoriaRepository;
+import com.facturacion.inventario.shared.error.CodigoError;
 
 @ApplicationScoped
 public class CategoriaService {
@@ -48,14 +49,14 @@ public class CategoriaService {
         Categoria categoria = new Categoria(id, null, request.getNombre(), TipoCategoria.valueOf(request.getTipo()),
             request.getDescripcion(), request.isActiva(), null);
         return repository.update(categoria)
-            .onItem().ifNull().failWith(() -> new NotFoundException("Categoría no encontrada: " + id))
+            .onItem().ifNull().failWith(() -> new NotFoundException(CodigoError.CATEGORIA_NO_ENCONTRADA, id))
             .map(mapper::toResponse);
     }
 
     @WithSession
     public Uni<CategoriaResponse> obtenerPorId(UUID id) {
         return repository.findById(id)
-            .onItem().ifNull().failWith(() -> new NotFoundException("Categoría no encontrada: " + id))
+            .onItem().ifNull().failWith(() -> new NotFoundException(CodigoError.CATEGORIA_NO_ENCONTRADA, id))
             .map(mapper::toResponse);
     }
 

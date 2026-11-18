@@ -10,12 +10,14 @@ import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.commons.error.LogCodificado;
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.sri.application.event.EnviarComprobanteCommand;
 import com.facturacion.sri.application.service.SriConectorService;
 import com.facturacion.sri.infrastructure.inbox.ProcessedMessageEntity;
 import com.facturacion.sri.infrastructure.inbox.ProcessedMessageRepository;
 import com.facturacion.sri.shared.error.CodigoLog;
+import com.facturacion.sri.shared.error.SriError;
 
 /**
  * Arranca el envío al SRI cuando facturacion-orchestrator-service lo pide
@@ -45,10 +47,9 @@ public class EnviarComprobanteCommandConsumer {
         // Un comando sin identificadores no se puede procesar ni dejar rastro en la base: se rechaza con un motivo
         // claro y SmallRye lo envía al DLQ, en vez de fallar con un error de restricción de la base.
         if (command == null || command.eventId() == null || command.comprobanteId() == null) {
-            return Uni.createFrom().failure(new IllegalArgumentException(
-                "Comando de envío al SRI inválido: falta eventId o comprobanteId (" + command + ")"));
+            return Uni.createFrom().failure(new ErrorNegocioException(SriError.COMANDO_ENVIO_INVALIDO, command));
         }
-        return processedMessageRepository.alreadyProcessed(command.eventId())
+        return processedMessageRepository.esMensajeProcesado(command.eventId())
             .onItem().transformToUni(processed -> {
                 if (Boolean.TRUE.equals(processed)) {
                     LogCodificado.info(LOG, CodigoLog.COMANDO_DUPLICADO_DESCARTADO, "comprobanteId=" + command.comprobanteId(),

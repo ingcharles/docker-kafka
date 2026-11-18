@@ -21,8 +21,8 @@ public class InboxMensajesProcesados implements MensajesProcesados {
     }
 
     @Override
-    public Uni<Boolean> yaProcesado(UUID mensajeId) {
-        return repository.alreadyProcessed(mensajeId);
+    public Uni<Boolean> esMensajeProcesado(UUID mensajeId) {
+        return repository.esMensajeProcesado(mensajeId);
     }
 
     @Override

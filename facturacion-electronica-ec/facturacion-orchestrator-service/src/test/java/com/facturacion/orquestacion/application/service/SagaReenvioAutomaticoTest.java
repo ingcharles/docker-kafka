@@ -55,7 +55,7 @@ class SagaReenvioAutomaticoTest {
     }
 
     private List<UUID> pendientes(int lote) {
-        return servicio.idsParaReenvioAutomatico(PLAZOS, lote).await().atMost(Duration.ofSeconds(5));
+        return servicio.listarIdsParaReenvioAutomatico(PLAZOS, lote).await().atMost(Duration.ofSeconds(5));
     }
 
     private void resultadoDeNotificacion(UUID id, String tipo, String motivo) {

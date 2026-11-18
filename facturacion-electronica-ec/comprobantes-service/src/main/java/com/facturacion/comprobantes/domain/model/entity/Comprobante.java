@@ -592,8 +592,8 @@ public class Comprobante {
     }
 
     /** Si {@code destino} está adelante en el ciclo pero se saltaría pasos intermedios (ver {@link EstadoComprobante}). */
-    public boolean saltaPasos(EstadoComprobante destino) {
-        return estado.saltaPasos(destino);
+    public boolean esSaltoDePasos(EstadoComprobante destino) {
+        return estado.esSaltoDePasos(destino);
     }
 
     /** BORRADOR → FIRMADO: guarda el XML firmado devuelto por firma-electronica-service. */

@@ -27,6 +27,7 @@ import com.facturacion.inventario.domain.model.enums.TipoMovimientoKardex;
 import com.facturacion.inventario.domain.repository.ItemRepository;
 import com.facturacion.inventario.domain.repository.MovimientoKardexRepository;
 import com.facturacion.inventario.domain.service.KardexCalculador;
+import com.facturacion.inventario.shared.error.CodigoError;
 import com.facturacion.inventario.shared.exception.ItemNoEsProductoException;
 import com.facturacion.inventario.shared.exception.StockInsuficienteException;
 
@@ -58,7 +59,7 @@ public class KardexService {
     @WithTransaction
     public Uni<MovimientoKardexResponse> registrarEntrada(UUID itemId, @Valid RegistrarEntradaKardexRequest request) {
         return cargarProducto(itemId)
-            .onItem().transformToUni(item -> saldoActual(itemId)
+            .onItem().transformToUni(item -> obtenerSaldoActual(itemId)
                 .onItem().transformToUni(saldo -> {
                     KardexCalculador.ResultadoMovimiento resultado = KardexCalculador.calcularEntrada(
                         saldo.cantidadSaldo(), saldo.costoPromedioSaldo(), request.getCantidad(),
@@ -75,7 +76,7 @@ public class KardexService {
         return cargarProducto(itemId)
             .onItem().transformToUni(item -> {
                 if (request.isPositivo()) {
-                    return saldoActual(itemId).onItem().transformToUni(saldo -> {
+                    return obtenerSaldoActual(itemId).onItem().transformToUni(saldo -> {
                         KardexCalculador.ResultadoMovimiento resultado = KardexCalculador.calcularEntrada(
                             saldo.cantidadSaldo(), saldo.costoPromedioSaldo(), request.getCantidad(),
                             saldo.costoPromedioSaldo());
@@ -90,7 +91,7 @@ public class KardexService {
                         if (filas == 0) {
                             return Uni.createFrom().failure(new StockInsuficienteException(itemId));
                         }
-                        return saldoActual(itemId).onItem().transformToUni(saldo -> {
+                        return obtenerSaldoActual(itemId).onItem().transformToUni(saldo -> {
                             KardexCalculador.ResultadoMovimiento resultado = KardexCalculador.calcularSalida(
                                 saldo.cantidadSaldo(), saldo.costoPromedioSaldo(), request.getCantidad());
                             return persistirMovimiento(itemId, TipoMovimientoKardex.AJUSTE_NEGATIVO,
@@ -109,7 +110,7 @@ public class KardexService {
      */
     public Uni<MovimientoKardex> registrarSalidaConfirmada(UUID itemId, BigDecimal cantidad,
             String referenciaDocumento) {
-        return saldoActual(itemId).onItem().transformToUni(saldo -> {
+        return obtenerSaldoActual(itemId).onItem().transformToUni(saldo -> {
             KardexCalculador.ResultadoMovimiento resultado = KardexCalculador.calcularSalida(
                 saldo.cantidadSaldo(), saldo.costoPromedioSaldo(), cantidad);
             MovimientoKardex movimiento = new MovimientoKardex(UUID.randomUUID(), itemId,
@@ -133,7 +134,7 @@ public class KardexService {
 
     private Uni<Item> cargarProducto(UUID itemId) {
         return itemRepository.findById(itemId)
-            .onItem().ifNull().failWith(() -> new NotFoundException("Ítem no encontrado: " + itemId))
+            .onItem().ifNull().failWith(() -> new NotFoundException(CodigoError.ITEM_NO_ENCONTRADO, itemId))
             .onItem().transform(item -> {
                 if (!item.esProducto()) {
                     throw new ItemNoEsProductoException(itemId);
@@ -142,7 +143,7 @@ public class KardexService {
             });
     }
 
-    private Uni<KardexCalculador.ResultadoMovimiento> saldoActual(UUID itemId) {
+    private Uni<KardexCalculador.ResultadoMovimiento> obtenerSaldoActual(UUID itemId) {
         return kardexRepository.findUltimoByItemId(itemId)
             .map(ultimo -> ultimo == null
                 ? new KardexCalculador.ResultadoMovimiento(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,

@@ -1,6 +1,5 @@
 package com.facturacion.comprobantes.infrastructure.xml;
 
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -10,12 +9,14 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import com.facturacion.commons.exception.ErrorInternoException;
+import com.facturacion.commons.time.FechasSri;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.entity.DestinatarioGuiaRemision;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.service.GeneradorXmlComprobante;
-import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /**
  * Genera el XML de Guía de Remisión conforme a la ficha técnica del SRI
@@ -29,10 +30,9 @@ import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 public class GeneradorXmlGuiaRemision implements GeneradorXmlComprobante {
 
     private static final String VERSION_XSD = "1.1.0";
-    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     @Override
-    public boolean soporta(TipoComprobante tipo) {
+    public boolean esTipoSoportado(TipoComprobante tipo) {
         return tipo == TipoComprobante.GUIA_REMISION;
     }
 
@@ -56,7 +56,7 @@ public class GeneradorXmlGuiaRemision implements GeneradorXmlComprobante {
 
             return XmlComprobanteUtil.serializar(doc);
         } catch (Exception e) {
-            throw new IllegalStateException("No se pudo generar el XML de la guía de remisión " + c.getId(), e);
+            throw new ErrorInternoException(e, CodigoError.XML_NO_GENERADO, c.getTipoComprobante().nombre(), c.getId());
         }
     }
 
@@ -81,7 +81,7 @@ public class GeneradorXmlGuiaRemision implements GeneradorXmlComprobante {
 
     private Element construirInfoGuiaRemision(Document doc, Comprobante c) {
         Element info = doc.createElement("infoGuiaRemision");
-        XmlComprobanteUtil.agregarTexto(doc, info, "dirEstablecimiento", XmlComprobanteUtil.direccionEstablecimiento(c));
+        XmlComprobanteUtil.agregarTexto(doc, info, "dirEstablecimiento", XmlComprobanteUtil.obtenerDireccionEstablecimiento(c));
         XmlComprobanteUtil.agregarTexto(doc, info, "dirPartida", c.getDirPartida());
         XmlComprobanteUtil.agregarTexto(doc, info, "razonSocialTransportista", c.getTransportistaRazonSocial());
         XmlComprobanteUtil.agregarTexto(doc, info, "tipoIdentificacionTransportista", c.getTransportistaTipoIdentificacion());
@@ -91,9 +91,9 @@ public class GeneradorXmlGuiaRemision implements GeneradorXmlComprobante {
             XmlComprobanteUtil.agregarTexto(doc, info, "contribuyenteEspecial", c.getEmpresaNumeroContribuyenteEspecial());
         }
         XmlComprobanteUtil.agregarTexto(doc, info, "fechaIniTransporte",
-            FORMATO_FECHA.format(c.getFechaIniTransporte().atZone(ZonaHoraria.ECUADOR)));
+            FechasSri.formatearFecha(c.getFechaIniTransporte()));
         XmlComprobanteUtil.agregarTexto(doc, info, "fechaFinTransporte",
-            FORMATO_FECHA.format(c.getFechaFinTransporte().atZone(ZonaHoraria.ECUADOR)));
+            FechasSri.formatearFecha(c.getFechaFinTransporte()));
         // Obligatorio siempre en Guía de Remisión (confirmado con un
         // rechazo real de Recepción) — a diferencia de Factura, donde solo
         // es obligatorio para empresas que venden combustibles.
@@ -132,7 +132,7 @@ public class GeneradorXmlGuiaRemision implements GeneradorXmlComprobante {
             }
             if (destino.getFechaEmisionDocSustento() != null) {
                 XmlComprobanteUtil.agregarTexto(doc, destinatario, "fechaEmisionDocSustento",
-                    FORMATO_FECHA.format(destino.getFechaEmisionDocSustento().atZone(ZonaHoraria.ECUADOR)));
+                    FechasSri.formatearFecha(destino.getFechaEmisionDocSustento()));
             }
 
             Element detalles = doc.createElement("detalles");

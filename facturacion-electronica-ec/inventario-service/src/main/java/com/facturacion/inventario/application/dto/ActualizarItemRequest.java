@@ -6,6 +6,7 @@ import java.util.UUID;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 
 /** No incluye cantidades de stock a propósito: esas solo cambian vía kardex/reservas, nunca por edición directa. */
 public class ActualizarItemRequest {
@@ -26,16 +27,16 @@ public class ActualizarItemRequest {
     private boolean activo = true;
 
     @NotBlank
-    private String codigoImpuesto;
+    @Pattern(regexp = "\\d{1,2}", message = "codigoPorcentajeIva debe ser un código de la Tabla 17")
+    private String codigoPorcentajeIva;
 
-    @NotBlank
-    private String codigoPorcentaje;
+    /** Código de ICE (Tabla 18) si el ítem lleva ICE; la tarifa sale del catálogo al emitir. */
+    @Pattern(regexp = "\\d{4}", message = "codigoIce debe tener 4 dígitos (Tabla 18)")
+    private String codigoIce;
 
-    private boolean tieneIce = false;
-
-    private String codigoPorcentajeIce;
-
-    private BigDecimal tarifaIce;
+    /** Código de IRBPNR (5001) si el ítem lleva el impuesto a las botellas plásticas no retornables. */
+    @Pattern(regexp = "\\d{4}", message = "codigoIrbpnr debe tener 4 dígitos (5001)")
+    private String codigoIrbpnr;
 
     public UUID getCategoriaId() {
         return categoriaId;
@@ -85,43 +86,27 @@ public class ActualizarItemRequest {
         this.activo = activo;
     }
 
-    public String getCodigoImpuesto() {
-        return codigoImpuesto;
+    public String getCodigoPorcentajeIva() {
+        return codigoPorcentajeIva;
     }
 
-    public void setCodigoImpuesto(String codigoImpuesto) {
-        this.codigoImpuesto = codigoImpuesto;
+    public void setCodigoPorcentajeIva(String codigoPorcentajeIva) {
+        this.codigoPorcentajeIva = codigoPorcentajeIva;
     }
 
-    public String getCodigoPorcentaje() {
-        return codigoPorcentaje;
+    public String getCodigoIce() {
+        return codigoIce;
     }
 
-    public void setCodigoPorcentaje(String codigoPorcentaje) {
-        this.codigoPorcentaje = codigoPorcentaje;
+    public void setCodigoIce(String codigoIce) {
+        this.codigoIce = codigoIce;
     }
 
-    public boolean isTieneIce() {
-        return tieneIce;
+    public String getCodigoIrbpnr() {
+        return codigoIrbpnr;
     }
 
-    public void setTieneIce(boolean tieneIce) {
-        this.tieneIce = tieneIce;
-    }
-
-    public String getCodigoPorcentajeIce() {
-        return codigoPorcentajeIce;
-    }
-
-    public void setCodigoPorcentajeIce(String codigoPorcentajeIce) {
-        this.codigoPorcentajeIce = codigoPorcentajeIce;
-    }
-
-    public BigDecimal getTarifaIce() {
-        return tarifaIce;
-    }
-
-    public void setTarifaIce(BigDecimal tarifaIce) {
-        this.tarifaIce = tarifaIce;
+    public void setCodigoIrbpnr(String codigoIrbpnr) {
+        this.codigoIrbpnr = codigoIrbpnr;
     }
 }

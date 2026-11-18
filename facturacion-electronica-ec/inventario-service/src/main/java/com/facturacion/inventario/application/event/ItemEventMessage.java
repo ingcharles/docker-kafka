@@ -1,6 +1,5 @@
 package com.facturacion.inventario.application.event;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -24,11 +23,9 @@ public record ItemEventMessage(
     String codigoAuxiliar,
     String descripcion,
     String unidadMedida,
-    String codigoImpuesto,
-    String codigoPorcentaje,
-    boolean tieneIce,
-    String codigoPorcentajeIce,
-    BigDecimal tarifaIce,
+    String codigoPorcentajeIva,
+    String codigoIce,
+    String codigoIrbpnr,
     boolean activo,
     Instant occurredAt) {
 }

@@ -27,7 +27,7 @@ public class ConfiguracionEmpresaLocalRepositoryImpl implements ConfiguracionEmp
     }
 
     @Override
-    public Uni<Void> upsertOEliminar(String ruc, String clave, String valor, Instant actualizadoEn) {
+    public Uni<Void> insertarActualizarOEliminar(String ruc, String clave, String valor, Instant actualizadoEn) {
         return repository.<ConfiguracionEmpresaLocalEntity>find("ruc = ?1 and clave = ?2", ruc, clave)
             .firstResult()
             .onItem().transformToUni(existente -> {

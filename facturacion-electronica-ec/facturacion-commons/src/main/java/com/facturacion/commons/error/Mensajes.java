@@ -23,7 +23,7 @@ public final class Mensajes {
     }
 
     public static String obtenerTexto(MensajeCatalogo entrada, Object... parametros) {
-        String texto = plantilla(entrada.claveMensaje());
+        String texto = obtenerPlantilla(entrada.claveMensaje());
         for (int i = 0; i < parametros.length; i++) {
             texto = texto.replace("{" + i + "}", String.valueOf(parametros[i]));
         }
@@ -45,7 +45,7 @@ public final class Mensajes {
         return COMUN != null && COMUN.containsKey(clave);
     }
 
-    private static String plantilla(String clave) {
+    private static String obtenerPlantilla(String clave) {
         if (SERVICIO != null && SERVICIO.containsKey(clave)) {
             return SERVICIO.getString(clave);
         }

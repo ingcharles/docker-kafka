@@ -4,9 +4,12 @@ import java.math.BigDecimal;
 import java.util.Optional;
 
 import com.facturacion.commons.exception.ErrorNegocioException;
+import com.facturacion.comprobantes.domain.model.enums.ImpuestoSri;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
+import com.facturacion.comprobantes.domain.model.enums.TipoTarifa;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha.RetencionRow;
+import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha.TarifaRow;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha.TipoIdentificacionRow;
 import com.facturacion.comprobantes.shared.error.CodigoError;
 
@@ -31,24 +34,44 @@ public final class CatalogosValidador {
      */
     public static BigDecimal resolverTarifa(CatalogosSriAFecha catalogos, String impuestoCodigo,
             String codigoPorcentaje, BigDecimal tarifaSolicitada) {
+        return resolverTarifaConTipo(catalogos, impuestoCodigo, codigoPorcentaje, tarifaSolicitada, null).tarifa();
+    }
+
+    /** La tarifa de una línea y cómo se calcula su valor ({@link TipoTarifa}). */
+    public record TarifaResuelta(BigDecimal tarifa, TipoTarifa tipo) {
+    }
+
+    /**
+     * Como {@link #resolverTarifa}, pero también dice si la tarifa es porcentual o específica (Tabla 18). Sin
+     * {@code tipoSolicitado} se usa la porcentual si el código la tiene y, si no, la específica; con el catálogo de ese
+     * impuesto vacío el tipo es porcentual salvo para el IRBPNR, que por definición es una tarifa por unidad.
+     */
+    public static TarifaResuelta resolverTarifaConTipo(CatalogosSriAFecha catalogos, String impuestoCodigo,
+            String codigoPorcentaje, BigDecimal tarifaSolicitada, TipoTarifa tipoSolicitado) {
         if (catalogos.hayImpuestos() && !catalogos.impuestoExiste(impuestoCodigo)) {
             throw new ErrorNegocioException(CodigoError.IMPUESTO_NO_EXISTE, impuestoCodigo,
                 catalogos.codigosImpuesto());
         }
         if (catalogos.hayTarifas(impuestoCodigo)) {
-            BigDecimal delCatalogo = catalogos.tarifa(impuestoCodigo, codigoPorcentaje).orElseThrow(
-                () -> new ErrorNegocioException(CodigoError.PORCENTAJE_IMPUESTO_NO_VIGENTE, codigoPorcentaje,
-                    impuestoCodigo, catalogos.codigosPorcentaje(impuestoCodigo)));
-            if (tarifaSolicitada != null && delCatalogo.compareTo(tarifaSolicitada) != 0) {
-                throw new ErrorNegocioException(CodigoError.TARIFA_NO_COINCIDE, tarifaSolicitada.toPlainString(),
-                    delCatalogo.toPlainString(), impuestoCodigo, codigoPorcentaje);
+            if (catalogos.codigosPorcentaje(impuestoCodigo).stream().noneMatch(codigoPorcentaje::equals)) {
+                throw new ErrorNegocioException(CodigoError.PORCENTAJE_IMPUESTO_NO_VIGENTE, codigoPorcentaje,
+                    impuestoCodigo, catalogos.codigosPorcentaje(impuestoCodigo));
             }
-            return delCatalogo;
+            TarifaRow fila = catalogos.tarifaVigente(impuestoCodigo, codigoPorcentaje, tipoSolicitado).orElseThrow(
+                () -> new ErrorNegocioException(CodigoError.TIPO_TARIFA_NO_VIGENTE, impuestoCodigo,
+                    codigoPorcentaje, tipoSolicitado, catalogos.tiposTarifaVigentes(impuestoCodigo, codigoPorcentaje)));
+            if (tarifaSolicitada != null && fila.tarifa().compareTo(tarifaSolicitada) != 0) {
+                throw new ErrorNegocioException(CodigoError.TARIFA_NO_COINCIDE, tarifaSolicitada.toPlainString(),
+                    fila.tarifa().toPlainString(), impuestoCodigo, codigoPorcentaje);
+            }
+            return new TarifaResuelta(fila.tarifa(), fila.tipoTarifa());
         }
         if (tarifaSolicitada == null) {
             throw new ErrorNegocioException(CodigoError.TARIFA_NO_DISPONIBLE, impuestoCodigo, codigoPorcentaje);
         }
-        return tarifaSolicitada;
+        TipoTarifa tipo = tipoSolicitado != null ? tipoSolicitado
+            : ImpuestoSri.IRBPNR.esCodigo(impuestoCodigo) ? TipoTarifa.ESPECIFICA : TipoTarifa.PORCENTAJE;
+        return new TarifaResuelta(tarifaSolicitada, tipo);
     }
 
     /**

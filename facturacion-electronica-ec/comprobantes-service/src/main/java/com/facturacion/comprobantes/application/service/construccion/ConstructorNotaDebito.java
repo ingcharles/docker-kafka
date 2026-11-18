@@ -37,7 +37,7 @@ public class ConstructorNotaDebito implements ConstructorComprobante<CrearNotaDe
     @Override
     public Uni<Comprobante> construir(CrearNotaDebitoRequest request, long secuencial, CatalogosSriAFecha catalogos) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = comun.encabezado(request.getEmpresa(), TipoComprobante.NOTA_DEBITO, secuencial,
+        Comprobante comprobante = comun.armarEncabezado(request.getEmpresa(), TipoComprobante.NOTA_DEBITO, secuencial,
             ahora);
 
         BigDecimal totalMotivos = request.getMotivos().stream()
@@ -95,8 +95,8 @@ public class ConstructorNotaDebito implements ConstructorComprobante<CrearNotaDe
         comprobante.setDocModificadoTipo(request.getDocModificadoTipo());
         comprobante.setDocModificadoNumero(request.getDocModificadoNumero());
         comprobante.setDocModificadoFecha(comun.convertirFecha(request.getDocModificadoFecha()));
-        comprobante.setPagos(comun.pagos(request.getPagos(), comprobante.getImporteTotal(), true, catalogos));
-        comprobante.setCamposAdicionales(comun.camposAdicionales(request.getCampoAdicional()));
+        comprobante.setPagos(comun.armarPagos(request.getPagos(), comprobante.getImporteTotal(), true, catalogos));
+        comprobante.setCamposAdicionales(comun.armarCamposAdicionales(request.getCampoAdicional()));
         return Uni.createFrom().item(comprobante);
     }
 }

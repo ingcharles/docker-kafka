@@ -125,4 +125,26 @@ class CatalogoDefTest {
         assertEquals(List.of(Catalogo.TARIFA_IMPUESTO, Catalogo.FORMA_PAGO, Catalogo.RETENCION),
             CatalogoDef.TODOS.stream().filter(CatalogoDef::tieneVigencia).map(CatalogoDef::catalogo).toList());
     }
+
+    @Test
+    void laTarifaSeVersionaPorFechaYTipoSinTipoSeAsumePorcentaje() {
+        CatalogoDef def = def(Catalogo.TARIFA_IMPUESTO);
+
+        Map<String, Object> valores = def.validar(mapa(
+            "impuesto_codigo", "3", "codigo_porcentaje", "3011", "descripcion", "ICE cigarrillos", "tarifa", "0.16"));
+
+        assertEquals("PORCENTAJE", valores.get("tipo_tarifa"));
+        assertEquals(List.of("impuesto_codigo", "codigo_porcentaje", "tipo_tarifa", "vigente_desde"),
+            def.listarClaves().stream().map(CatalogoDef.Columna::nombre).toList());
+    }
+
+    @Test
+    void elTipoDeTarifaSoloAdmiteLosValoresDelEnum() {
+        CatalogoDef def = def(Catalogo.TARIFA_IMPUESTO);
+
+        assertEquals("ESPECIFICA", def.validar(mapa("impuesto_codigo", "3", "codigo_porcentaje", "3011",
+            "descripcion", "X", "tarifa", "0.16", "tipo_tarifa", "ESPECIFICA")).get("tipo_tarifa"));
+        rechazaCampo(() -> def.validar(mapa("impuesto_codigo", "3", "codigo_porcentaje", "3011",
+            "descripcion", "X", "tarifa", "0.16", "tipo_tarifa", "OTRA")), "debe ser uno de");
+    }
 }

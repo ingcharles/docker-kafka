@@ -19,11 +19,11 @@ public record AutorizacionResultado(
     String xmlAutorizacionCompleto,
     String motivoRechazo) {
 
-    public boolean pendiente() {
+    public boolean crearPendiente() {
         return estado == null || estado.isBlank();
     }
 
-    public boolean autorizado() {
+    public boolean crearAutorizado() {
         return "AUTORIZADO".equalsIgnoreCase(estado);
     }
 }

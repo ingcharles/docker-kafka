@@ -15,11 +15,13 @@ import org.junit.jupiter.api.Test;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.exception.ConflictoException;
 import com.facturacion.comprobantes.application.event.ActualizarComprobanteCommand;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
 import com.facturacion.comprobantes.domain.repository.ComprobanteRepository;
 import com.facturacion.comprobantes.shared.constant.MessagingConstants;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /** aplicarComando dice qué hizo: aplicó el cambio o lo ignoró por repetido; y un salto de pasos falla, no se calla. */
 class ActualizacionComprobanteResultadoTest {
@@ -85,7 +87,8 @@ class ActualizacionComprobanteResultadoTest {
         CompletionException e = assertThrows(CompletionException.class, () -> servicio
             .aplicarComando(comando(MessagingConstants.COMANDO_MARCAR_AUTORIZADO)).subscribeAsCompletionStage().join());
 
-        assertEquals(IllegalStateException.class, e.getCause().getClass());
+        assertEquals(ConflictoException.class, e.getCause().getClass());
+        assertEquals(CodigoError.COMANDO_FUERA_DE_ORDEN, ((ConflictoException) e.getCause()).getError());
         assertEquals(EstadoComprobante.BORRADOR, comprobante.getEstado());
     }
 

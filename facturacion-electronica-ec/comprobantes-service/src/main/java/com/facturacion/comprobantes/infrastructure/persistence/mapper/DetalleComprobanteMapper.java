@@ -1,8 +1,6 @@
 package com.facturacion.comprobantes.infrastructure.persistence.mapper;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.ResolverStyle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -17,12 +15,15 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.facturacion.commons.exception.ErrorInternoException;
+import com.facturacion.commons.time.FechasSri;
 import com.facturacion.comprobantes.application.dto.DetalleComprobanteResponse;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
 import com.facturacion.comprobantes.domain.model.vo.CampoAdicional;
 import com.facturacion.comprobantes.domain.model.vo.Impuesto;
 import com.facturacion.comprobantes.infrastructure.persistence.entity.DetalleComprobanteEntity;
 import com.facturacion.comprobantes.infrastructure.persistence.entity.DetalleImpuestoEntity;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /**
  * {@code impuestos} (dominio, lista de {@link Impuesto}) <-> {@code impuestos}
@@ -38,14 +39,13 @@ import com.facturacion.comprobantes.infrastructure.persistence.entity.DetalleImp
 @Mapper(componentModel = MappingConstants.ComponentModel.CDI)
 public interface DetalleComprobanteMapper {
 
-    DateTimeFormatter FECHA_SRI = DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT);
     ObjectMapper JSON = new ObjectMapper();
 
-    @Mapping(target = "precioTotalSinImpuesto", expression = "java(domain.precioTotalSinImpuesto())")
+    @Mapping(target = "precioTotalSinImpuesto", expression = "java(domain.calcularPrecioTotalSinImpuesto())")
     DetalleComprobanteResponse toResponse(DetalleComprobante domain);
 
     @Mapping(target = "comprobante", ignore = true)
-    @Mapping(target = "precioTotalSinImpuesto", expression = "java(domain.precioTotalSinImpuesto())")
+    @Mapping(target = "precioTotalSinImpuesto", expression = "java(domain.calcularPrecioTotalSinImpuesto())")
     @Mapping(target = "impuestos", expression = "java(escribirImpuestos(domain.getImpuestos()))")
     @Mapping(target = "detallesAdicionalesJson", expression = "java(escribirDetallesAdicionales(domain.getDetallesAdicionales()))")
     DetalleComprobanteEntity toEntity(DetalleComprobante domain);
@@ -58,7 +58,7 @@ public interface DetalleComprobanteMapper {
         try {
             return JSON.writeValueAsString(detalles == null ? List.of() : detalles);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("No se pudo serializar los detalles adicionales de la línea", e);
+            throw new ErrorInternoException(e, CodigoError.DETALLES_ADICIONALES_NO_SERIALIZABLES);
         }
     }
 
@@ -70,7 +70,7 @@ public interface DetalleComprobanteMapper {
             return JSON.readValue(detallesJson, new TypeReference<List<CampoAdicional>>() {
             });
         } catch (Exception e) {
-            throw new IllegalStateException("No se pudo leer los detalles adicionales de la línea", e);
+            throw new ErrorInternoException(e, CodigoError.DETALLES_ADICIONALES_NO_LEIBLES);
         }
     }
 
@@ -113,13 +113,13 @@ public interface DetalleComprobanteMapper {
                 fila.codigoRetencion,
                 fila.docSustentoCodigo,
                 fila.docSustentoNumero,
-                fila.docSustentoFecha == null ? null : fila.docSustentoFecha.format(FECHA_SRI)));
+                fila.docSustentoFecha == null ? null : FechasSri.formatearFecha(fila.docSustentoFecha)));
         }
         return impuestos;
     }
 
     private static LocalDate convertirFechaSri(String fecha) {
-        return fecha == null || fecha.isBlank() ? null : LocalDate.parse(fecha, FECHA_SRI);
+        return fecha == null || fecha.isBlank() ? null : FechasSri.leerFecha(fecha);
     }
 
     @AfterMapping

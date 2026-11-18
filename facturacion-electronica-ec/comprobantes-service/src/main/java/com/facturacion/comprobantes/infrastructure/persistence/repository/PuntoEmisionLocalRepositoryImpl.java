@@ -26,7 +26,7 @@ public class PuntoEmisionLocalRepositoryImpl implements PuntoEmisionLocalReposit
     }
 
     @Override
-    public Uni<PuntoEmisionLocal> upsert(PuntoEmisionLocal domain) {
+    public Uni<PuntoEmisionLocal> insertarOActualizar(PuntoEmisionLocal domain) {
         return repository.<PuntoEmisionLocalEntity>find("ruc = ?1 and establecimientoCodigo = ?2 and codigo = ?3",
                 domain.getRuc(), domain.getEstablecimientoCodigo(), domain.getCodigo())
             .firstResult()

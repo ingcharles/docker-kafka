@@ -11,8 +11,8 @@ import com.facturacion.commons.error.Mensajes;
  * respuesta; por eso el código de negocio solo hace {@code throw new XxxException(...)} y nunca arma un
  * {@code Response}.
  * <p>
- * Dos formas de crearla: con la entrada del catálogo y sus parámetros (el texto sale del {@code .properties}), o con
- * un texto ya armado (compatibilidad con los {@code throw} que ya existían). {@code detalles} lleva los problemas
+ * Se crea siempre con la entrada del catálogo y sus parámetros (el texto sale del {@code .properties}; nunca un texto
+ * armado por quien lanza). {@code detalles} lleva los problemas
  * individuales cuando un mismo error agrupa varios.
  */
 public class ApiException extends RuntimeException {
@@ -27,9 +27,9 @@ public class ApiException extends RuntimeException {
         this.detalles = List.of();
     }
 
-    /** Texto ya armado por quien lanza (cuando no tiene sentido una plantilla). */
-    protected ApiException(ErrorCatalogo error, String mensaje, Throwable causa) {
-        super(mensaje, causa);
+    /** Igual que la anterior y conserva la causa original (para el log o para encadenar). */
+    protected ApiException(ErrorCatalogo error, Throwable causa, Object[] parametros) {
+        super(Mensajes.obtenerTexto(error, parametros), causa);
         this.error = error;
         this.detalles = List.of();
     }

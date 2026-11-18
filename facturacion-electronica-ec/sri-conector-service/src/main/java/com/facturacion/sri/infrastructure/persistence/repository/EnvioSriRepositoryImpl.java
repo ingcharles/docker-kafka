@@ -11,11 +11,13 @@ import jakarta.inject.Inject;
 import io.quarkus.panache.common.Page;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.sri.domain.model.entity.EnvioSri;
 import com.facturacion.sri.domain.model.enums.EstadoEnvioSri;
 import com.facturacion.sri.domain.repository.EnvioSriRepository;
 import com.facturacion.sri.infrastructure.persistence.entity.EnvioSriEntity;
 import com.facturacion.sri.infrastructure.persistence.mapper.EnvioSriMapper;
+import com.facturacion.sri.shared.error.SriError;
 
 @ApplicationScoped
 public class EnvioSriRepositoryImpl implements EnvioSriRepository {
@@ -38,7 +40,7 @@ public class EnvioSriRepositoryImpl implements EnvioSriRepository {
     @Override
     public Uni<EnvioSri> update(EnvioSri envio) {
         return repository.<EnvioSriEntity>findById(envio.getId())
-            .onItem().ifNull().failWith(() -> new IllegalStateException("EnvioSri no encontrado: " + envio.getId()))
+            .onItem().ifNull().failWith(() -> new NotFoundException(SriError.ENVIO_NO_ENCONTRADO_POR_ID, envio.getId()))
             .onItem().transform(existente -> {
                 existente.estado = mapper.map(envio.getEstado());
                 existente.mensajesRecepcion = envio.getMensajesRecepcion();

@@ -43,7 +43,7 @@ public class EstablecimientoPuntoEmisionEventConsumer {
             establecimiento.setCodigo(evento.establecimientoCodigo());
             establecimiento.setActivo(evento.activo());
             establecimiento.setActualizadoEn(evento.occurredAt());
-            return establecimientoRepository.upsert(establecimiento);
+            return establecimientoRepository.insertarOActualizar(establecimiento);
         }
         PuntoEmisionLocal puntoEmision = new PuntoEmisionLocal();
         puntoEmision.setRuc(evento.ruc());
@@ -51,6 +51,6 @@ public class EstablecimientoPuntoEmisionEventConsumer {
         puntoEmision.setCodigo(evento.puntoEmisionCodigo());
         puntoEmision.setActivo(evento.activo());
         puntoEmision.setActualizadoEn(evento.occurredAt());
-        return puntoEmisionRepository.upsert(puntoEmision);
+        return puntoEmisionRepository.insertarOActualizar(puntoEmision);
     }
 }

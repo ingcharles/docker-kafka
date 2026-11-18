@@ -79,12 +79,12 @@ public class OrquestacionCommandRelay {
     public Uni<Void> publicarEventosPendientes() {
         return outboxRepository.findUnpublishedBatch(BATCH_SIZE)
             .onItem().transformToMulti(batch -> Multi.createFrom().iterable(batch))
-            .onItem().transformToUniAndConcatenate(this::publish)
+            .onItem().transformToUniAndConcatenate(this::publicar)
             .collect().last()
             .replaceWithVoid();
     }
 
-    private Uni<OutboxEventEntity> publish(OutboxEventEntity event) {
+    private Uni<OutboxEventEntity> publicar(OutboxEventEntity event) {
         Emitter<String> emitter = emittersByTopic.get(event.topic);
         if (emitter == null) {
             LogCodificado.error(LOG, CodigoError.OUTBOX_SIN_EMISOR, "eventoId=" + event.id + ", topico=" + event.topic);

@@ -14,7 +14,7 @@ public final class MotivoFalla {
     }
 
     /** Describe la falla con su causa raíz: {@code "Clase: mensaje"} o solo {@code "Clase"} si no trae mensaje. */
-    public static String de(Throwable falla) {
+    public static String obtenerMotivo(Throwable falla) {
         if (falla == null) {
             return "Falla desconocida al enviar el correo";
         }

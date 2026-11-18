@@ -19,10 +19,23 @@ Toda respuesta de error de los microservicios tiene el mismo cuerpo (`ApiErrorRe
 | `GEN-400-001` | 400 | Falló la validación |
 | `GEN-400-002` | 400 | {0} |
 | `GEN-401-001` | 401 | {0} |
+| `GEN-401-002` | 401 | Falta el header Authorization: Bearer <api-key> |
+| `GEN-401-003` | 401 | Falta el header Authorization: Bearer <api-key o token de sesión> |
+| `GEN-401-004` | 401 | El token no es una api-key |
+| `GEN-401-005` | 401 | El token no es una api-key ni un token de sesión válido |
+| `GEN-401-006` | 401 | El token no es un token de sesión |
+| `GEN-401-007` | 401 | Token inválido o expirado |
+| `GEN-401-008` | 401 | La api-key fue revocada |
 | `GEN-403-001` | 403 | {0} |
+| `GEN-403-002` | 403 | La api-key usada es para el ruc {0}, no para {1} |
+| `GEN-403-003` | 403 | La api-key usada es solo para el establecimiento {0}, no para {1} |
+| `GEN-403-004` | 403 | La api-key usada es solo para el punto de emisión {0}, no para {1} |
+| `GEN-403-005` | 403 | La api-key tiene rol LECTURA: solo puede consultar, no crear ni modificar. |
+| `GEN-403-006` | 403 | Esta operación requiere una api-key con rol ADMIN (la actual es {0}). |
 | `GEN-404-001` | 404 | {0} |
 | `GEN-409-001` | 409 | {0} |
 | `GEN-500-001` | 500 | Ocurrió un error inesperado |
+| `GEN-500-002` | 500 | No se pudo serializar el payload del outbox (el cliente recibe el texto genérico; el detalle queda en el log GEN-403) |
 
 ## comprobantes-service — `COMP`
 
@@ -42,6 +55,8 @@ Toda respuesta de error de los microservicios tiene el mismo cuerpo (`ApiErrorRe
 | `COMP-400-202` | 400 | El codigoPorcentaje '{0}' no existe o no está vigente para el impuesto '{1}' (Tabla 17). Válidos: {2}. |
 | `COMP-400-203` | 400 | La tarifa {0} no coincide con la del catálogo ({1}) para el impuesto '{2}' codigoPorcentaje '{3}'. |
 | `COMP-400-204` | 400 | No hay tarifa para el impuesto '{0}' codigoPorcentaje '{1}': el catálogo de tarifas de ese impuesto está vacío (ICE/IRBPNR no lo tienen; para IVA puede que catalogos-service aún no haya sincronizado) y el request no trae tarifa. |
+| `COMP-400-205` | 400 | baseImponible solo se puede indicar para el ICE y el IRBPNR (la base del IVA la calcula el servidor); impuesto '{0}'. |
+| `COMP-400-206` | 400 | El impuesto '{0}' codigoPorcentaje '{1}' no tiene tarifa de tipo {2} vigente a la fecha de emisión. Tipos disponibles: {3}. |
 | `COMP-400-301` | 400 | {0} '{1}' no existe en la Tabla 6 del SRI. Códigos válidos: {2}. |
 | `COMP-400-302` | 400 | {0} '{1}' ({2}) solo se admite en Factura; este comprobante debe identificar al receptor. |
 | `COMP-400-303` | 400 | {0}: el tipo {1} ({2}) debe identificarse con {3}. |
@@ -64,9 +79,25 @@ Toda respuesta de error de los microservicios tiene el mismo cuerpo (`ApiErrorRe
 | `COMP-400-602` | 400 | El punto de emisión '{0}' no está registrado (o no está activo) para el establecimiento '{1}' del ruc {2}. |
 | `COMP-400-603` | 400 | empresa.ambiente debe ser PRUEBAS o PRODUCCION, se recibió: {0} |
 | `COMP-400-801` | 400 | El tipo de comprobante {0} todavía no está soportado en esta versión |
+| `COMP-400-811` | 400 | El ticket solo está disponible para factura, nota de crédito, nota de débito y liquidación de compra; el comprobante es {0}. |
+| `COMP-400-812` | 400 | El parámetro '{0}' no admite el valor '{1}'. Valores válidos: {2}. |
+| `COMP-400-821` | 400 | El XML generado no cumple el esquema XSD del SRI ({0}): {1} |
+| `COMP-400-831` | 400 | Tipo de comando de comprobante desconocido: {0} |
+| `COMP-400-841` | 400 | La fecha de inicio del transporte ({0}) debe ser la fecha de emisión de la guía ({1}): el SRI toma una como la otra |
 | `COMP-409-901` | 409 | El comprobante está {0}: solo se reenvía el correo de un comprobante autorizado por el SRI y con RIDE |
 | `COMP-409-902` | 409 | El comprobante no tiene correo del receptor al cual reenviarlo |
+| `COMP-409-911` | 409 | Comando {0} fuera de orden: el comprobante {1} está {2} y no puede pasar a {3} sin aplicar antes los pasos intermedios |
+| `COMP-404-001` | 404 | Comprobante no encontrado: {0} |
 | `COMP-404-701` | 404 | No existe el catálogo '{0}'. Disponibles: {1}. |
+| `COMP-500-001` | 500 | No se pudo serializar los campos adicionales del comprobante |
+| `COMP-500-002` | 500 | No se pudo leer los campos adicionales del comprobante |
+| `COMP-500-003` | 500 | No se pudo serializar los detalles adicionales de la línea |
+| `COMP-500-004` | 500 | No se pudo leer los detalles adicionales de la línea |
+| `COMP-500-005` | 500 | No se pudo generar el XML del comprobante {0} ({1}) |
+| `COMP-500-006` | 500 | No se pudo generar el RIDE del comprobante {0} |
+| `COMP-500-007` | 500 | No se encontró el XSD empaquetado: {0} |
+| `COMP-500-008` | 500 | No se pudo compilar el XSD {0} |
+| `COMP-500-009` | 500 | Error de E/S validando el XML contra el XSD |
 | `COMP-403-701` | 403 | La escritura de catálogos está deshabilitada: configura CATALOGOS_ADMIN_TOKEN. |
 | `COMP-403-702` | 403 | Falta o es inválido el header {0}. |
 | `COMP-400-701` | 400 | La fecha '{0}' debe tener el formato yyyy-MM-dd. |
@@ -81,6 +112,7 @@ Toda respuesta de error de los microservicios tiene el mismo cuerpo (`ApiErrorRe
 | `COMP-400-715` | 400 | '{0}' debe ser true o false |
 | `COMP-400-716` | 400 | '{0}' debe estar entre 0 y {1} |
 | `COMP-400-717` | 400 | 'vigente_hasta' no puede ser anterior a 'vigente_desde' |
+| `COMP-400-718` | 400 | '{0}' debe ser uno de: {1} |
 
 ## inventario-service — `INV`
 
@@ -88,30 +120,94 @@ Toda respuesta de error de los microservicios tiene el mismo cuerpo (`ApiErrorRe
 |---|---|---|
 | `INV-400-001` | 400 | La categoría es de tipo {0} y no admite ítems de tipo {1} |
 | `INV-400-002` | 400 | El ítem {0} es un SERVICIO — no maneja existencias ni kardex |
-| `INV-400-003` | 400 | tieneIce=true exige codigoPorcentajeIce. |
-| `INV-400-004` | 400 | tieneIce=true exige tarifaIce (>= 0). |
-| `INV-400-005` | 400 | {0} |
+| `INV-400-005` | 400 | El archivo de imagen está vacío |
+| `INV-400-006` | 400 | No se pudo leer el archivo de imagen subido |
+| `INV-400-007` | 400 | La imagen supera el tamaño máximo permitido de {0} MB |
+| `INV-400-008` | 400 | Tipo de imagen no soportado: {0} (permitidos: {1}) |
+| `INV-404-001` | 404 | Ítem no encontrado: {0} |
+| `INV-404-002` | 404 | Categoría no encontrada: {0} |
+| `INV-404-003` | 404 | Imagen no encontrada: {0} |
 | `INV-409-001` | 409 | Stock insuficiente para el ítem {0} |
 
 ## firma-electronica-service — `FIR`
 
 | Código | HTTP | Mensaje (`{n}` = parámetro) |
 |---|---|---|
-| `FIR-400-001` | 400 | {0} |
-| `FIR-400-002` | 400 | {0} |
-| `FIR-409-001` | 409 | {0} |
+| `FIR-400-001` | 400 | El archivo no es un .p12 válido o la contraseña dada no lo abre |
+| `FIR-400-002` | 400 | El archivo del logo está vacío |
+| `FIR-400-003` | 400 | No se pudo leer el archivo del logo subido |
+| `FIR-400-004` | 400 | No se pudo leer el archivo del certificado subido |
+| `FIR-400-005` | 400 | Comando de firma inválido: falta eventId o comprobanteId ({0}) |
+| `FIR-400-006` | 400 | El archivo .p12 no contiene ningún alias/entrada |
+| `FIR-400-007` | 400 | No se encontró un certificado X.509 en el .p12 |
+| `FIR-400-008` | 400 | El certificado venció el {0}: sube uno vigente |
+| `FIR-400-009` | 400 | El certificado todavía no es válido: empieza el {0} |
+| `FIR-400-010` | 400 | El certificado de la empresa con ruc {0} venció el {1}: sube uno vigente |
+| `FIR-400-011` | 400 | No hay ninguna empresa registrada con ruc {0} |
+| `FIR-400-012` | 400 | La empresa con ruc {0} no tiene un certificado activo |
+| `FIR-400-013` | 400 | No se pudo firmar el comprobante: {0} |
+| `FIR-400-014` | 400 | El logo pesa {0} KB; el máximo es {1} KB |
+| `FIR-400-015` | 400 | El logo debe ser una imagen PNG o JPEG |
+| `FIR-404-001` | 404 | Empresa no encontrada: {0} |
+| `FIR-404-002` | 404 | Establecimiento no encontrado: {0} |
+| `FIR-404-003` | 404 | Punto de emisión no encontrado: {0} |
+| `FIR-404-004` | 404 | La empresa {0} no tiene un certificado activo |
+| `FIR-404-005` | 404 | No existe la configuración '{0}' para la empresa {1} |
+| `FIR-404-006` | 404 | La empresa {0} no tiene logo |
+| `FIR-409-001` | 409 | Ya existe un establecimiento activo con el código {0} para esta empresa |
 | `FIR-409-002` | 409 | Ya existe una empresa registrada con el RUC {0} |
+| `FIR-409-003` | 409 | Ya existe un punto de emisión activo con el código {0} para este establecimiento |
+| `FIR-409-004` | 409 | Ya existe la configuración '{0}' para la empresa {1} |
+| `FIR-500-001` | 500 | No se pudo cifrar el material criptográfico |
+| `FIR-500-002` | 500 | No se pudo descifrar el material criptográfico |
+| `FIR-500-003` | 500 | No se pudo derivar la clave de cifrado |
 
 ## identidad-service — `IDE`
 
 | Código | HTTP | Mensaje (`{n}` = parámetro) |
 |---|---|---|
-| `IDE-401-001` | 401 | {0} |
+| `IDE-400-001` | 400 | puntoEmision requiere que también se indique establecimiento |
+| `IDE-401-001` | 401 | Email o contraseña incorrectos |
+| `IDE-401-002` | 401 | La contraseña actual no es correcta |
+| `IDE-429-001` | 429 | Hay demasiadas autenticaciones en curso: reintenta en unos segundos |
 | `IDE-403-001` | 403 | Se requiere el rol ADMIN sobre el ruc {0} para gestionar sus miembros |
 | `IDE-403-003` | 403 | El usuario no está asociado al ruc {0} — pide a un ADMIN de esa empresa que te agregue (POST /empresas/{0}/usuarios) |
+| `IDE-404-001` | 404 | Usuario no encontrado: {0} |
+| `IDE-404-002` | 404 | No hay ningún usuario registrado con el correo {0} |
+| `IDE-404-003` | 404 | No estás asociado al ruc {0} |
+| `IDE-404-004` | 404 | El usuario {0} no está asociado al ruc {1} |
+| `IDE-404-005` | 404 | No existe un establecimiento activo '{0}' para el ruc {1} |
+| `IDE-404-006` | 404 | No existe un punto de emisión activo '{0}' para el establecimiento '{1}' del ruc {2} |
+| `IDE-404-007` | 404 | No hay una api-key {0} para este usuario |
 | `IDE-409-001` | 409 | Ya existe un usuario registrado con el email {0} |
+| `IDE-409-002` | 409 | Ya existe una api-key llamada '{0}' para este usuario |
+| `IDE-409-003` | 409 | El usuario {0} ya tiene acceso al ruc {1} (para cambiarle el rol: PATCH /empresas/{1}/usuarios/{2}) |
+| `IDE-409-004` | 409 | No se puede dejar al ruc {0} sin ningún ADMIN |
 
-## facturacion-orchestrator-service — `ORQ` (sin respuesta HTTP)
+## notificacion-service — `NOT`
+
+| Código | HTTP | Mensaje (`{n}` = parámetro) |
+|---|---|---|
+| `NOT-404-001` | 404 | No hay ninguna notificación para el comprobante {0} |
+
+## sri-conector-service — `SRI`
+
+| Código | HTTP | Mensaje (`{n}` = parámetro) |
+|---|---|---|
+| `SRI-400-001` | 400 | Comando de envío al SRI inválido: falta eventId o comprobanteId ({0}) |
+| `SRI-404-001` | 404 | No hay ningún envío al SRI para el comprobante {0} |
+| `SRI-404-002` | 404 | No hay ningún envío al SRI con clave de acceso {0} |
+| `SRI-404-003` | 404 | EnvioSri no encontrado: {0} |
+| `SRI-502-001` | 502 | No se pudo contactar al WS de Recepción del SRI ({0}) |
+| `SRI-502-002` | 502 | No se pudo contactar al WS de Autorización del SRI ({0}) |
+
+## facturacion-orchestrator-service — `ORQ`
+
+| Código | HTTP | Mensaje (`{n}` = parámetro) |
+|---|---|---|
+| `ORQ-404-001` | 404 | No hay saga para el comprobante {0} |
+| `ORQ-500-001` | 500 | No se pudo leer el payload guardado de la saga |
+| `ORQ-409-001` | 409 | La saga {0} no tiene el comando de firma pendiente |
 
 Motivos que el orquestador registra en la saga (`failure_reason` y bitácora `saga_step`); no se devuelven como error HTTP.
 
@@ -142,6 +238,7 @@ Todo log del código propio lleva un código estable: `[FIR-401] texto (comproba
 | `GEN-301` | WARN | Revocación de api-key ignorada: {0} |
 | `GEN-401` | ERROR | Excepción no controlada en un endpoint; el cliente recibe el 500 genérico |
 | `GEN-402` | ERROR | Falló el procesamiento de un mensaje del canal {0} ({1}): según la estrategia del canal pasa a su DLQ (.dlq) o se descarta |
+| `GEN-403` | ERROR | Falló una operación interna ({0}): {1} — la lanzó una `ErrorInternoException`; el cliente recibe solo el texto genérico y el código |
 
 ### comprobantes-service — `COMP`
 

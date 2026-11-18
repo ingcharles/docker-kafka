@@ -8,6 +8,7 @@ import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -15,6 +16,7 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
@@ -27,7 +29,6 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.commons.rest.Respuestas;
-import com.facturacion.commons.exception.SinPermisoException;
 import com.facturacion.commons.paging.PageRequest;
 import com.facturacion.commons.paging.PagedResponse;
 import com.facturacion.commons.security.TokenPrincipal;
@@ -42,8 +43,11 @@ import com.facturacion.comprobantes.application.dto.EmpresaRequest;
 import com.facturacion.comprobantes.application.service.ComprobanteConsultaService;
 import com.facturacion.comprobantes.application.service.ComprobanteService;
 import com.facturacion.comprobantes.application.service.ReenvioNotificacionService;
+import com.facturacion.comprobantes.application.service.TicketService;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
+import com.facturacion.comprobantes.domain.model.enums.FormatoTicket;
+import com.facturacion.comprobantes.domain.model.vo.AnchoTicket;
 
 /**
  * Superficie de observabilidad y de creación:
@@ -58,17 +62,22 @@ import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
 @Tag(name = "Comprobantes", description = "Comprobantes electrónicos — Factura, Nota de Crédito, Nota de Débito, Guía de Remisión, Retención y Liquidación de Compra")
 public class ComprobanteResource {
 
+    /** Parte de la cabecera Content-Disposition del ticket: nombre del archivo con la clave de acceso y la extensión. */
+    private static final String NOMBRE_ARCHIVO = "; filename=\"ticket-%s%s\"";
+
     private final ComprobanteService comprobanteService;
     private final ComprobanteConsultaService consultaService;
     private final ReenvioNotificacionService reenvioService;
+    private final TicketService ticketService;
     private final TokenPrincipal tokenPrincipal;
 
     @Inject
     public ComprobanteResource(ComprobanteService comprobanteService, ComprobanteConsultaService consultaService,
-            ReenvioNotificacionService reenvioService, TokenPrincipal tokenPrincipal) {
+            ReenvioNotificacionService reenvioService, TicketService ticketService, TokenPrincipal tokenPrincipal) {
         this.comprobanteService = comprobanteService;
         this.consultaService = consultaService;
         this.reenvioService = reenvioService;
+        this.ticketService = ticketService;
         this.tokenPrincipal = tokenPrincipal;
     }
 
@@ -81,20 +90,7 @@ public class ComprobanteResource {
      */
     private void validarAlcance(EmpresaRequest empresa) {
         tokenPrincipal.exigirEscritura();
-        if (!tokenPrincipal.esDeLaEmpresa(empresa.getRuc())) {
-            throw new SinPermisoException(
-                "La api-key usada es para el ruc " + tokenPrincipal.getRuc() + ", no para " + empresa.getRuc());
-        }
-        if (tokenPrincipal.getEstablecimiento() != null
-                && !tokenPrincipal.getEstablecimiento().equals(empresa.getEstablecimiento())) {
-            throw new SinPermisoException("La api-key usada es solo para el establecimiento "
-                + tokenPrincipal.getEstablecimiento() + ", no para " + empresa.getEstablecimiento());
-        }
-        if (tokenPrincipal.getPuntoEmision() != null
-                && !tokenPrincipal.getPuntoEmision().equals(empresa.getPuntoEmision())) {
-            throw new SinPermisoException("La api-key usada es solo para el punto de emisión "
-                + tokenPrincipal.getPuntoEmision() + ", no para " + empresa.getPuntoEmision());
-        }
+        tokenPrincipal.exigirAlcance(empresa.getRuc(), empresa.getEstablecimiento(), empresa.getPuntoEmision());
     }
 
     @POST
@@ -217,9 +213,8 @@ public class ComprobanteResource {
     public Uni<Response> listar(@Valid @BeanParam PageRequest pageRequest,
             @QueryParam("estado") EstadoComprobante estado, @QueryParam("empresaRuc") String empresaRuc) {
         // El listado es siempre de la empresa de la api-key; pedir el de otro RUC es un error, no un resultado vacío.
-        if (empresaRuc != null && !tokenPrincipal.esDeLaEmpresa(empresaRuc)) {
-            throw new SinPermisoException("La api-key usada es para el ruc " + tokenPrincipal.getRuc()
-                + ", no para " + empresaRuc);
+        if (empresaRuc != null) {
+            tokenPrincipal.exigirEmpresa(empresaRuc);
         }
         return consultaService.listarPaginado(pageRequest.getPage(), pageRequest.getLimit(), estado,
                 tokenPrincipal.getRuc())
@@ -267,6 +262,29 @@ public class ComprobanteResource {
                 .header("Content-Disposition", "inline; filename=\"" + c.getClaveAcceso() + ".pdf\"")
                 .build();
         });
+    }
+
+    @GET
+    @Path("/comprobantes/{id}/ticket")
+    @Produces({FormatoTicket.TIPO_TEXTO, FormatoTicket.TIPO_ESCPOS})
+    @Operation(summary = "Ticket (recibo corto) para impresora de recibos",
+        description = "Datos mínimos para entregar al cliente: emisor, número, fecha, cliente, líneas, totales, forma de pago y "
+            + "estado de autorización con la clave de acceso. formato=texto (por defecto, texto plano ya ajustado al papel) "
+            + "o escpos (bytes ESC/POS para enviar tal cual a la impresora, con negrita y corte; solo ASCII). "
+            + "ancho = milímetros del papel configurados en ticket.anchos (por defecto 58 y 80). Se puede pedir en cualquier estado; no reemplaza al RIDE. "
+            + "Disponible para factura, nota de crédito, nota de débito y liquidación de compra.")
+    @APIResponse(responseCode = "200", description = "El ticket")
+    @APIResponse(responseCode = "400", description = "Formato o ancho inválido, o tipo de comprobante sin ticket")
+    @APIResponse(responseCode = "404", description = "Comprobante no encontrado")
+    public Uni<Response> obtenerTicket(
+            @Parameter(description = "Id del comprobante", required = true) @PathParam("id") UUID id,
+            @Parameter(description = "texto | escpos") @QueryParam(FormatoTicket.PARAMETRO) @DefaultValue(FormatoTicket.POR_DEFECTO) String formato,
+            @Parameter(description = "Ancho del papel en mm; debe estar en ticket.anchos (por defecto ticket.ancho-por-defecto)") @QueryParam(AnchoTicket.PARAMETRO) Integer ancho) {
+        return ticketService.generar(id, tokenPrincipal.getRuc(), formato, ancho).map(ticket -> Response
+            .ok(ticket.contenido(), ticket.formato().tipoContenido())
+            .header(HttpHeaders.CONTENT_DISPOSITION, ticket.formato().disposicion() + NOMBRE_ARCHIVO.formatted(
+                ticket.claveAcceso(), ticket.formato().extension()))
+            .build());
     }
 
     @POST

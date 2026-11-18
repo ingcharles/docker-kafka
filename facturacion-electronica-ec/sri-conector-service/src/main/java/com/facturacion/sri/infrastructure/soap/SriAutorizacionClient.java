@@ -17,13 +17,15 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import io.smallrye.mutiny.Uni;
-import io.smallrye.mutiny.infrastructure.Infrastructure;
 
 import com.facturacion.commons.error.LogCodificado;
+import com.facturacion.commons.exception.ErrorInternoException;
+import com.facturacion.commons.reactive.TrabajoBloqueante;
 import com.facturacion.sri.domain.model.enums.AmbienteSri;
 import com.facturacion.sri.domain.port.AutorizacionResultado;
 import com.facturacion.sri.domain.port.AutorizacionSri;
 import com.facturacion.sri.shared.error.CodigoLog;
+import com.facturacion.sri.shared.error.SriError;
 
 /**
  * Cliente real del Web Service de Autorización del SRI —
@@ -56,8 +58,7 @@ public class SriAutorizacionClient implements AutorizacionSri {
      *                    por ambiente ({@code urlPruebas}/{@code urlProduccion}).
      */
     public Uni<AutorizacionResultado> consultar(String claveAcceso, AmbienteSri ambiente, String urlOverride) {
-        return Uni.createFrom().item(() -> consultarBloqueante(claveAcceso, ambiente, urlOverride))
-            .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+        return TrabajoBloqueante.ejecutar(() -> consultarBloqueante(claveAcceso, ambiente, urlOverride));
     }
 
     private AutorizacionResultado consultarBloqueante(String claveAcceso, AmbienteSri ambiente, String urlOverride) {
@@ -80,7 +81,7 @@ public class SriAutorizacionClient implements AutorizacionSri {
             LogCodificado.info(LOG, CodigoLog.HTTP_AUTORIZACION, "claveAcceso=" + claveAcceso, response.statusCode());
             return parsear(response.body());
         } catch (Exception e) {
-            throw new IllegalStateException("No se pudo contactar al WS de Autorización del SRI (" + url + ")", e);
+            throw new ErrorInternoException(e, SriError.WS_AUTORIZACION_NO_DISPONIBLE, url);
         }
     }
 

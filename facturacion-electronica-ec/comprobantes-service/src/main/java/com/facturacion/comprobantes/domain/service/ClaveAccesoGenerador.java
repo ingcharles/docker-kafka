@@ -1,12 +1,13 @@
 package com.facturacion.comprobantes.domain.service;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.concurrent.ThreadLocalRandom;
 
+import com.facturacion.commons.time.FechasSri;
 import com.facturacion.comprobantes.domain.model.enums.AmbienteSri;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
-import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
+import com.facturacion.comprobantes.domain.model.enums.TipoEmision;
+import com.facturacion.commons.time.ZonaHoraria;
 
 /**
  * Clave de acceso de 49 dígitos (Tabla 1 de la ficha técnica del SRI) y su
@@ -20,27 +21,25 @@ import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
  */
 public final class ClaveAccesoGenerador {
 
-    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("ddMMyyyy");
-    private static final String TIPO_EMISION_NORMAL = "1";
 
     private ClaveAccesoGenerador() {
     }
 
     public static String generar(LocalDate fechaEmision, TipoComprobante tipo, String ruc, AmbienteSri ambiente,
             String establecimiento, String puntoEmision, long secuencial) {
-        String fecha = fechaEmision.format(FORMATO_FECHA);
+        String fecha = FechasSri.formatearFechaClaveAcceso(fechaEmision);
         String serie = establecimiento + puntoEmision;
         String secuencialFormateado = String.format("%09d", secuencial);
         String codigoNumerico = generarCodigoNumerico();
 
         String base48 = fecha + tipo.codigo() + ruc + ambiente.codigo() + serie + secuencialFormateado
-            + codigoNumerico + TIPO_EMISION_NORMAL;
+            + codigoNumerico + TipoEmision.NORMAL.codigo();
 
         if (base48.length() != 48) {
             throw new IllegalStateException("La clave de acceso sin dígito verificador debe tener 48 dígitos, "
                 + "tiene " + base48.length() + ": " + base48);
         }
-        return base48 + digitoVerificadorModulo11(base48);
+        return base48 + calcularDigitoVerificadorModulo11(base48);
     }
 
     /**
@@ -49,7 +48,7 @@ public final class ClaveAccesoGenerador {
      * de la ficha técnica. Caso especial: si el resultado da 11, el dígito
      * es 0; si da 10, el dígito es 1.
      */
-    static String digitoVerificadorModulo11(String cadena48Digitos) {
+    static String calcularDigitoVerificadorModulo11(String cadena48Digitos) {
         int suma = 0;
         int peso = 2;
         for (int i = cadena48Digitos.length() - 1; i >= 0; i--) {

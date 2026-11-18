@@ -10,7 +10,7 @@ import io.smallrye.mutiny.Uni;
 @ApplicationScoped
 public class ProcessedMessageRepository implements PanacheRepositoryBase<ProcessedMessageEntity, UUID> {
 
-    public Uni<Boolean> alreadyProcessed(UUID messageId) {
+    public Uni<Boolean> esMensajeProcesado(UUID messageId) {
         return count("messageId", messageId).map(count -> count > 0);
     }
 }

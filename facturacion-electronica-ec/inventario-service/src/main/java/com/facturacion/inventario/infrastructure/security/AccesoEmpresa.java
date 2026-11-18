@@ -13,6 +13,7 @@ import com.facturacion.commons.security.TokenPrincipal;
 import com.facturacion.inventario.domain.repository.CategoriaRepository;
 import com.facturacion.inventario.domain.repository.ImagenItemRepository;
 import com.facturacion.inventario.domain.repository.ItemRepository;
+import com.facturacion.inventario.shared.error.CodigoError;
 
 /**
  * Autorización por empresa en la frontera REST: una api-key solo opera sobre ítems (y sus imágenes y kardex) y
@@ -44,7 +45,7 @@ public class AccesoEmpresa {
         return itemRepository.findById(itemId)
             .onItem().transformToUni(item -> item != null && tokenPrincipal.esDeLaEmpresa(item.getRuc())
                 ? Uni.createFrom().voidItem()
-                : Uni.createFrom().failure(new NotFoundException("Ítem no encontrado: " + itemId)));
+                : Uni.createFrom().failure(new NotFoundException(CodigoError.ITEM_NO_ENCONTRADO, itemId)));
     }
 
     /** Falla con 404 si la categoría no existe o es de otra empresa. */
@@ -53,7 +54,7 @@ public class AccesoEmpresa {
         return categoriaRepository.findById(categoriaId)
             .onItem().transformToUni(categoria -> categoria != null && tokenPrincipal.esDeLaEmpresa(categoria.getRuc())
                 ? Uni.createFrom().voidItem()
-                : Uni.createFrom().failure(new NotFoundException("Categoría no encontrada: " + categoriaId)));
+                : Uni.createFrom().failure(new NotFoundException(CodigoError.CATEGORIA_NO_ENCONTRADA, categoriaId)));
     }
 
     /** Como {@link #exigirCategoria}, pero para operaciones que modifican: además exige rol ADMIN u OPERADOR. */
@@ -79,9 +80,9 @@ public class AccesoEmpresa {
     public Uni<Void> exigirImagen(UUID imagenId) {
         return imagenRepository.findById(imagenId)
             .onItem().transformToUni(imagen -> imagen == null
-                ? Uni.createFrom().failure(new NotFoundException("Imagen no encontrada: " + imagenId))
+                ? Uni.createFrom().failure(new NotFoundException(CodigoError.IMAGEN_NO_ENCONTRADA, imagenId))
                 : exigirItem(imagen.getItemId())
                     .onFailure(NotFoundException.class)
-                    .transform(e -> new NotFoundException("Imagen no encontrada: " + imagenId)));
+                    .transform(e -> new NotFoundException(CodigoError.IMAGEN_NO_ENCONTRADA, imagenId)));
     }
 }

@@ -14,6 +14,7 @@ import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.firma.application.dto.LogoResponse;
 import com.facturacion.firma.domain.model.entity.Empresa;
 import com.facturacion.firma.domain.repository.EmpresaRepository;
+import com.facturacion.firma.shared.error.FirmaError;
 import com.facturacion.firma.shared.exception.LogoInvalidoException;
 
 /**
@@ -48,7 +49,7 @@ public class LogoEmpresaService {
 
     @WithTransaction
     public Uni<LogoResponse> subir(UUID empresaId, byte[] contenido) {
-        String tipo = tipoDe(contenido);
+        String tipo = detectarTipo(contenido);
         return buscar(empresaId).onItem().transformToUni(empresa -> empresaRepository
             .actualizarLogo(empresaId, contenido, tipo)
             .chain(() -> configuracionService.publicarAjusteDerivado(empresa, CLAVE_RIDE_LOGO,
@@ -60,7 +61,7 @@ public class LogoEmpresaService {
     public Uni<Logo> obtener(UUID empresaId) {
         return buscar(empresaId).map(empresa -> {
             if (empresa.getLogo() == null) {
-                throw new NotFoundException("La empresa " + empresaId + " no tiene logo");
+                throw new NotFoundException(FirmaError.LOGO_NO_ENCONTRADO, empresaId);
             }
             return new Logo(empresa.getLogo(), empresa.getLogoTipo());
         });
@@ -70,7 +71,7 @@ public class LogoEmpresaService {
     public Uni<Void> eliminar(UUID empresaId) {
         return buscar(empresaId).onItem().transformToUni(empresa -> {
             if (empresa.getLogo() == null) {
-                return Uni.createFrom().failure(new NotFoundException("La empresa " + empresaId + " no tiene logo"));
+                return Uni.createFrom().failure(new NotFoundException(FirmaError.LOGO_NO_ENCONTRADO, empresaId));
             }
             return empresaRepository.actualizarLogo(empresaId, null, null)
                 .chain(() -> configuracionService.retirarAjusteDerivado(empresa, CLAVE_RIDE_LOGO));
@@ -79,28 +80,28 @@ public class LogoEmpresaService {
 
     private Uni<Empresa> buscar(UUID empresaId) {
         return empresaRepository.findById(empresaId)
-            .onItem().ifNull().failWith(() -> new NotFoundException("Empresa no encontrada: " + empresaId));
+            .onItem().ifNull().failWith(() -> new NotFoundException(FirmaError.EMPRESA_NO_ENCONTRADA, empresaId));
     }
 
     /** Tipo MIME según los primeros bytes (no se confía en el nombre ni en el Content-Type que mande el cliente). */
-    static String tipoDe(byte[] contenido) {
+    static String detectarTipo(byte[] contenido) {
         if (contenido == null || contenido.length == 0) {
-            throw new LogoInvalidoException("El archivo del logo está vacío");
+            throw new LogoInvalidoException(FirmaError.LOGO_VACIO);
         }
         if (contenido.length > MAXIMO_BYTES) {
-            throw new LogoInvalidoException("El logo pesa " + contenido.length / 1024 + " KB; el máximo es "
-                + MAXIMO_BYTES / 1024 + " KB");
+            throw new LogoInvalidoException(FirmaError.LOGO_MUY_GRANDE, contenido.length / 1024,
+                MAXIMO_BYTES / 1024);
         }
-        if (empiezaCon(contenido, FIRMA_PNG)) {
+        if (tieneFirma(contenido, FIRMA_PNG)) {
             return "image/png";
         }
-        if (empiezaCon(contenido, FIRMA_JPEG)) {
+        if (tieneFirma(contenido, FIRMA_JPEG)) {
             return "image/jpeg";
         }
-        throw new LogoInvalidoException("El logo debe ser una imagen PNG o JPEG");
+        throw new LogoInvalidoException(FirmaError.LOGO_TIPO_NO_ADMITIDO);
     }
 
-    private static boolean empiezaCon(byte[] contenido, byte[] firma) {
+    private static boolean tieneFirma(byte[] contenido, byte[] firma) {
         if (contenido.length < firma.length) {
             return false;
         }

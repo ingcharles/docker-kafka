@@ -38,13 +38,11 @@ public class ItemEventConsumer {
         item.setCodigoPrincipal(evento.codigoPrincipal());
         item.setDescripcion(evento.descripcion());
         item.setUnidadMedida(evento.unidadMedida());
-        item.setCodigoImpuesto(evento.codigoImpuesto());
-        item.setCodigoPorcentaje(evento.codigoPorcentaje());
-        item.setTieneIce(evento.tieneIce());
-        item.setCodigoPorcentajeIce(evento.codigoPorcentajeIce());
-        item.setTarifaIce(evento.tarifaIce());
+        item.setCodigoPorcentajeIva(evento.codigoPorcentajeIva());
+        item.setCodigoIce(evento.codigoIce());
+        item.setCodigoIrbpnr(evento.codigoIrbpnr());
         item.setActivo(evento.activo());
         item.setActualizadoEn(evento.occurredAt());
-        return repository.upsert(item).replaceWithVoid();
+        return repository.insertarOActualizar(item).replaceWithVoid();
     }
 }

@@ -86,8 +86,8 @@ class ComprobanteCicloDeVidaTest {
     @Test
     void consultaSiUnDestinoSaltaPasosDelCiclo() {
         Comprobante comprobante = borrador();
-        assertEquals(true, comprobante.saltaPasos(EstadoComprobante.AUTORIZADO));
-        assertEquals(false, comprobante.saltaPasos(EstadoComprobante.FIRMADO));
+        assertEquals(true, comprobante.esSaltoDePasos(EstadoComprobante.AUTORIZADO));
+        assertEquals(false, comprobante.esSaltoDePasos(EstadoComprobante.FIRMADO));
         assertEquals(true, comprobante.puedePasarA(EstadoComprobante.FIRMADO));
     }
 }

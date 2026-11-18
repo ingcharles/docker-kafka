@@ -15,6 +15,9 @@ import io.smallrye.mutiny.Uni;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.facturacion.commons.error.ErrorComun;
+import com.facturacion.commons.exception.ConflictoException;
+import com.facturacion.commons.exception.ErrorInternoException;
 import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.firma.application.dto.ConfiguracionEmpresaResponse;
 import com.facturacion.firma.application.event.ConfiguracionEmpresaEventMessage;
@@ -26,7 +29,7 @@ import com.facturacion.firma.domain.port.EventosSalientes;
 import com.facturacion.firma.domain.repository.ConfiguracionEmpresaRepository;
 import com.facturacion.firma.domain.repository.EmpresaRepository;
 import com.facturacion.firma.shared.constant.MessagingConstants;
-import com.facturacion.firma.shared.exception.CodigoDuplicadoException;
+import com.facturacion.firma.shared.error.FirmaError;
 
 /**
  * Ajustes opcionales por empresa, guardados como pares clave/valor — ver la
@@ -61,12 +64,12 @@ public class ConfiguracionEmpresaService {
     @WithTransaction
     public Uni<ConfiguracionEmpresaResponse> crear(UUID empresaId, String clave, String valor) {
         return empresaRepository.findById(empresaId)
-            .onItem().ifNull().failWith(() -> new NotFoundException("Empresa no encontrada: " + empresaId))
+            .onItem().ifNull().failWith(() -> new NotFoundException(FirmaError.EMPRESA_NO_ENCONTRADA, empresaId))
             .onItem().transformToUni(empresa -> configuracionRepository.findByEmpresaIdAndClave(empresaId, clave)
                 .onItem().transformToUni(existente -> {
                     if (existente != null) {
-                        return Uni.createFrom().failure(new CodigoDuplicadoException(
-                            "Ya existe la configuración '" + clave + "' para la empresa " + empresaId));
+                        return Uni.createFrom().failure(new ConflictoException(
+                            FirmaError.CONFIGURACION_DUPLICADA, clave, empresaId));
                     }
                     return guardarYPublicar(empresa, clave, valor);
                 }))
@@ -77,16 +80,15 @@ public class ConfiguracionEmpresaService {
     @WithTransaction
     public Uni<ConfiguracionEmpresaResponse> actualizar(UUID empresaId, String clave, String valor) {
         return empresaRepository.findById(empresaId)
-            .onItem().ifNull().failWith(() -> new NotFoundException("Empresa no encontrada: " + empresaId))
+            .onItem().ifNull().failWith(() -> new NotFoundException(FirmaError.EMPRESA_NO_ENCONTRADA, empresaId))
             .onItem().transformToUni(empresa -> configuracionRepository.findByEmpresaIdAndClave(empresaId, clave)
-                .onItem().ifNull().failWith(() -> new NotFoundException(
-                    "No existe la configuración '" + clave + "' para la empresa " + empresaId))
+                .onItem().ifNull().failWith(() -> new NotFoundException(FirmaError.CONFIGURACION_NO_ENCONTRADA, clave, empresaId))
                 .onItem().transformToUni(existente -> guardarYPublicar(empresa, clave, valor)))
             .map(mapper::toResponse);
     }
 
     private Uni<ConfiguracionEmpresa> guardarYPublicar(Empresa empresa, String clave, String valor) {
-        return configuracionRepository.upsert(empresa.getId(), clave, valor)
+        return configuracionRepository.insertarOActualizar(empresa.getId(), clave, valor)
             .chain(guardado -> salientes
                 .registrar(construirEventoOutbox(empresa, clave, valor,
                     MessagingConstants.EVENT_TYPE_CONFIGURACION_EMPRESA_ESTABLECIDA))
@@ -103,20 +105,19 @@ public class ConfiguracionEmpresaService {
     public Uni<ConfiguracionEmpresaResponse> obtener(UUID empresaId, String clave) {
         return configuracionRepository.findByEmpresaIdAndClave(empresaId, clave)
             .onItem().ifNull().failWith(() ->
-                new NotFoundException("No existe la configuración '" + clave + "' para la empresa " + empresaId))
+                new NotFoundException(FirmaError.CONFIGURACION_NO_ENCONTRADA, clave, empresaId))
             .map(mapper::toResponse);
     }
 
     @WithTransaction
     public Uni<Void> eliminar(UUID empresaId, String clave) {
         return empresaRepository.findById(empresaId)
-            .onItem().ifNull().failWith(() -> new NotFoundException("Empresa no encontrada: " + empresaId))
+            .onItem().ifNull().failWith(() -> new NotFoundException(FirmaError.EMPRESA_NO_ENCONTRADA, empresaId))
             .onItem().transformToUni(empresa -> configuracionRepository.deleteByEmpresaIdAndClave(empresaId, clave)
                 .onItem().transformToUni(borrada -> Boolean.TRUE.equals(borrada)
                     ? salientes.registrar(construirEventoOutbox(empresa, clave, null,
                         MessagingConstants.EVENT_TYPE_CONFIGURACION_EMPRESA_ELIMINADA)).replaceWithVoid()
-                    : Uni.createFrom().failure(new NotFoundException(
-                        "No existe la configuración '" + clave + "' para la empresa " + empresaId))));
+                    : Uni.createFrom().failure(new NotFoundException(FirmaError.CONFIGURACION_NO_ENCONTRADA, clave, empresaId))));
     }
 
     /**
@@ -145,7 +146,7 @@ public class ConfiguracionEmpresaService {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("No se pudo serializar el payload del outbox", e);
+            throw new ErrorInternoException(e, ErrorComun.PAYLOAD_NO_SERIALIZABLE);
         }
     }
 }

@@ -4,16 +4,16 @@ import com.facturacion.commons.exception.ApiException;
 import com.facturacion.firma.shared.error.FirmaError;
 
 /**
- * El archivo subido no es un .p12/PKCS12 válido, o la contraseña dada no lo abre. 400,
- * {@link FirmaError#CERTIFICADO_INVALIDO}.
+ * El certificado no sirve para firmar: no es un .p12/PKCS12 válido, la contraseña no lo abre, está vencido o la empresa
+ * no tiene uno activo. 400; la entrada concreta del catálogo ({@link FirmaError}) dice cuál de esos casos es.
  */
 public class CertificadoInvalidoException extends ApiException {
 
-    public CertificadoInvalidoException(String message, Throwable cause) {
-        super(FirmaError.CERTIFICADO_INVALIDO, message, cause);
+    public CertificadoInvalidoException(FirmaError error, Object... parametros) {
+        super(error, parametros);
     }
 
-    public CertificadoInvalidoException(String message) {
-        super(FirmaError.CERTIFICADO_INVALIDO, message, null);
+    public CertificadoInvalidoException(FirmaError error, Throwable causa, Object... parametros) {
+        super(error, causa, parametros);
     }
 }

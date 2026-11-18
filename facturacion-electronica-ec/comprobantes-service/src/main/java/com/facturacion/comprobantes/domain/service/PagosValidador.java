@@ -47,7 +47,7 @@ public final class PagosValidador {
         BigDecimal suma = BigDecimal.ZERO;
         for (int i = 0; i < pagos.size(); i++) {
             Pago pago = pagos.get(i);
-            String ref = referencia(i);
+            String ref = armarReferencia(i);
 
             if (!formasPagoVigentes.contains(pago.formaPago())) {
                 throw new ErrorNegocioException(CodigoError.PAGO_FORMA_NO_VIGENTE, ref, pago.formaPago(),
@@ -91,7 +91,7 @@ public final class PagosValidador {
                 continue;
             }
             if (!hayTexto(pago.plazo()) || !hayTexto(pago.unidadTiempo())) {
-                throw new ErrorNegocioException(CodigoError.NEGOCIABLE_SIN_PLAZO, referencia(i), endoso);
+                throw new ErrorNegocioException(CodigoError.NEGOCIABLE_SIN_PLAZO, armarReferencia(i), endoso);
             }
             if (!hayTexto(compradorDireccion)) {
                 throw new ErrorNegocioException(CodigoError.NEGOCIABLE_SIN_DIRECCION, endoso);
@@ -111,7 +111,7 @@ public final class PagosValidador {
         }
     }
 
-    private static String referencia(int indice) {
+    private static String armarReferencia(int indice) {
         return "pagos[" + indice + "]";
     }
 

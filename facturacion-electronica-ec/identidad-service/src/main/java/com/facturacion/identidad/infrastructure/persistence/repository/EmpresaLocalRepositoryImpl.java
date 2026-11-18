@@ -23,7 +23,7 @@ public class EmpresaLocalRepositoryImpl implements EmpresaLocalRepository {
     }
 
     @Override
-    public Uni<EmpresaLocal> upsert(EmpresaLocal domain) {
+    public Uni<EmpresaLocal> insertarOActualizar(EmpresaLocal domain) {
         return repository.<EmpresaLocalEntity>findById(domain.getId())
             .onItem().transformToUni(existente -> {
                 if (existente == null) {

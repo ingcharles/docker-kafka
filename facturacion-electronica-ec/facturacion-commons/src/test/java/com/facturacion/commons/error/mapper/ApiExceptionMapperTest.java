@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import com.facturacion.commons.error.ApiErrorResponse;
 import com.facturacion.commons.error.ErrorComun;
 import com.facturacion.commons.exception.ConflictoException;
+import com.facturacion.commons.exception.ErrorInternoException;
 import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.commons.exception.SinPermisoException;
@@ -20,7 +21,7 @@ class ApiExceptionMapperTest {
 
     @Test
     void notFoundConTextoLiteralSale404ConCodigoGenerico() {
-        ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(new NotFoundException("Comprobante no encontrado: 7"));
+        ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(new NotFoundException(ErrorComun.RECURSO_NO_ENCONTRADO, "Comprobante no encontrado: 7"));
         assertEquals(404, cuerpo.getStatus());
         assertEquals("Not Found", cuerpo.getError());
         assertEquals("Comprobante no encontrado: 7", cuerpo.getMessage());
@@ -30,18 +31,28 @@ class ApiExceptionMapperTest {
 
     @Test
     void cadaExcepcionGenericaTraeSuEstado() {
-        assertEquals(401, ApiExceptionMapper.construirCuerpo(new TokenInvalidoException("x")).getStatus());
-        assertEquals(403, ApiExceptionMapper.construirCuerpo(new SinPermisoException("x")).getStatus());
-        assertEquals(409, ApiExceptionMapper.construirCuerpo(new ConflictoException("x")).getStatus());
+        assertEquals(401, ApiExceptionMapper.construirCuerpo(new TokenInvalidoException(ErrorComun.TOKEN_INVALIDO, "x")).getStatus());
+        assertEquals(403, ApiExceptionMapper.construirCuerpo(new SinPermisoException(ErrorComun.SIN_PERMISO, "x")).getStatus());
+        assertEquals(409, ApiExceptionMapper.construirCuerpo(new ConflictoException(ErrorComun.CONFLICTO, "x")).getStatus());
     }
 
     @Test
     void errorNegocioUsaLaEntradaDelCatalogoYSusDetalles() {
         ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(
-            ErrorNegocioException.conDetalles(ErrorComun.SOLICITUD_INVALIDA, List.of("a", "b"), "varios problemas"));
+            ErrorNegocioException.crearConDetalles(ErrorComun.SOLICITUD_INVALIDA, List.of("a", "b"), "varios problemas"));
         assertEquals(400, cuerpo.getStatus());
         assertEquals("GEN-400-002", cuerpo.getCodigo());
         assertEquals("varios problemas", cuerpo.getMessage());
         assertEquals(List.of("a", "b"), cuerpo.getDetails());
+    }
+
+    @Test
+    void unFalloInternoNoExponeSuDetalleYConservaSuCodigo() {
+        ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(
+            new ErrorInternoException(new RuntimeException("detalle interno"), ErrorComun.PAYLOAD_NO_SERIALIZABLE));
+
+        assertEquals(500, cuerpo.getStatus());
+        assertEquals("GEN-500-002", cuerpo.getCodigo());
+        assertEquals("Ocurrió un error inesperado", cuerpo.getMessage());
     }
 }

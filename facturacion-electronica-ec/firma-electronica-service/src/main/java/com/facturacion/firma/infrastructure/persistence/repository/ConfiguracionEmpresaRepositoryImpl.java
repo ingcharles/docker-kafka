@@ -29,7 +29,7 @@ public class ConfiguracionEmpresaRepositoryImpl implements ConfiguracionEmpresaR
     }
 
     @Override
-    public Uni<ConfiguracionEmpresa> upsert(UUID empresaId, String clave, String valor) {
+    public Uni<ConfiguracionEmpresa> insertarOActualizar(UUID empresaId, String clave, String valor) {
         return repository.find("empresaId = ?1 and clave = ?2", empresaId, clave)
             .<ConfiguracionEmpresaEntity>firstResult()
             .onItem().transformToUni(existente -> {

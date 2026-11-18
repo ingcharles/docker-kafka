@@ -37,6 +37,11 @@ public class TarifaImpuestoEntity extends PanacheEntityBase {
 
     public BigDecimal tarifa;
 
+    @Id
+    @Column(name = "tipo_tarifa")
+    public String tipoTarifa;
+
+    @Id
     @Column(name = "vigente_desde")
     public LocalDate vigenteDesde;
 
@@ -48,6 +53,8 @@ public class TarifaImpuestoEntity extends PanacheEntityBase {
     public static class Clave implements Serializable {
         public String impuestoCodigo;
         public String codigoPorcentaje;
+        public String tipoTarifa;
+        public LocalDate vigenteDesde;
 
         public Clave() {
         }
@@ -55,12 +62,13 @@ public class TarifaImpuestoEntity extends PanacheEntityBase {
         @Override
         public boolean equals(Object otro) {
             return otro instanceof Clave c && Objects.equals(impuestoCodigo, c.impuestoCodigo)
-                && Objects.equals(codigoPorcentaje, c.codigoPorcentaje);
+                && Objects.equals(codigoPorcentaje, c.codigoPorcentaje)
+                && Objects.equals(tipoTarifa, c.tipoTarifa) && Objects.equals(vigenteDesde, c.vigenteDesde);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(impuestoCodigo, codigoPorcentaje);
+            return Objects.hash(impuestoCodigo, codigoPorcentaje, tipoTarifa, vigenteDesde);
         }
     }
 }

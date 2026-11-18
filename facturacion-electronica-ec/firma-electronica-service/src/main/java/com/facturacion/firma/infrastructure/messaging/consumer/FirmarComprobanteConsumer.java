@@ -15,7 +15,10 @@ import io.smallrye.mutiny.Uni;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.facturacion.commons.error.ErrorComun;
 import com.facturacion.commons.error.LogCodificado;
+import com.facturacion.commons.exception.ErrorInternoException;
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.firma.application.event.ComprobanteFirmadoEventMessage;
 import com.facturacion.firma.application.event.FirmarComprobanteCommand;
@@ -26,6 +29,7 @@ import com.facturacion.firma.infrastructure.outbox.OutboxEventEntity;
 import com.facturacion.firma.infrastructure.outbox.OutboxEventRepository;
 import com.facturacion.firma.shared.constant.MessagingConstants;
 import com.facturacion.firma.shared.error.CodigoLog;
+import com.facturacion.firma.shared.error.FirmaError;
 
 /**
  * Firma el XML de un comprobante con el certificado activo de la empresa
@@ -60,10 +64,9 @@ public class FirmarComprobanteConsumer {
         // comprobante): se rechaza con un motivo claro y SmallRye lo envía al DLQ, en vez de fallar con un error de
         // restricción de la base.
         if (command == null || command.eventId() == null || command.comprobanteId() == null) {
-            return Uni.createFrom().failure(new IllegalArgumentException(
-                "Comando de firma inválido: falta eventId o comprobanteId (" + command + ")"));
+            return Uni.createFrom().failure(new ErrorNegocioException(FirmaError.COMANDO_FIRMA_INVALIDO, command));
         }
-        return processedMessageRepository.alreadyProcessed(command.eventId())
+        return processedMessageRepository.esMensajeProcesado(command.eventId())
             .onItem().transformToUni(processed -> {
                 if (Boolean.TRUE.equals(processed)) {
                     LogCodificado.info(LOG, CodigoLog.COMANDO_DUPLICADO_DESCARTADO, "comprobanteId=" + command.comprobanteId(),
@@ -97,7 +100,7 @@ public class FirmarComprobanteConsumer {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("No se pudo serializar el payload del outbox", e);
+            throw new ErrorInternoException(e, ErrorComun.PAYLOAD_NO_SERIALIZABLE);
         }
     }
 }

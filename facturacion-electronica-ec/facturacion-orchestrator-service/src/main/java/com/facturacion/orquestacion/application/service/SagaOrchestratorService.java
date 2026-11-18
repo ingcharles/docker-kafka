@@ -21,8 +21,11 @@ import io.smallrye.mutiny.Uni;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.facturacion.commons.error.ErrorComun;
 import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.commons.error.Mensajes;
+import com.facturacion.commons.exception.ConflictoException;
+import com.facturacion.commons.exception.ErrorInternoException;
 import com.facturacion.orquestacion.application.event.ActualizarComprobanteCommand;
 import com.facturacion.orquestacion.application.event.ComprobanteEventMessage;
 import com.facturacion.orquestacion.application.event.ComprobanteFirmadoEventMessage;
@@ -44,6 +47,7 @@ import com.facturacion.orquestacion.domain.service.PoliticaReenvioNotificacion;
 import com.facturacion.orquestacion.domain.service.PoliticaReintentoSaga;
 import com.facturacion.orquestacion.shared.constant.MessagingConstants;
 import com.facturacion.orquestacion.shared.error.CodigoError;
+import com.facturacion.orquestacion.shared.error.OrquestacionError;
 
 /**
  * La única pieza de todo el sistema que conoce la saga completa. Todos los
@@ -133,7 +137,7 @@ public class SagaOrchestratorService {
             MessagingConstants.COMANDO_STOCK_RESERVAR, event.comprobanteId(), event.items(), Instant.now());
         return sagaInstanceRepository.persist(saga)
             .chain(() -> registrarRecibido(event.comprobanteId(), MessagingConstants.EVENT_TYPE_COMPROBANTE_CREADO))
-            .chain(() -> sagaStepRepository.persist(SagaStep.nota(event.comprobanteId(), NOTA_FIRMA_PENDIENTE,
+            .chain(() -> sagaStepRepository.persist(SagaStep.crearNota(event.comprobanteId(), NOTA_FIRMA_PENDIENTE,
                 serializarAJson(firmar))))
             .chain(() -> emitir(event.comprobanteId(), "ReservarStock", MessagingConstants.INVENTARIO_COMMANDS_TOPIC,
                 reservar))
@@ -163,8 +167,7 @@ public class SagaOrchestratorService {
                 return sagaStepRepository.findUltimaNota(comprobanteId, NOTA_FIRMA_PENDIENTE)
                     .onItem().transformToUni(nota -> {
                         if (nota == null) {
-                            return Uni.<ResultadoEvento>createFrom().failure(new IllegalStateException(
-                                "La saga " + comprobanteId + " no tiene el comando de firma pendiente"));
+                            return Uni.<ResultadoEvento>createFrom().failure(new ConflictoException(OrquestacionError.SAGA_SIN_COMANDO_DE_FIRMA_PENDIENTE, comprobanteId));
                         }
                         return emitir(comprobanteId, "FirmarComprobante", MessagingConstants.FIRMA_COMMANDS_TOPIC,
                             leerJson(nota.getPayload(), FirmarComprobanteCommand.class))
@@ -281,7 +284,7 @@ public class SagaOrchestratorService {
      * procesa después en su PROPIA transacción ({@link #reenviarNotificacionAutomaticamente}), igual que el watchdog.
      */
     @WithSession
-    public Uni<List<UUID>> idsParaReenvioAutomatico(PoliticaReenvioNotificacion.Plazos plazos, int lote) {
+    public Uni<List<UUID>> listarIdsParaReenvioAutomatico(PoliticaReenvioNotificacion.Plazos plazos, int lote) {
         Instant ahora = Instant.now();
         return sagaInstanceRepository.findPendientesDeNotificacion(ahora.minus(plazos.esperaMinima()),
                 ahora.minus(plazos.plazoRespuesta()), plazos.maxIntentos(), lote)
@@ -327,7 +330,7 @@ public class SagaOrchestratorService {
                 // El contador de "saga" es el anterior al UPDATE (la sesión conserva la instancia ya cargada).
                 String nota = Mensajes.obtenerTexto(CodigoError.REENVIO_AUTOMATICO_NOTIFICACION,
                     saga.getReintentosNotificacion() + 1, plazos.maxIntentos());
-                return sagaStepRepository.persist(SagaStep.nota(id, CodigoError.REENVIO_AUTOMATICO_NOTIFICACION.codigo(), nota))
+                return sagaStepRepository.persist(SagaStep.crearNota(id, CodigoError.REENVIO_AUTOMATICO_NOTIFICACION.codigo(), nota))
                     .chain(() -> emitirComandoDeReenvio(id))
                     .replaceWith(PoliticaReenvioNotificacion.Accion.REENVIAR);
             });
@@ -340,7 +343,7 @@ public class SagaOrchestratorService {
         return sagaInstanceRepository.transicionarEstado(id, SagaState.NOTIFICACION_FALLIDA, motivo, SagaState.AUTORIZADO)
             .onItem().transformToUni(actualizada -> actualizada == null
                 ? Uni.createFrom().item(PoliticaReenvioNotificacion.Accion.ESPERAR)
-                : sagaStepRepository.persist(SagaStep.nota(id, CodigoError.NOTIFICACION_SIN_RESPUESTA.codigo(), motivo))
+                : sagaStepRepository.persist(SagaStep.crearNota(id, CodigoError.NOTIFICACION_SIN_RESPUESTA.codigo(), motivo))
                     .replaceWith(PoliticaReenvioNotificacion.Accion.DAR_POR_SIN_RESPUESTA));
     }
 
@@ -370,7 +373,7 @@ public class SagaOrchestratorService {
      * ({@link #recuperarSaga}) para que una saga que falla no arrastre a las demás ni deje a todas sin avanzar.
      */
     @WithSession
-    public Uni<List<UUID>> idsParaRecuperar(PoliticaReintentoSaga.Plazos plazos, int lote) {
+    public Uni<List<UUID>> listarIdsParaRecuperar(PoliticaReintentoSaga.Plazos plazos, int lote) {
         Instant ahora = Instant.now();
         return sagaInstanceRepository.findByEstados(SagaState.reintentables(), lote)
             .map(sagas -> sagas.stream()
@@ -412,7 +415,7 @@ public class SagaOrchestratorService {
             return sagaInstanceRepository.registrarReintento(comprobanteId, saga.getState())
                 .onItem().transformToUni(actualizada -> actualizada == null
                     ? Uni.createFrom().voidItem()
-                    : sagaStepRepository.persist(SagaStep.nota(comprobanteId, CodigoError.SAGA_REINTENTO_FALLIDO.codigo(),
+                    : sagaStepRepository.persist(SagaStep.crearNota(comprobanteId, CodigoError.SAGA_REINTENTO_FALLIDO.codigo(),
                         Mensajes.obtenerTexto(CodigoError.SAGA_REINTENTO_FALLIDO, saga.getReintentos() + 1, plazos.maxReintentos(),
                             causa))).replaceWithVoid());
         });
@@ -430,7 +433,7 @@ public class SagaOrchestratorService {
                     // cargada en esta sesión (caché de primer nivel) con el contador viejo.
                     String nota = Mensajes.obtenerTexto(CodigoError.SAGA_REINTENTO_AUTOMATICO, saga.getReintentos() + 1,
                         plazos.maxReintentos(), saga.getState());
-                    return sagaStepRepository.persist(SagaStep.nota(id, CodigoError.SAGA_REINTENTO_AUTOMATICO.codigo(), nota))
+                    return sagaStepRepository.persist(SagaStep.crearNota(id, CodigoError.SAGA_REINTENTO_AUTOMATICO.codigo(), nota))
                         .chain(() -> reintentarUltimoComando(id)).replaceWith(true);
                 });
         }
@@ -442,7 +445,7 @@ public class SagaOrchestratorService {
                 }
                 LogCodificado.error(LOG, CodigoError.SAGA_EXPIRADA, "comprobanteId=" + id, saga.getState(),
                     plazos.maxReintentos());
-                return sagaStepRepository.persist(SagaStep.nota(id, CodigoError.SAGA_EXPIRADA.codigo(), motivo))
+                return sagaStepRepository.persist(SagaStep.crearNota(id, CodigoError.SAGA_EXPIRADA.codigo(), motivo))
                     .replaceWith(true);
             });
     }
@@ -564,7 +567,7 @@ public class SagaOrchestratorService {
     // --- Ayudantes compartidos ----------------------------------------------
 
     private Uni<ResultadoEvento> ejecutarSiNoProcesado(UUID eventId, Supplier<Uni<ResultadoEvento>> accion) {
-        return mensajesProcesados.yaProcesado(eventId)
+        return mensajesProcesados.esMensajeProcesado(eventId)
             .onItem().transformToUni(procesado -> Boolean.TRUE.equals(procesado)
                 ? Uni.createFrom().item(ResultadoEvento.DUPLICADO)
                 : accion.get().call(() -> marcarProcesado(eventId)));
@@ -589,7 +592,7 @@ public class SagaOrchestratorService {
         try {
             return objectMapper.readValue(json, tipo);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("No se pudo leer el payload guardado de la saga", e);
+            throw new ErrorInternoException(e, OrquestacionError.PAYLOAD_SAGA_NO_LEIBLE);
         }
     }
 
@@ -597,7 +600,7 @@ public class SagaOrchestratorService {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("No se pudo serializar el payload del outbox", e);
+            throw new ErrorInternoException(e, ErrorComun.PAYLOAD_NO_SERIALIZABLE);
         }
     }
 }

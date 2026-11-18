@@ -20,6 +20,7 @@ import com.facturacion.orquestacion.domain.model.entity.SagaStep;
 import com.facturacion.orquestacion.domain.model.enums.SagaState;
 import com.facturacion.orquestacion.domain.repository.SagaInstanceRepository;
 import com.facturacion.orquestacion.domain.repository.SagaStepRepository;
+import com.facturacion.orquestacion.shared.error.OrquestacionError;
 
 @ApplicationScoped
 public class SagaQueryService {
@@ -41,7 +42,7 @@ public class SagaQueryService {
     public Uni<SagaResponse> getByComprobanteId(UUID comprobanteId, String empresaRuc) {
         return sagaInstanceRepository.findById(comprobanteId)
             .onItem().transform(saga -> saga != null && saga.getEmpresaRuc().equals(empresaRuc) ? saga : null)
-            .onItem().ifNull().failWith(() -> new NotFoundException("No hay saga para el comprobante " + comprobanteId))
+            .onItem().ifNull().failWith(() -> new NotFoundException(OrquestacionError.SAGA_NO_ENCONTRADA, comprobanteId))
             .onItem().transformToUni(saga -> sagaStepRepository.findBySagaId(comprobanteId)
                 .map(steps -> toResponse(saga, steps)));
     }

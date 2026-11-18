@@ -4,12 +4,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 
 import jakarta.enterprise.context.ApplicationScoped;
 
@@ -24,14 +20,17 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 
 import com.google.zxing.oned.Code128Writer;
 
+import com.facturacion.commons.exception.ErrorInternoException;
+import com.facturacion.commons.time.FechasSri;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
 import com.facturacion.comprobantes.domain.model.enums.AmbienteSri;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
+import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha;
-import com.facturacion.comprobantes.domain.model.vo.Impuesto;
 import com.facturacion.comprobantes.domain.port.GeneradorRide;
-import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
+import com.facturacion.comprobantes.domain.service.TotalesComprobante;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /**
  * RIDE (Representación Impresa de Documento Electrónico) en PDF — Anexo 2 de la ficha técnica del SRI. Se genera una
@@ -51,14 +50,19 @@ import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 public class RideGenerador implements GeneradorRide {
 
     private static final float ANCHO_PAGINA = PDRectangle.A4.getWidth();
-    private static final float ALTO_PAGINA = PDRectangle.A4.getHeight();
-    private static final float MARGEN = 28f;
+    static final float ALTO_PAGINA = PDRectangle.A4.getHeight();
+    static final float MARGEN = 28f;
     private static final float ANCHO_UTIL = ANCHO_PAGINA - 2 * MARGEN;
     private static final float ANCHO_COLUMNA_IZQUIERDA = 286f;
     private static final float SEPARACION = 10f;
+    static final float SEPARACION_CAJAS = 4f;
     private static final float ANCHO_COLUMNA_DERECHA = ANCHO_UTIL - ANCHO_COLUMNA_IZQUIERDA - SEPARACION;
-    private static final float ALTO_CAJA_EMISOR = 202f;
+    static final float ALTO_CAJA_EMISOR = 202f;
     private static final float ALTO_MINIMO_CAJA_COMPRADOR = 66f;
+    private static final float TAMANO_COMPRADOR = 8f;
+    private static final float MARGEN_SUPERIOR_COMPRADOR = 17f;
+    private static final float INTERLINEA_ADICIONAL = 2.5f;
+    private static final float SEPARACION_FILAS = 2f;
     private static final float ALTO_MINIMO_CAJA_DOCUMENTO = 272f;
     private static final float RADIO_ESQUINA = 9f;
     private static final float ALTO_CODIGO_BARRAS = 38f;
@@ -77,12 +81,6 @@ public class RideGenerador implements GeneradorRide {
     private static final float ANCHO_ETIQUETA_TOTAL = 130f;
     private static final float ALTO_FILA_TOTAL = 14f;
 
-    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final DateTimeFormatter FORMATO_FECHA_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
-    private static final String CODIGO_IVA = "2";
-    private static final String CODIGO_ICE = "3";
-    private static final String PORCENTAJE_NO_OBJETO_IVA = "6";
-    private static final String PORCENTAJE_EXENTO_IVA = "7";
     private static final float[] COLOR_NUMERO_POR_DEFECTO = {0.85f, 0.15f, 0.15f};
 
     private final PDFont fuenteNormal = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
@@ -136,7 +134,7 @@ public class RideGenerador implements GeneradorRide {
                 }
                 if (c.getEstado() == EstadoComprobante.NO_AUTORIZADO && c.getMotivoRechazo() != null) {
                     asegurarEspacio(lienzo, 30f);
-                    texto(lienzo.flujo, fuenteNegrita, 9, MARGEN, lienzo.y - 12,
+                    escribirTexto(lienzo.flujo, fuenteNegrita, 9, MARGEN, lienzo.y - 12,
                         "NO AUTORIZADO: " + c.getMotivoRechazo());
                 }
             }
@@ -144,7 +142,7 @@ public class RideGenerador implements GeneradorRide {
             documento.save(salida);
             return salida.toByteArray();
         } catch (IOException e) {
-            throw new IllegalStateException("No se pudo generar el RIDE del comprobante " + c.getId(), e);
+            throw new ErrorInternoException(e, CodigoError.RIDE_NO_GENERADO, c.getId());
         }
     }
 
@@ -162,28 +160,25 @@ public class RideGenerador implements GeneradorRide {
         // Etiquetas cortas (Fecha Emisión, Cédula/RUC, Razón Social) dejan más ancho al valor; las de una nota de crédito/débito son largas.
         float anchoEtiquetaComprador = c.getDocModificadoNumero() == null ? 88f : ANCHO_ETIQUETA_EMISOR;
         float anchoValorComprador = ANCHO_COLUMNA_IZQUIERDA - 16 - anchoEtiquetaComprador;
-        float altoComprador = 14f;
         List<List<String>> lineasComprador = new ArrayList<>();
         for (Fila fila : filasComprador) {
-            List<String> lineas = ajustar(fila.valor(), fuenteNormal, 8, anchoValorComprador);
-            lineasComprador.add(lineas);
-            altoComprador += lineas.size() * 10.5f;
+            lineasComprador.add(ajustar(fila.valor(), fuenteNormal, TAMANO_COMPRADOR, anchoValorComprador));
         }
-        altoComprador = Math.max(ALTO_MINIMO_CAJA_COMPRADOR, altoComprador);
-        float altoIzquierda = ALTO_CAJA_EMISOR + 4f + altoComprador;
+        float altoComprador = calcularAltoCajaComprador(lineasComprador);
+        float altoIzquierda = ALTO_CAJA_EMISOR + SEPARACION_CAJAS + altoComprador;
         float altoDocumento = Math.max(ALTO_MINIMO_CAJA_DOCUMENTO, altoIzquierda);
 
         dibujarCajaEmisor(l, c, xIzquierda, arriba, logo);
 
-        float yComprador = arriba - ALTO_CAJA_EMISOR - 4f;
-        cajaRedondeada(cs, xIzquierda, yComprador - altoComprador, ANCHO_COLUMNA_IZQUIERDA, altoComprador);
-        float y = yComprador - 17;
+        float yComprador = arriba - ALTO_CAJA_EMISOR - SEPARACION_CAJAS;
+        dibujarCajaRedondeada(cs, xIzquierda, yComprador - altoComprador, ANCHO_COLUMNA_IZQUIERDA, altoComprador);
+        float y = yComprador - MARGEN_SUPERIOR_COMPRADOR;
         for (int i = 0; i < filasComprador.size(); i++) {
-            y = filaLineas(cs, xIzquierda + 8, y, anchoEtiquetaComprador, filasComprador.get(i).etiqueta(),
-                lineasComprador.get(i), 8);
+            y = dibujarFilaLineas(cs, xIzquierda + 8, y, anchoEtiquetaComprador, filasComprador.get(i).etiqueta(),
+                lineasComprador.get(i), TAMANO_COMPRADOR);
         }
 
-        cajaRedondeada(cs, xDerecha, arriba - altoDocumento, ANCHO_COLUMNA_DERECHA, altoDocumento);
+        dibujarCajaRedondeada(cs, xDerecha, arriba - altoDocumento, ANCHO_COLUMNA_DERECHA, altoDocumento);
         dibujarCajaDocumento(cs, c, colorNumero, xDerecha, arriba);
 
         l.y = arriba - altoDocumento - 12;
@@ -191,7 +186,7 @@ public class RideGenerador implements GeneradorRide {
 
     private void dibujarCajaEmisor(Lienzo l, Comprobante c, float x, float arriba, byte[] logo) throws IOException {
         PDPageContentStream cs = l.flujo;
-        cajaRedondeada(cs, x, arriba - ALTO_CAJA_EMISOR, ANCHO_COLUMNA_IZQUIERDA, ALTO_CAJA_EMISOR);
+        dibujarCajaRedondeada(cs, x, arriba - ALTO_CAJA_EMISOR, ANCHO_COLUMNA_IZQUIERDA, ALTO_CAJA_EMISOR);
         float centro = x + ANCHO_COLUMNA_IZQUIERDA / 2;
         float y = arriba - 36;
         PDImageXObject imagen = cargarLogo(l.documento, logo);
@@ -200,14 +195,14 @@ public class RideGenerador implements GeneradorRide {
         } else if (c.getEmpresaNombreComercial() != null && !c.getEmpresaNombreComercial().isBlank()) {
             // Sin logo: el nombre comercial ocupa el espacio de la marca.
             for (String linea : ajustar(c.getEmpresaNombreComercial(), fuenteNegrita, 15, ANCHO_COLUMNA_IZQUIERDA - 24)) {
-                textoCentrado(cs, fuenteNegrita, 15, centro, y, linea);
+                escribirTextoCentrado(cs, fuenteNegrita, 15, centro, y, linea);
                 y -= 18;
             }
         }
         // Con logo, la razón social empieza debajo de la imagen (que llega hasta arriba - 96).
         y = Math.min(y, imagen != null ? arriba - 112 : arriba - 100);
         for (String linea : ajustar(c.getEmpresaRazonSocial(), fuenteNegrita, 10.5f, ANCHO_COLUMNA_IZQUIERDA - 20)) {
-            textoCentrado(cs, fuenteNegrita, 10.5f, centro, y, linea);
+            escribirTextoCentrado(cs, fuenteNegrita, 10.5f, centro, y, linea);
             y -= 13;
         }
         y -= 8;
@@ -229,7 +224,7 @@ public class RideGenerador implements GeneradorRide {
         }
         for (Fila dato : datos) {
             List<String> lineas = ajustar(dato.valor(), fuenteNormal, 7, ANCHO_COLUMNA_IZQUIERDA - 16 - ANCHO_ETIQUETA_EMISOR);
-            y = filaLineas(cs, x + 8, y, ANCHO_ETIQUETA_EMISOR, dato.etiqueta(), lineas.isEmpty() ? List.of("") : lineas, 7);
+            y = dibujarFilaLineas(cs, x + 8, y, ANCHO_ETIQUETA_EMISOR, dato.etiqueta(), lineas.isEmpty() ? List.of("") : lineas, 7);
         }
     }
 
@@ -259,46 +254,46 @@ public class RideGenerador implements GeneradorRide {
             float arriba) throws IOException {
         float centro = x + ANCHO_COLUMNA_DERECHA / 2;
         float y = arriba - 30;
-        textoCentrado(cs, fuenteNegrita, 15, centro, y, "R.U.C.:  " + c.getEmpresaRuc());
+        escribirTextoCentrado(cs, fuenteNegrita, 15, centro, y, "R.U.C.:  " + c.getEmpresaRuc());
         y -= 32;
-        String tipo = etiquetaTipo(c);
-        textoCentrado(cs, fuenteNegrita, tamanoQueCabe(fuenteNegrita, tipo, 24, ANCHO_COLUMNA_DERECHA - 20), centro, y, tipo);
+        String tipo = obtenerEtiquetaTipo(c);
+        escribirTextoCentrado(cs, fuenteNegrita, calcularTamanoQueCabe(fuenteNegrita, tipo, 24, ANCHO_COLUMNA_DERECHA - 20), centro, y, tipo);
         y -= 28;
         cs.setNonStrokingColor(colorNumero[0], colorNumero[1], colorNumero[2]);
-        textoCentrado(cs, fuenteNegrita, 15, centro, y,
+        escribirTextoCentrado(cs, fuenteNegrita, 15, centro, y,
             "No. " + c.getEstablecimiento() + "-" + c.getPuntoEmision() + "-" + c.getSecuencial());
         cs.setNonStrokingColor(0f, 0f, 0f);
         y -= 28;
-        textoCentrado(cs, fuenteNegrita, 10, centro, y, "NÚMERO DE AUTORIZACIÓN");
+        escribirTextoCentrado(cs, fuenteNegrita, 10, centro, y, "NÚMERO DE AUTORIZACIÓN");
         y -= 13;
         if (c.getNumeroAutorizacion() != null) {
-            textoCentrado(cs, fuenteNormal, 7.5f, centro, y, c.getNumeroAutorizacion());
+            escribirTextoCentrado(cs, fuenteNormal, 7.5f, centro, y, c.getNumeroAutorizacion());
         }
         y -= 24;
         float xValor = x + 128;
-        texto(cs, fuenteNegrita, 8.5f, x + 10, y, "FECHA Y HORA DE");
-        texto(cs, fuenteNegrita, 8.5f, x + 10, y - 10, "AUTORIZACIÓN:");
+        escribirTexto(cs, fuenteNegrita, 8.5f, x + 10, y, "FECHA Y HORA DE");
+        escribirTexto(cs, fuenteNegrita, 8.5f, x + 10, y - 10, "AUTORIZACIÓN:");
         if (c.getFechaAutorizacion() != null) {
-            texto(cs, fuenteNormal, 9, xValor, y - 5,
-                FORMATO_FECHA_HORA.format(c.getFechaAutorizacion().atZone(ZonaHoraria.ECUADOR)));
+            escribirTexto(cs, fuenteNormal, 9, xValor, y - 5,
+                FechasSri.formatearFechaHora(c.getFechaAutorizacion()));
         }
         y -= 26;
-        texto(cs, fuenteNegrita, 8.5f, x + 10, y, "AMBIENTE:");
-        texto(cs, fuenteNormal, 9, xValor, y, c.getAmbiente() == AmbienteSri.PRUEBAS ? "PRUEBAS" : "PRODUCCION");
+        escribirTexto(cs, fuenteNegrita, 8.5f, x + 10, y, "AMBIENTE:");
+        escribirTexto(cs, fuenteNormal, 9, xValor, y, c.getAmbiente() == AmbienteSri.PRUEBAS ? "PRUEBAS" : "PRODUCCION");
         y -= 13;
-        texto(cs, fuenteNegrita, 8.5f, x + 10, y, "EMISIÓN:");
-        texto(cs, fuenteNormal, 9, xValor, y, "NORMAL");
+        escribirTexto(cs, fuenteNegrita, 8.5f, x + 10, y, "EMISIÓN:");
+        escribirTexto(cs, fuenteNormal, 9, xValor, y, "NORMAL");
         y -= 22;
-        textoCentrado(cs, fuenteNegrita, 10, centro, y, "CLAVE DE ACCESO");
+        escribirTextoCentrado(cs, fuenteNegrita, 10, centro, y, "CLAVE DE ACCESO");
         y -= 6;
         dibujarCodigoBarras(cs, c.getClaveAcceso(), x + 12, y, ANCHO_COLUMNA_DERECHA - 24, ALTO_CODIGO_BARRAS);
         y -= ALTO_CODIGO_BARRAS + 10;
-        textoCentrado(cs, fuenteNormal, 7.5f, centro, y, c.getClaveAcceso());
+        escribirTextoCentrado(cs, fuenteNormal, 7.5f, centro, y, c.getClaveAcceso());
     }
 
     private List<Fila> construirFilasComprador(Comprobante c) {
         List<Fila> filas = new ArrayList<>();
-        filas.add(new Fila("Fecha Emisión:", FORMATO_FECHA.format(c.getFechaEmision().atZone(ZonaHoraria.ECUADOR))));
+        filas.add(new Fila("Fecha Emisión:", FechasSri.formatearFecha(c.getFechaEmision())));
         if (c.getCompradorIdentificacion() != null) {
             filas.add(new Fila("Cédula/RUC:", c.getCompradorIdentificacion()));
         }
@@ -307,10 +302,10 @@ public class RideGenerador implements GeneradorRide {
         }
         if (c.getDocModificadoNumero() != null) {
             filas.add(new Fila("Comprobante que se modifica:",
-                nombreTipoDocumento(c.getDocModificadoTipo()) + " " + c.getDocModificadoNumero()));
+                obtenerNombreTipoDocumento(c.getDocModificadoTipo()) + " " + c.getDocModificadoNumero()));
             if (c.getDocModificadoFecha() != null) {
                 filas.add(new Fila("Fecha Emisión (a modificar):",
-                    FORMATO_FECHA.format(c.getDocModificadoFecha().atZone(ZonaHoraria.ECUADOR))));
+                    FechasSri.formatearFecha(c.getDocModificadoFecha())));
             }
             if (c.getMotivo() != null && !c.getMotivo().isBlank()) {
                 filas.add(new Fila("Razón de Modificación:", c.getMotivo()));
@@ -319,30 +314,15 @@ public class RideGenerador implements GeneradorRide {
         return filas;
     }
 
-    private String nombreTipoDocumento(String codigo) {
+    private String obtenerNombreTipoDocumento(String codigo) {
         if (codigo == null) {
             return "";
         }
-        return switch (codigo) {
-            case "01" -> "FACTURA";
-            case "03" -> "LIQUIDACIÓN DE COMPRA";
-            case "04" -> "NOTA DE CRÉDITO";
-            case "05" -> "NOTA DE DÉBITO";
-            case "06" -> "GUÍA DE REMISIÓN";
-            case "07" -> "COMPROBANTE DE RETENCIÓN";
-            default -> codigo;
-        };
+        return TipoComprobante.buscarPorCodigo(codigo).map(TipoComprobante::nombre).orElse(codigo);
     }
 
-    private String etiquetaTipo(Comprobante c) {
-        return switch (c.getTipoComprobante()) {
-            case FACTURA -> "FACTURA";
-            case NOTA_CREDITO -> "NOTA DE CRÉDITO";
-            case NOTA_DEBITO -> "NOTA DE DÉBITO";
-            case GUIA_REMISION -> "GUÍA DE REMISIÓN";
-            case RETENCION -> "COMPROBANTE DE RETENCIÓN";
-            case LIQUIDACION_COMPRA -> "LIQUIDACIÓN DE COMPRA";
-        };
+    private String obtenerEtiquetaTipo(Comprobante c) {
+        return c.getTipoComprobante().nombre();
     }
 
     /** Code 128 (el código de barras de la clave de acceso): cada módulo encendido es una barra negra. */
@@ -377,13 +357,13 @@ public class RideGenerador implements GeneradorRide {
         dibujarEncabezadoTabla(l);
         for (DetalleComprobante d : c.getDetalles()) {
             String[] celdas = {
-                nulo(d.getCodigoPrincipal()),
-                numero(d.getCantidad(), 4),
-                nulo(d.getDescripcion()),
-                detalleAdicional(d),
-                numero(d.getPrecioUnitario(), 4),
-                dinero(d.getDescuento()),
-                dinero(d.precioTotalSinImpuesto())
+                reemplazarNuloPorVacio(d.getCodigoPrincipal()),
+                formatearNumero(d.getCantidad(), 4),
+                reemplazarNuloPorVacio(d.getDescripcion()),
+                armarDetalleAdicional(d),
+                formatearNumero(d.getPrecioUnitario(), 4),
+                formatearDinero(d.getDescuento()),
+                formatearDinero(d.calcularPrecioTotalSinImpuesto())
             };
             List<List<String>> lineasPorCelda = new ArrayList<>();
             int maximoLineas = 1;
@@ -411,7 +391,7 @@ public class RideGenerador implements GeneradorRide {
             List<String> lineas = ajustar(TITULOS_COLUMNAS[i], fuenteNegrita, 8, ANCHOS_COLUMNAS[i] - 6);
             float yTexto = l.y - ALTO_ENCABEZADO_TABLA / 2 - (lineas.size() * 9f) / 2 + 7;
             for (String linea : lineas) {
-                textoCentrado(cs, fuenteNegrita, 8, x + ANCHOS_COLUMNAS[i] / 2, yTexto, linea);
+                escribirTextoCentrado(cs, fuenteNegrita, 8, x + ANCHOS_COLUMNAS[i] / 2, yTexto, linea);
                 yTexto -= 9f;
             }
             x += ANCHOS_COLUMNAS[i];
@@ -429,9 +409,9 @@ public class RideGenerador implements GeneradorRide {
             boolean numerica = i == 1 || i >= 4;
             for (String linea : lineasPorCelda.get(i)) {
                 if (numerica) {
-                    textoDerecha(cs, fuenteNormal, TAMANO_TABLA, x + ANCHOS_COLUMNAS[i] - 4, yTexto, linea);
+                    escribirTextoDerecha(cs, fuenteNormal, TAMANO_TABLA, x + ANCHOS_COLUMNAS[i] - 4, yTexto, linea);
                 } else {
-                    texto(cs, fuenteNormal, TAMANO_TABLA, x + 4, yTexto, linea);
+                    escribirTexto(cs, fuenteNormal, TAMANO_TABLA, x + 4, yTexto, linea);
                 }
                 yTexto -= INTERLINEA_TABLA;
             }
@@ -441,13 +421,13 @@ public class RideGenerador implements GeneradorRide {
     }
 
     /** Código auxiliar (si existe) y los detalles adicionales de la línea ("Medida: UN, Centro Logistico: 23"). */
-    private String detalleAdicional(DetalleComprobante d) {
+    private String armarDetalleAdicional(DetalleComprobante d) {
         List<String> partes = new ArrayList<>();
         if (d.getCodigoAuxiliar() != null && !d.getCodigoAuxiliar().isBlank()) {
             partes.add("Cod. Auxiliar: " + d.getCodigoAuxiliar());
         }
         if (d.getDetallesAdicionales() != null) {
-            d.getDetallesAdicionales().forEach(adicional -> partes.add(adicional.nombre() + ": " + nulo(adicional.valor())));
+            d.getDetallesAdicionales().forEach(adicional -> partes.add(adicional.nombre() + ": " + reemplazarNuloPorVacio(adicional.valor())));
         }
         return String.join(", ", partes);
     }
@@ -490,8 +470,8 @@ public class RideGenerador implements GeneradorRide {
             cs.addRect(xTotales + ANCHO_ETIQUETA_TOTAL, y - ALTO_FILA_TOTAL, ANCHO_TOTALES - ANCHO_ETIQUETA_TOTAL,
                 ALTO_FILA_TOTAL);
             cs.stroke();
-            texto(cs, fuenteNegrita, 7, xTotales + 4, y - 9.5f, fila[0]);
-            textoDerecha(cs, fuenteNormal, 8, xTotales + ANCHO_TOTALES - 4, y - 9.5f, fila[1]);
+            escribirTexto(cs, fuenteNegrita, 7, xTotales + 4, y - 9.5f, fila[0]);
+            escribirTextoDerecha(cs, fuenteNormal, 8, xTotales + ANCHO_TOTALES - 4, y - 9.5f, fila[1]);
             y -= ALTO_FILA_TOTAL;
         }
         l.y = arriba - alto;
@@ -501,14 +481,14 @@ public class RideGenerador implements GeneradorRide {
             float x, float arriba) throws IOException {
         float ancho = ANCHO_INFO_ADICIONAL - 40;
         float y = arriba - 14;
-        textoCentrado(cs, fuenteNegrita, 11, x + ancho / 2, y, "Información Adicional");
+        escribirTextoCentrado(cs, fuenteNegrita, 11, x + ancho / 2, y, "Información Adicional");
         cs.setLineWidth(1.2f);
         cs.moveTo(x, y - 6);
         cs.lineTo(x + ancho, y - 6);
         cs.stroke();
         y -= 22;
         for (int i = 0; i < info.size(); i++) {
-            y = filaLineas(cs, x, y, ANCHO_ETIQUETA_INFO, info.get(i).etiqueta(), lineasInfo.get(i), 8);
+            y = dibujarFilaLineas(cs, x, y, ANCHO_ETIQUETA_INFO, info.get(i).etiqueta(), lineasInfo.get(i), 8);
             cs.setLineWidth(0.4f);
             cs.setLineDashPattern(new float[] {1f, 1.5f}, 0);
             cs.moveTo(x, y + 8.5f);
@@ -526,7 +506,7 @@ public class RideGenerador implements GeneradorRide {
             boolean primera = true;
             for (var pago : c.getPagos()) {
                 filas.add(new Fila(primera ? "Forma de Pago:" : "",
-                    catalogos.descripcionFormaPago(pago.formaPago()) + " " + dinero(pago.total())));
+                    catalogos.descripcionFormaPago(pago.formaPago()) + " " + formatearDinero(pago.total())));
                 primera = false;
             }
         }
@@ -539,73 +519,16 @@ public class RideGenerador implements GeneradorRide {
         }
         if (c.getCamposAdicionales() != null) {
             for (var campo : c.getCamposAdicionales()) {
-                filas.add(new Fila(campo.nombre() + ":", nulo(campo.valor())));
+                filas.add(new Fila(campo.nombre() + ":", reemplazarNuloPorVacio(campo.valor())));
             }
         }
         return filas;
     }
 
-    /**
-     * Subtotales por tarifa de IVA (siempre incluye 0%), subtotal sin impuestos, descuento, ICE, el IVA de cada
-     * tarifa con valor, propina y total. Las bases y valores salen de los impuestos de cada línea del detalle.
-     */
+    /** Resumen de totales del RIDE: las filas salen de {@link TotalesComprobante} (compartido con el ticket). */
     private List<String[]> construirTotales(Comprobante c) {
-        Map<BigDecimal, BigDecimal> baseIvaPorTarifa = new TreeMap<>(Comparator.reverseOrder());
-        Map<BigDecimal, BigDecimal> valorIvaPorTarifa = new TreeMap<>(Comparator.reverseOrder());
-        BigDecimal noObjeto = BigDecimal.ZERO;
-        BigDecimal exento = BigDecimal.ZERO;
-        BigDecimal ice = BigDecimal.ZERO;
-        baseIvaPorTarifa.put(BigDecimal.ZERO, BigDecimal.ZERO);
-        for (DetalleComprobante d : c.getDetalles()) {
-            if (d.getImpuestos() == null) {
-                continue;
-            }
-            for (Impuesto i : d.getImpuestos()) {
-                BigDecimal base = i.baseImponible() == null ? BigDecimal.ZERO : i.baseImponible();
-                BigDecimal valor = i.valor() == null ? BigDecimal.ZERO : i.valor();
-                if (CODIGO_ICE.equals(i.codigo())) {
-                    ice = ice.add(valor);
-                } else if (CODIGO_IVA.equals(i.codigo())) {
-                    if (PORCENTAJE_NO_OBJETO_IVA.equals(i.codigoPorcentaje())) {
-                        noObjeto = noObjeto.add(base);
-                    } else if (PORCENTAJE_EXENTO_IVA.equals(i.codigoPorcentaje())) {
-                        exento = exento.add(base);
-                    } else {
-                        BigDecimal tarifa = normalizarTarifa(i.tarifa());
-                        baseIvaPorTarifa.merge(tarifa, base, BigDecimal::add);
-                        valorIvaPorTarifa.merge(tarifa, valor, BigDecimal::add);
-                    }
-                }
-            }
-        }
-        List<String[]> filas = new ArrayList<>();
-        baseIvaPorTarifa.forEach((tarifa, base) ->
-            filas.add(new String[] {"SUBTOTAL " + tarifa.toPlainString() + "%", dinero(base)}));
-        if (noObjeto.signum() != 0) {
-            filas.add(new String[] {"SUBTOTAL NO OBJETO DE IVA", dinero(noObjeto)});
-        }
-        if (exento.signum() != 0) {
-            filas.add(new String[] {"SUBTOTAL EXENTO DE IVA", dinero(exento)});
-        }
-        filas.add(new String[] {"SUBTOTAL SIN IMPUESTOS", dinero(c.getSubtotalSinImpuestos())});
-        filas.add(new String[] {"DESCUENTO", dinero(c.getTotalDescuento())});
-        filas.add(new String[] {"ICE", dinero(ice)});
-        valorIvaPorTarifa.forEach((tarifa, valor) -> {
-            if (tarifa.signum() != 0) {
-                filas.add(new String[] {"IVA " + tarifa.toPlainString() + "%", dinero(valor)});
-            }
-        });
-        filas.add(new String[] {"PROPINA", dinero(BigDecimal.ZERO)});
-        filas.add(new String[] {"VALOR TOTAL", dinero(c.getImporteTotal())});
-        return filas;
-    }
-
-    /** 15.00 y 15 son la misma tarifa; 0 se escribe siempre como "0". */
-    private BigDecimal normalizarTarifa(BigDecimal tarifa) {
-        if (tarifa == null || tarifa.signum() == 0) {
-            return BigDecimal.ZERO;
-        }
-        return tarifa.stripTrailingZeros();
+        return TotalesComprobante.calcular(c).stream()
+            .map(t -> new String[] {t.etiqueta(), formatearDinero(t.valor())}).toList();
     }
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -618,7 +541,7 @@ public class RideGenerador implements GeneradorRide {
         }
     }
 
-    private void cajaRedondeada(PDPageContentStream cs, float x, float y, float ancho, float alto) throws IOException {
+    private void dibujarCajaRedondeada(PDPageContentStream cs, float x, float y, float ancho, float alto) throws IOException {
         float r = RADIO_ESQUINA;
         float k = 0.5523f * r;
         cs.setLineWidth(0.9f);
@@ -636,18 +559,32 @@ public class RideGenerador implements GeneradorRide {
     }
 
     /** Etiqueta en negrita y, a su derecha, el valor ya partido en líneas; devuelve la y de la fila siguiente. */
-    private float filaLineas(PDPageContentStream cs, float x, float y, float anchoEtiqueta, String etiqueta,
+    private float dibujarFilaLineas(PDPageContentStream cs, float x, float y, float anchoEtiqueta, String etiqueta,
             List<String> lineas, float tamano) throws IOException {
-        texto(cs, fuenteNegrita, tamano, x, y, etiqueta);
-        float interlinea = tamano + 2.5f;
+        escribirTexto(cs, fuenteNegrita, tamano, x, y, etiqueta);
+        float interlinea = tamano + INTERLINEA_ADICIONAL;
         for (String linea : lineas) {
-            texto(cs, fuenteNormal, tamano, x + anchoEtiqueta, y, linea);
+            escribirTexto(cs, fuenteNormal, tamano, x + anchoEtiqueta, y, linea);
             y -= interlinea;
         }
-        return y - 2;
+        return y - SEPARACION_FILAS;
     }
 
-    private void texto(PDPageContentStream cs, PDFont fuente, float tamano, float x, float y, String texto)
+    /** Lo que baja {@link #filaLineas} al dibujar una fila de {@code lineas} líneas: la medida y el dibujo usan la misma cuenta. */
+    static float calcularAvanceFila(int lineas, float tamano) {
+        return lineas * (tamano + INTERLINEA_ADICIONAL) + SEPARACION_FILAS;
+    }
+
+    /** Alto del recuadro del comprador: lo que ocupan sus filas (ya partidas en líneas), con un mínimo. */
+    static float calcularAltoCajaComprador(List<List<String>> lineasPorFila) {
+        float alto = MARGEN_SUPERIOR_COMPRADOR;
+        for (List<String> lineas : lineasPorFila) {
+            alto += calcularAvanceFila(lineas.size(), TAMANO_COMPRADOR);
+        }
+        return Math.max(ALTO_MINIMO_CAJA_COMPRADOR, alto);
+    }
+
+    private void escribirTexto(PDPageContentStream cs, PDFont fuente, float tamano, float x, float y, String texto)
             throws IOException {
         cs.setFont(fuente, tamano);
         cs.beginText();
@@ -656,33 +593,33 @@ public class RideGenerador implements GeneradorRide {
         cs.endText();
     }
 
-    private void textoCentrado(PDPageContentStream cs, PDFont fuente, float tamano, float centro, float y,
+    private void escribirTextoCentrado(PDPageContentStream cs, PDFont fuente, float tamano, float centro, float y,
             String texto) throws IOException {
-        texto(cs, fuente, tamano, centro - anchoTexto(fuente, tamano, sanear(texto)) / 2, y, texto);
+        escribirTexto(cs, fuente, tamano, centro - medirAnchoTexto(fuente, tamano, sanear(texto)) / 2, y, texto);
     }
 
-    private void textoDerecha(PDPageContentStream cs, PDFont fuente, float tamano, float derecha, float y,
+    private void escribirTextoDerecha(PDPageContentStream cs, PDFont fuente, float tamano, float derecha, float y,
             String texto) throws IOException {
-        texto(cs, fuente, tamano, derecha - anchoTexto(fuente, tamano, sanear(texto)), y, texto);
+        escribirTexto(cs, fuente, tamano, derecha - medirAnchoTexto(fuente, tamano, sanear(texto)), y, texto);
     }
 
     /** El mayor tamano (hasta {@code maximo}) con el que el texto cabe en {@code ancho}; los nombres largos se achican. */
-    private float tamanoQueCabe(PDFont fuente, String texto, float maximo, float ancho) throws IOException {
+    private float calcularTamanoQueCabe(PDFont fuente, String texto, float maximo, float ancho) throws IOException {
         float tamano = maximo;
-        while (tamano > 8 && anchoTexto(fuente, tamano, sanear(texto)) > ancho) {
+        while (tamano > 8 && medirAnchoTexto(fuente, tamano, sanear(texto)) > ancho) {
             tamano -= 1;
         }
         return tamano;
     }
 
-    private float anchoTexto(PDFont fuente, float tamano, String texto) throws IOException {
+    private float medirAnchoTexto(PDFont fuente, float tamano, String texto) throws IOException {
         return fuente.getStringWidth(texto) / 1000f * tamano;
     }
 
     /** Parte el texto en líneas que quepan en {@code ancho}, cortando por palabras (y por letras si una no cabe). */
     private List<String> ajustar(String texto, PDFont fuente, float tamano, float ancho) throws IOException {
         List<String> lineas = new ArrayList<>();
-        String limpio = sanear(nulo(texto)).trim();
+        String limpio = sanear(reemplazarNuloPorVacio(texto)).trim();
         if (limpio.isEmpty()) {
             lineas.add("");
             return lineas;
@@ -690,7 +627,7 @@ public class RideGenerador implements GeneradorRide {
         StringBuilder actual = new StringBuilder();
         for (String palabra : limpio.split("\\s+")) {
             String candidata = actual.length() == 0 ? palabra : actual + " " + palabra;
-            if (anchoTexto(fuente, tamano, candidata) <= ancho) {
+            if (medirAnchoTexto(fuente, tamano, candidata) <= ancho) {
                 actual = new StringBuilder(candidata);
                 continue;
             }
@@ -699,9 +636,9 @@ public class RideGenerador implements GeneradorRide {
                 actual = new StringBuilder();
             }
             String resto = palabra;
-            while (anchoTexto(fuente, tamano, resto) > ancho && resto.length() > 1) {
+            while (medirAnchoTexto(fuente, tamano, resto) > ancho && resto.length() > 1) {
                 int corte = resto.length() - 1;
-                while (corte > 1 && anchoTexto(fuente, tamano, resto.substring(0, corte)) > ancho) {
+                while (corte > 1 && medirAnchoTexto(fuente, tamano, resto.substring(0, corte)) > ancho) {
                     corte--;
                 }
                 lineas.add(resto.substring(0, corte));
@@ -724,16 +661,16 @@ public class RideGenerador implements GeneradorRide {
         return sb.toString();
     }
 
-    private String nulo(String valor) {
+    private String reemplazarNuloPorVacio(String valor) {
         return valor == null ? "" : valor;
     }
 
-    private String dinero(BigDecimal valor) {
+    private String formatearDinero(BigDecimal valor) {
         return (valor == null ? BigDecimal.ZERO : valor).setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
     /** Cantidad y precio unitario con al menos 4 decimales (el SRI admite hasta 6). */
-    private String numero(BigDecimal valor, int decimalesMinimos) {
+    private String formatearNumero(BigDecimal valor, int decimalesMinimos) {
         if (valor == null) {
             return "";
         }

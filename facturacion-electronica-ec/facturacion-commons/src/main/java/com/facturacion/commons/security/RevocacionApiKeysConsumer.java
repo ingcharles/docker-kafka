@@ -3,11 +3,12 @@ package com.facturacion.commons.security;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import com.facturacion.commons.error.CodigoLogComun;
-import com.facturacion.commons.error.LogCodificado;
-
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
+
+import com.facturacion.commons.error.CodigoLogComun;
+import com.facturacion.commons.error.LogCodificado;
+import com.facturacion.commons.messaging.LogFallosMensajeria;
 
 /**
  * Carga en {@link RevocacionApiKeys} cada revocación que publica identidad-service. Cada servicio declara el canal
@@ -27,6 +28,7 @@ public class RevocacionApiKeysConsumer {
         this.revocaciones = revocaciones;
     }
 
+    @LogFallosMensajeria
     @Incoming("apikey-revocaciones-in")
     public void registrarRevocacion(String mensaje) {
         try {

@@ -20,7 +20,7 @@ public interface ItemRepository {
     Uni<PageResult<Item>> findPaged(int page, int limit, TipoItem tipo, UUID categoriaId, String ruc);
 
     /** UPDATE atómico: solo reserva si hay suficiente disponible. Retorna filas afectadas (0 o 1). */
-    Uni<Integer> tryReservar(UUID itemId, BigDecimal cantidad);
+    Uni<Integer> intentarReservar(UUID itemId, BigDecimal cantidad);
 
     /** La venta se confirmó: el stock ya salió en la reserva, ahora deja de estar "reservado". */
     Uni<Integer> confirmarReserva(UUID itemId, BigDecimal cantidad);

@@ -423,7 +423,7 @@ class SagaInventarioTest {
         final Set<UUID> vistos = new HashSet<>();
 
         @Override
-        public Uni<Boolean> yaProcesado(UUID mensajeId) {
+        public Uni<Boolean> esMensajeProcesado(UUID mensajeId) {
             return Uni.createFrom().item(vistos.contains(mensajeId));
         }
 

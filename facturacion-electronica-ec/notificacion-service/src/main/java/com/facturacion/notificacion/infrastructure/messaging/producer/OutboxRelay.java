@@ -49,12 +49,12 @@ public class OutboxRelay {
     public Uni<Void> publicarEventosPendientes() {
         return outboxRepository.findUnpublishedBatch(BATCH_SIZE)
             .onItem().transformToMulti(batch -> Multi.createFrom().iterable(batch))
-            .onItem().transformToUniAndConcatenate(this::publish)
+            .onItem().transformToUniAndConcatenate(this::publicar)
             .collect().last()
             .replaceWithVoid();
     }
 
-    private Uni<OutboxEventEntity> publish(OutboxEventEntity event) {
+    private Uni<OutboxEventEntity> publicar(OutboxEventEntity event) {
         io.vertx.core.Context callingContext = Vertx.currentContext();
         CompletableFuture<Void> delivered = new CompletableFuture<>();
         Message<String> message = Message.of(event.payload,

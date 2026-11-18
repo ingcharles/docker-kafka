@@ -33,7 +33,7 @@ public class ConstructorLiquidacionCompra implements ConstructorComprobante<Crea
     @Override
     public Uni<Comprobante> construir(CrearLiquidacionCompraRequest request, long secuencial, CatalogosSriAFecha catalogos) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = comun.encabezado(request.getEmpresa(), TipoComprobante.LIQUIDACION_COMPRA,
+        Comprobante comprobante = comun.armarEncabezado(request.getEmpresa(), TipoComprobante.LIQUIDACION_COMPRA,
             secuencial, ahora);
 
         return constructorDetalles.cargarItems(request.getDetalles(), request.getEmpresa().getRuc())
@@ -57,8 +57,8 @@ public class ConstructorLiquidacionCompra implements ConstructorComprobante<Crea
                 comprobante.setCompradorCorreo(request.getProveedorCorreo());
                 comprobante.setMoneda(request.getMoneda());
                 comprobante.setDetalles(detalles);
-                comprobante.setPagos(comun.pagos(request.getPagos(), comprobante.getImporteTotal(), true, catalogos));
-                comprobante.setCamposAdicionales(comun.camposAdicionales(request.getCampoAdicional()));
+                comprobante.setPagos(comun.armarPagos(request.getPagos(), comprobante.getImporteTotal(), true, catalogos));
+                comprobante.setCamposAdicionales(comun.armarCamposAdicionales(request.getCampoAdicional()));
                 return comprobante;
             });
     }

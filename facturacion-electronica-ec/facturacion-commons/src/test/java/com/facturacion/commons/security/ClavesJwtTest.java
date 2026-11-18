@@ -28,8 +28,8 @@ class ClavesJwtTest {
     void leeEd25519EnPemConSaltosDeLineaReales() throws Exception {
         KeyPair par = par("Ed25519");
 
-        assertEquals(par.getPublic(), ClavesJwt.publica(pem("PUBLIC KEY", par.getPublic().getEncoded(), "\n")));
-        assertEquals(par.getPrivate(), ClavesJwt.privada(pem("PRIVATE KEY", par.getPrivate().getEncoded(), "\n")));
+        assertEquals(par.getPublic(), ClavesJwt.leerPublica(pem("PUBLIC KEY", par.getPublic().getEncoded(), "\n")));
+        assertEquals(par.getPrivate(), ClavesJwt.leerPrivada(pem("PRIVATE KEY", par.getPrivate().getEncoded(), "\n")));
     }
 
     @Test
@@ -37,31 +37,31 @@ class ClavesJwtTest {
         KeyPair par = par("Ed25519");
         String enUnaLinea = pem("PUBLIC KEY", par.getPublic().getEncoded(), "\n").replace("\n", "\\n");
 
-        assertEquals(par.getPublic(), ClavesJwt.publica(enUnaLinea));
+        assertEquals(par.getPublic(), ClavesJwt.leerPublica(enUnaLinea));
     }
 
     @Test
     void leeSoloElBase64SinEncabezados() throws Exception {
         KeyPair par = par("Ed25519");
 
-        assertEquals(par.getPublic(), ClavesJwt.publica(Base64.getEncoder().encodeToString(par.getPublic().getEncoded())));
+        assertEquals(par.getPublic(), ClavesJwt.leerPublica(Base64.getEncoder().encodeToString(par.getPublic().getEncoded())));
     }
 
     @Test
     void tambienAceptaRsa() throws Exception {
         KeyPair par = par("RSA");
 
-        assertEquals(par.getPublic(), ClavesJwt.publica(pem("PUBLIC KEY", par.getPublic().getEncoded(), "\n")));
-        assertEquals(par.getPrivate(), ClavesJwt.privada(pem("PRIVATE KEY", par.getPrivate().getEncoded(), "\n")));
+        assertEquals(par.getPublic(), ClavesJwt.leerPublica(pem("PUBLIC KEY", par.getPublic().getEncoded(), "\n")));
+        assertEquals(par.getPrivate(), ClavesJwt.leerPrivada(pem("PRIVATE KEY", par.getPrivate().getEncoded(), "\n")));
     }
 
     @Test
     void unaClaveVaciaOInvalidaFallaAlArrancarConUnMensajeClaro() {
-        assertThrows(IllegalArgumentException.class, () -> ClavesJwt.publica(null));
-        assertThrows(IllegalArgumentException.class, () -> ClavesJwt.publica("   "));
-        assertThrows(IllegalArgumentException.class, () -> ClavesJwt.publica("esto no es base64 ***"));
+        assertThrows(IllegalArgumentException.class, () -> ClavesJwt.leerPublica(null));
+        assertThrows(IllegalArgumentException.class, () -> ClavesJwt.leerPublica("   "));
+        assertThrows(IllegalArgumentException.class, () -> ClavesJwt.leerPublica("esto no es base64 ***"));
         assertThrows(IllegalArgumentException.class,
-            () -> ClavesJwt.publica(Base64.getEncoder().encodeToString("no es una llave".getBytes())));
-        assertThrows(IllegalArgumentException.class, () -> ClavesJwt.privada("QUJD"));
+            () -> ClavesJwt.leerPublica(Base64.getEncoder().encodeToString("no es una llave".getBytes())));
+        assertThrows(IllegalArgumentException.class, () -> ClavesJwt.leerPrivada("QUJD"));
     }
 }

@@ -12,6 +12,7 @@ import jakarta.ws.rs.ext.Provider;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import com.facturacion.commons.error.ErrorComun;
 import com.facturacion.commons.exception.TokenInvalidoException;
 
 /**
@@ -55,12 +56,11 @@ public class ApiKeyAuthFilter implements ContainerRequestFilter {
         if (!habilitado) {
             return;
         }
-        boolean permiteSesion = permiteSesion();
+        boolean permiteSesion = esSesionPermitida();
         String header = requestContext.getHeaderString(HttpHeaders.AUTHORIZATION);
         if (header == null || !header.startsWith(PREFIJO)) {
             throw new TokenInvalidoException(permiteSesion
-                ? "Falta el header Authorization: Bearer <api-key o token de sesión>"
-                : "Falta el header Authorization: Bearer <api-key>");
+                ? ErrorComun.TOKEN_FALTANTE_API_KEY_O_SESION : ErrorComun.TOKEN_FALTANTE_API_KEY);
         }
         String token = header.substring(PREFIJO.length());
         TokenPrincipal verificado = permiteSesion ? jwtVerificador.verificarApiKeyOSesion(token)
@@ -72,7 +72,7 @@ public class ApiKeyAuthFilter implements ContainerRequestFilter {
         tokenPrincipal.setPuntoEmision(verificado.getPuntoEmision());
     }
 
-    private boolean permiteSesion() {
+    private boolean esSesionPermitida() {
         return resourceInfo != null && resourceInfo.getResourceMethod() != null
             && resourceInfo.getResourceMethod().isAnnotationPresent(PermiteSesion.class);
     }

@@ -19,11 +19,9 @@ public class ItemResponse {
     private BigDecimal cantidadReservada;
     private BigDecimal stockMinimo;
     private boolean activo;
-    private String codigoImpuesto;
-    private String codigoPorcentaje;
-    private boolean tieneIce;
-    private String codigoPorcentajeIce;
-    private BigDecimal tarifaIce;
+    private String codigoPorcentajeIva;
+    private String codigoIce;
+    private String codigoIrbpnr;
     private Instant creadoEn;
     private Instant actualizadoEn;
 
@@ -131,44 +129,12 @@ public class ItemResponse {
         this.activo = activo;
     }
 
-    public String getCodigoImpuesto() {
-        return codigoImpuesto;
+    public String getCodigoPorcentajeIva() {
+        return codigoPorcentajeIva;
     }
 
-    public void setCodigoImpuesto(String codigoImpuesto) {
-        this.codigoImpuesto = codigoImpuesto;
-    }
-
-    public String getCodigoPorcentaje() {
-        return codigoPorcentaje;
-    }
-
-    public void setCodigoPorcentaje(String codigoPorcentaje) {
-        this.codigoPorcentaje = codigoPorcentaje;
-    }
-
-    public boolean isTieneIce() {
-        return tieneIce;
-    }
-
-    public void setTieneIce(boolean tieneIce) {
-        this.tieneIce = tieneIce;
-    }
-
-    public String getCodigoPorcentajeIce() {
-        return codigoPorcentajeIce;
-    }
-
-    public void setCodigoPorcentajeIce(String codigoPorcentajeIce) {
-        this.codigoPorcentajeIce = codigoPorcentajeIce;
-    }
-
-    public BigDecimal getTarifaIce() {
-        return tarifaIce;
-    }
-
-    public void setTarifaIce(BigDecimal tarifaIce) {
-        this.tarifaIce = tarifaIce;
+    public void setCodigoPorcentajeIva(String codigoPorcentajeIva) {
+        this.codigoPorcentajeIva = codigoPorcentajeIva;
     }
 
     public Instant getCreadoEn() {
@@ -185,5 +151,21 @@ public class ItemResponse {
 
     public void setActualizadoEn(Instant actualizadoEn) {
         this.actualizadoEn = actualizadoEn;
+    }
+
+    public String getCodigoIce() {
+        return codigoIce;
+    }
+
+    public void setCodigoIce(String codigoIce) {
+        this.codigoIce = codigoIce;
+    }
+
+    public String getCodigoIrbpnr() {
+        return codigoIrbpnr;
+    }
+
+    public void setCodigoIrbpnr(String codigoIrbpnr) {
+        this.codigoIrbpnr = codigoIrbpnr;
     }
 }

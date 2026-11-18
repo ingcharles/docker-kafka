@@ -17,13 +17,15 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import io.smallrye.mutiny.Uni;
-import io.smallrye.mutiny.infrastructure.Infrastructure;
 
 import com.facturacion.commons.error.LogCodificado;
+import com.facturacion.commons.exception.ErrorInternoException;
+import com.facturacion.commons.reactive.TrabajoBloqueante;
 import com.facturacion.sri.domain.model.enums.AmbienteSri;
 import com.facturacion.sri.domain.port.RecepcionResultado;
 import com.facturacion.sri.domain.port.RecepcionSri;
 import com.facturacion.sri.shared.error.CodigoLog;
+import com.facturacion.sri.shared.error.SriError;
 
 /**
  * Cliente real (no simulado) del Web Service de Recepción del SRI —
@@ -64,8 +66,7 @@ public class SriRecepcionClient implements RecepcionSri {
      *                    por ambiente ({@code urlPruebas}/{@code urlProduccion}).
      */
     public Uni<RecepcionResultado> validarComprobante(String xmlFirmado, AmbienteSri ambiente, String urlOverride) {
-        return Uni.createFrom().item(() -> enviarBloqueante(xmlFirmado, ambiente, urlOverride))
-            .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+        return TrabajoBloqueante.ejecutar(() -> enviarBloqueante(xmlFirmado, ambiente, urlOverride));
     }
 
     private RecepcionResultado enviarBloqueante(String xmlFirmado, AmbienteSri ambiente, String urlOverride) {
@@ -89,7 +90,7 @@ public class SriRecepcionClient implements RecepcionSri {
             LogCodificado.info(LOG, CodigoLog.HTTP_RECEPCION, null, response.statusCode(), ambiente);
             return parsear(response.body());
         } catch (Exception e) {
-            throw new IllegalStateException("No se pudo contactar al WS de Recepción del SRI (" + url + ")", e);
+            throw new ErrorInternoException(e, SriError.WS_RECEPCION_NO_DISPONIBLE, url);
         }
     }
 

@@ -27,7 +27,7 @@ public class GeneradorXmlComprobanteResolver implements GeneradorXml {
     public String generar(Comprobante comprobante) {
         TipoComprobante tipo = comprobante.getTipoComprobante();
         return generadores.stream()
-            .filter(generador -> generador.soporta(tipo))
+            .filter(generador -> generador.esTipoSoportado(tipo))
             .findFirst()
             .orElseThrow(() -> new TipoComprobanteNoSoportadoException(tipo))
             .generar(comprobante);

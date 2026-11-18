@@ -8,12 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
-import com.facturacion.inventario.domain.model.enums.ImpuestoSri;
-
 public class CrearItemRequest {
-
-    /** Código de porcentaje de la Tabla 17 que se asume si el cliente no manda uno (IVA 15%); debe existir en el catálogo. */
-    private static final String CODIGO_PORCENTAJE_IVA_POR_DEFECTO = "4";
 
     /** RUC de la empresa dueña de este ítem — el catálogo es multi-tenant (ver ARQUITECTURA.md). */
     @NotBlank
@@ -47,20 +42,20 @@ public class CrearItemRequest {
 
     private BigDecimal stockMinimo = BigDecimal.ZERO;
 
-    // Clasificación tributaria — default IVA 15% (código de porcentaje 4,
-    // Tabla 17 de la ficha técnica del SRI), el caso más común; se puede
-    // sobreescribir para ítems con otra tarifa (0%, exento, etc.) o con ICE.
+    // Clasificación tributaria: solo códigos (Tablas 17 y 18); las tarifas salen del catálogo de comprobantes-service
+    // a la fecha de emisión, así un cambio de normativa no obliga a tocar ítems. No hay valor por defecto: la tarifa
+    // de IVA cambia con la normativa y no debe quedar escrita en el código.
     @NotBlank
-    private String codigoImpuesto = ImpuestoSri.IVA.codigo();
+    @Pattern(regexp = "\\d{1,2}", message = "codigoPorcentajeIva debe ser un código de la Tabla 17")
+    private String codigoPorcentajeIva;
 
-    @NotBlank
-    private String codigoPorcentaje = CODIGO_PORCENTAJE_IVA_POR_DEFECTO;
+    /** Código de ICE (Tabla 18) si el ítem lleva ICE; la tarifa sale del catálogo al emitir. */
+    @Pattern(regexp = "\\d{4}", message = "codigoIce debe tener 4 dígitos (Tabla 18)")
+    private String codigoIce;
 
-    private boolean tieneIce = false;
-
-    private String codigoPorcentajeIce;
-
-    private BigDecimal tarifaIce;
+    /** Código de IRBPNR (5001) si el ítem lleva el impuesto a las botellas plásticas no retornables. */
+    @Pattern(regexp = "\\d{4}", message = "codigoIrbpnr debe tener 4 dígitos (5001)")
+    private String codigoIrbpnr;
 
     public String getRuc() {
         return ruc;
@@ -150,43 +145,27 @@ public class CrearItemRequest {
         this.stockMinimo = stockMinimo;
     }
 
-    public String getCodigoImpuesto() {
-        return codigoImpuesto;
+    public String getCodigoPorcentajeIva() {
+        return codigoPorcentajeIva;
     }
 
-    public void setCodigoImpuesto(String codigoImpuesto) {
-        this.codigoImpuesto = codigoImpuesto;
+    public void setCodigoPorcentajeIva(String codigoPorcentajeIva) {
+        this.codigoPorcentajeIva = codigoPorcentajeIva;
     }
 
-    public String getCodigoPorcentaje() {
-        return codigoPorcentaje;
+    public String getCodigoIce() {
+        return codigoIce;
     }
 
-    public void setCodigoPorcentaje(String codigoPorcentaje) {
-        this.codigoPorcentaje = codigoPorcentaje;
+    public void setCodigoIce(String codigoIce) {
+        this.codigoIce = codigoIce;
     }
 
-    public boolean isTieneIce() {
-        return tieneIce;
+    public String getCodigoIrbpnr() {
+        return codigoIrbpnr;
     }
 
-    public void setTieneIce(boolean tieneIce) {
-        this.tieneIce = tieneIce;
-    }
-
-    public String getCodigoPorcentajeIce() {
-        return codigoPorcentajeIce;
-    }
-
-    public void setCodigoPorcentajeIce(String codigoPorcentajeIce) {
-        this.codigoPorcentajeIce = codigoPorcentajeIce;
-    }
-
-    public BigDecimal getTarifaIce() {
-        return tarifaIce;
-    }
-
-    public void setTarifaIce(BigDecimal tarifaIce) {
-        this.tarifaIce = tarifaIce;
+    public void setCodigoIrbpnr(String codigoIrbpnr) {
+        this.codigoIrbpnr = codigoIrbpnr;
     }
 }

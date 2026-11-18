@@ -53,7 +53,7 @@ public class CatalogoResource {
     }
 
     @GET
-    public List<String> catalogos() {
+    public List<String> listarCatalogos() {
         return Catalogo.nombres();
     }
 
@@ -62,7 +62,7 @@ public class CatalogoResource {
     @Path("/{catalogo}")
     public Uni<List<Map<String, Object>>> listar(@PathParam("catalogo") String catalogo,
             @QueryParam("vigentes") boolean vigentes, @QueryParam("fecha") String fecha) {
-        CatalogoDef def = definicion(catalogo);
+        CatalogoDef def = obtenerDefinicion(catalogo);
         LocalDate dia;
         try {
             dia = fecha == null || fecha.isBlank() ? null : LocalDate.parse(fecha);
@@ -78,10 +78,10 @@ public class CatalogoResource {
     public Uni<Response> guardar(@HeaderParam(ApiConstants.HEADER_ADMIN_TOKEN) String token,
             @PathParam("catalogo") String catalogo, Map<String, Object> body) {
         exigirAdmin(token);
-        return service.guardar(definicion(catalogo), body).map(Respuestas::actualizado);
+        return service.guardar(obtenerDefinicion(catalogo), body).map(Respuestas::actualizado);
     }
 
-    private static CatalogoDef definicion(String catalogo) {
+    private static CatalogoDef obtenerDefinicion(String catalogo) {
         return CatalogoDef.buscar(catalogo).orElseThrow(
             () -> new ErrorNegocioException(CodigoError.CATALOGO_NO_ENCONTRADO, catalogo, Catalogo.nombres()));
     }

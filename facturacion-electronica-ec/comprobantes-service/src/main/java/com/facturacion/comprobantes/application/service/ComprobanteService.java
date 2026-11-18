@@ -9,10 +9,9 @@ import jakarta.validation.Valid;
 
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
-import io.smallrye.mutiny.infrastructure.Infrastructure;
-import io.vertx.core.Vertx;
 
 import com.facturacion.commons.exception.ErrorNegocioException;
+import com.facturacion.commons.reactive.TrabajoBloqueante;
 import com.facturacion.comprobantes.application.dto.ComprobanteResponse;
 import com.facturacion.comprobantes.application.dto.CrearFacturaRequest;
 import com.facturacion.comprobantes.application.dto.CrearGuiaRemisionRequest;
@@ -39,7 +38,7 @@ import com.facturacion.comprobantes.domain.repository.ComprobanteRepository;
 import com.facturacion.comprobantes.domain.repository.ConfiguracionEmpresaLocalRepository;
 import com.facturacion.comprobantes.domain.repository.EstablecimientoLocalRepository;
 import com.facturacion.comprobantes.domain.repository.PuntoEmisionLocalRepository;
-import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
+import com.facturacion.commons.time.ZonaHoraria;
 import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /**
@@ -144,7 +143,7 @@ public class ComprobanteService {
     }
 
     /** Fecha de emisión en hora de Ecuador (UTC-5), la que usa el SRI y contra la que rigen las vigencias de los catálogos. */
-    private static LocalDate fechaEmision() {
+    private static LocalDate obtenerFechaEmision() {
         return LocalDate.now(ZonaHoraria.ECUADOR);
     }
 
@@ -159,11 +158,10 @@ public class ComprobanteService {
      */
     private Uni<ComprobanteResponse> emitir(EmpresaRequest empresa, TipoComprobante tipo,
             BiFunction<Long, CatalogosSriAFecha, Uni<Comprobante>> constructor) {
-        io.vertx.core.Context callingContext = Vertx.currentContext();
         return validarEstablecimientoYPuntoEmision(empresa)
             // Catálogos del SRI (tablas propias, leídas con entidades, sin caché) a la fecha de emisión: se cargan
             // antes de reservar el secuencial, y en cadena (no en paralelo) por la misma razón que abajo.
-            .onItem().transformToUni(ignorado -> catalogoSriRepository.cargar(fechaEmision()))
+            .onItem().transformToUni(ignorado -> catalogoSriRepository.cargar(obtenerFechaEmision()))
             .onItem().transformToUni(catalogos -> comprobanteRepository
                 .obtenerSiguienteSecuencial(empresa.getRuc(), tipo, empresa.getEstablecimiento(), empresa.getPuntoEmision())
                 .map(secuencial -> new SecuencialYCatalogos(secuencial, catalogos)))
@@ -191,12 +189,10 @@ public class ComprobanteService {
                             // tocar el repositorio, mismo patrón que
                             // CertificadoService.validarYExtraerMetadata. Un XML mal
                             // formado nunca debe llegar a firma-electronica-service.
-                            return Uni.createFrom().item(() -> {
+                            return TrabajoBloqueante.ejecutar(() -> {
                                     xsdValidador.validar(tipo, comprobante.getXmlGenerado());
                                     return comprobante;
                                 })
-                                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                                .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
                                 .onItem().transformToUni(validado -> comprobanteRepository.persist(validado)
                                     .chain(guardado -> salientes.registrar(eventos.construirEventoCreado(guardado))
                                         .replaceWith(guardado))

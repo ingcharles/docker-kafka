@@ -177,11 +177,17 @@ sequenceDiagram
 
 ## 4. Máquina de estados de la saga
 
-Con el descuento de inventario habilitado la saga usa además `STOCK_PENDIENTE`, `STOCK_RESERVADO` y `STOCK_NO_DISPONIBLE` (sección 13).
+Los estados `STOCK_PENDIENTE`, `STOCK_RESERVADO` y `STOCK_NO_DISPONIBLE` solo existen con el descuento de inventario habilitado (sección 13); sin él la saga arranca en `CREADO`. Un estado es *terminal* (`SagaState.esTerminal()`) cuando el watchdog ya no lo toca; `NOTIFICACION_FALLIDA` y `EXPIRADA` lo son para el watchdog pero aún tienen salidas (reenvío del correo, respuesta tardía), y por eso aparecen con flechas de salida en el diagrama.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> CREADO: ComprobanteCreado
+    [*] --> CREADO: ComprobanteCreado (sin descuento de inventario)
+    [*] --> STOCK_PENDIENTE: ComprobanteCreado (factura con ítems de inventario)
+    STOCK_PENDIENTE --> STOCK_RESERVADO: StockReservado (sale el comando de firma)
+    STOCK_PENDIENTE --> STOCK_NO_DISPONIBLE: StockNoDisponible
+    STOCK_RESERVADO --> FIRMADO: ComprobanteFirmado
+    STOCK_RESERVADO --> FIRMA_FALLIDA: ComprobanteFirmaFallida (libera el stock)
+    STOCK_NO_DISPONIBLE --> [*]
     CREADO --> FIRMADO: ComprobanteFirmado
     FIRMADO --> AUTORIZADO: SriAutorizado
     AUTORIZADO --> NOTIFICADO: NotificacionExitosa
@@ -208,6 +214,10 @@ stateDiagram-v2
     EXPIRADA --> AUTORIZADO: respuesta tardía del SRI
     EXPIRADA --> NO_AUTORIZADO: respuesta tardía del SRI
     EXPIRADA --> RECHAZADO_RECEPCION: respuesta tardía del SRI
+    STOCK_PENDIENTE --> EXPIRADA: sin respuesta tras N reintentos (watchdog)
+    STOCK_RESERVADO --> EXPIRADA: sin respuesta tras N reintentos (watchdog)
+    EXPIRADA --> STOCK_RESERVADO: respuesta tardía de inventario
+    EXPIRADA --> STOCK_NO_DISPONIBLE: respuesta tardía de inventario
 ```
 
 ### 4.1 Watchdog: sagas que esperan una respuesta que no llega
@@ -217,7 +227,8 @@ La saga es asíncrona por Kafka: "no pasó nada" no se distingue de "todavía no
 
 | Estado | Espera a | Plazo (configurable) | Al vencer el plazo |
 |---|---|---|---|
-| `CREADO` | firma-electronica-service | `saga.watchdog.plazo-firma` = 2 min | reintenta `FirmarComprobante` |
+| `CREADO` y `STOCK_RESERVADO` | firma-electronica-service | `saga.watchdog.plazo-firma` = 2 min | reintenta `FirmarComprobante` |
+| `STOCK_PENDIENTE` | inventario-service | el mismo plazo de la firma | reintenta `RESERVAR` |
 | `FIRMADO` | el SRI | `saga.watchdog.plazo-sri` = 15 min (el SRI puede tardar más) | reintenta `EnviarComprobante` |
 | cualquiera de los dos, con `reintentos >= saga.watchdog.max-reintentos` (3) | — | un plazo más tras el último reintento | pasa a **`EXPIRADA`** (el watchdog no la toca más; `failure_reason` explica por qué; ver respuestas tardías abajo) |
 
@@ -286,6 +297,39 @@ cuota diaria de un SMTP típico.
 
 **Al activarlo por primera vez:** las sagas que ya estén en `AUTORIZADO` con notificación esperada y sin actividad desde hace más de
 `plazo-respuesta` (p. ej. un resultado que se perdió antes) pasan a `NOTIFICACION_FALLIDA` y se reenvían de a 20 por ciclo.
+
+### 4.3 Estados del comprobante (`comprobantes-service`) y su relación con la saga
+
+El comprobante tiene su propia máquina de estados (`EstadoComprobante.puedePasarA`); solo la mueve el orquestador con comandos por Kafka, y el ciclo de vida **solo avanza**: un comando repetido o atrasado se ignora (`ResultadoComando.IGNORADO_TRANSICION_NO_PERMITIDA`) y uno que se salta pasos (`saltaPasos`: llega `MARCAR_AUTORIZADO` con el comprobante todavía en `BORRADOR`) falla de forma visible, va a la DLQ y se reprocesa en orden.
+
+```mermaid
+stateDiagram-v2
+    [*] --> BORRADOR: POST /comprobantes (XML generado, secuencial consumido)
+    BORRADOR --> FIRMADO: MARCAR_FIRMADO
+    BORRADOR --> FIRMA_FALLIDA: MARCAR_FIRMA_FALLIDA
+    BORRADOR --> STOCK_INSUFICIENTE: MARCAR_STOCK_INSUFICIENTE
+    FIRMADO --> AUTORIZADO: MARCAR_AUTORIZADO (guarda XML autorizado y RIDE)
+    FIRMADO --> NO_AUTORIZADO: MARCAR_NO_AUTORIZADO
+    AUTORIZADO --> NOTIFICADO: MARCAR_NOTIFICADO
+    FIRMA_FALLIDA --> [*]
+    STOCK_INSUFICIENTE --> [*]
+    NO_AUTORIZADO --> [*]
+    NOTIFICADO --> [*]
+```
+
+| Estado de la saga | Estado del comprobante | Nota |
+|---|---|---|
+| `STOCK_PENDIENTE`, `STOCK_RESERVADO`, `CREADO` | `BORRADOR` | todavía sin firmar |
+| `FIRMADO` | `FIRMADO` | firmado y enviado al SRI |
+| `AUTORIZADO`, `AUTORIZADO_SIN_NOTIFICACION`, `NOTIFICACION_FALLIDA` | `AUTORIZADO` | el comprobante ya es válido con o sin correo (sección 5) |
+| `NOTIFICADO` | `NOTIFICADO` | terminal feliz |
+| `NO_AUTORIZADO` y `RECHAZADO_RECEPCION` | `NO_AUTORIZADO` | el comprobante no distingue entre rechazo de recepción y no autorización; el motivo queda en `motivo_rechazo` |
+| `FIRMA_FALLIDA` | `FIRMA_FALLIDA` | |
+| `STOCK_NO_DISPONIBLE` | `STOCK_INSUFICIENTE` | los ítems faltantes quedan en `motivo_rechazo` |
+| `EXPIRADA` | el del último paso cumplido (`BORRADOR` o `FIRMADO`) | si llega la respuesta tardía, ambos avanzan |
+
+`ANULADO` existe en el enum pero ningún flujo lo alcanza: la anulación formal ante el SRI no está implementada y un comprobante autorizado se corrige con una nota de crédito (sección 5). `FIRMA_FALLIDA`, `NO_AUTORIZADO` y `STOCK_INSUFICIENTE` son finales: para volver a emitir se crea un comprobante nuevo (el secuencial del anterior queda sin usar).
+
 
 ## 5. Por qué esta saga casi no tiene compensación
 
@@ -519,7 +563,7 @@ group by fp.codigo, fp.descripcion order by total desc;
 
 Los catálogos de la ficha técnica (formas de pago, impuestos y tarifas de IVA, tipos de identificación, retenciones, sustento) son datos **globales** —no pertenecen a una empresa— y cambian cuando el SRI publica una nueva versión de la ficha. Viven en `comprobantes-service` porque es el servicio que **aplica** las reglas del SRI (XSD, generadores de XML, validaciones) y el único que los necesita para emitir: un cambio de catálogo y un cambio de XSD/regla van juntos.
 
-**Decisión.** Los catálogos son un módulo dentro de `comprobantes-service`: solo este servicio consume 5 de los 7, e inventario guarda únicamente `codigoImpuesto` + `codigoPorcentaje`. Se lee la base con entidades en cada emisión. **Si aparece un segundo consumidor real** (un servicio de ATS o reportes, una pantalla que liste catálogos), conviene separarlo: la API y las tablas ya tienen la forma de un servicio.
+**Decisión.** Los catálogos son un módulo dentro de `comprobantes-service`: solo este servicio consume 5 de los 7, e inventario guarda únicamente los códigos de impuesto del ítem (`codigoPorcentajeIva`, `codigoIce`, `codigoIrbpnr`). Se lee la base con entidades en cada emisión. **Si aparece un segundo consumidor real** (un servicio de ATS o reportes, una pantalla que liste catálogos), conviene separarlo: la API y las tablas ya tienen la forma de un servicio.
 
 
 | Alternativa evaluada | Costo por emisión | Acoplamiento | Decisión |
@@ -534,9 +578,10 @@ Los catálogos de la ficha técnica (formas de pago, impuestos y tarifas de IVA,
 - **Datos:** las 7 tablas (`forma_pago`, `impuesto`, `tarifa_impuesto`, `tipo_identificacion`, `impuesto_retencion`, `retencion`, `sustento_tributario`) son del esquema `comprobantes`. La migración `V14` las **siembra con los datos de la ficha v2.34** y les pone las restricciones (FK, `check`).
 - **API** (`/comprobantes/api/v1/catalogos`, todo con api-key): `GET /catalogos` (lista los catálogos), `GET /catalogos/{catalogo}?vigentes=true&fecha=yyyy-MM-dd`, `PUT /catalogos/{catalogo}` (crea o actualiza por clave). **Escribir exige además el header `X-Catalogos-Admin-Token`** (variable `CATALOGOS_ADMIN_TOKEN`): los catálogos son globales y una api-key de una empresa no debe poder cambiarlos para todas las demás. Sin token configurado la escritura está deshabilitada (403). Dar de baja = `"activo": false` (no se borra: el histórico lo necesita). Para cambiar un catálogo **no hace falta redesplegar**.
 - **Sin caché:** `CatalogoSriRepositoryImpl` lee las siete tablas con entidades de solo lectura (`FormaPagoEntity`, `ImpuestoEntity`, `TarifaImpuestoEntity`, …) en cada emisión, dentro de la transacción del comprobante, y evalúa la vigencia a la fecha de emisión (hora de Ecuador, UTC-5) en memoria. Un `PUT /catalogos/...` aplica a la siguiente factura en cualquier instancia. La administración (`GET`/`PUT`) sigue siendo genérica sobre `CatalogoDef` con SQL directo, porque los 7 catálogos se operan igual.
+- **Cambios de normativa sin desplegar:** las tarifas (IVA, ICE de la Tabla 18, IRBPNR) y los códigos de retención son filas, no código. La clave de `tarifa_impuesto` es (impuesto, código, `tipo_tarifa`, `vigente_desde`): cuando el SRI publica una tarifa nueva se agrega una fila con su `vigente_desde` y se cierra la anterior con `vigente_hasta` (`PUT /catalogos/tarifa_impuesto`); los comprobantes ya emitidos conservan su tarifa y los nuevos usan la vigente a su fecha de emisión. Lo único que sigue siendo código (enums de dominio) son los códigos estructurales: tipo de impuesto (`ImpuestoSri`), clasificación de IVA no objeto/exento (`CodigoIva`), tipo de comprobante, ambiente y tipo de tarifa.
 - **Vigencia:** un registro aplica en la fecha F si está activo y `vigente_desde <= F <= vigente_hasta` (sin `hasta` = sin fin). `vigente_desde = 1900-01-01` significa "la ficha no publica fecha de inicio".
 - **Catálogo vacío:** las validaciones que dependen de un catálogo sin filas **no bloquean**, solo se validan por formato (ver `CatalogosSriAFecha`). La excepción es la tarifa de IVA: sin tarifas en la tabla y sin tarifa en el request, la emisión falla con `COMP-400-204`.
-- **Inventario** solo guarda `codigoImpuesto` + `codigoPorcentaje` de cada ítem y **no los valida ni muestra la tarifa**: comprobantes los valida y resuelve la tarifa al emitir. Un código inexistente se detecta al facturar, no al crear el ítem.
+- **Inventario** solo guarda los códigos de impuesto de cada ítem (`codigoPorcentajeIva` obligatorio, `codigoIce` y `codigoIrbpnr` opcionales) y **no los valida ni guarda tarifas**: comprobantes los valida y resuelve la tarifa al emitir. Un código inexistente se detecta al facturar, no al crear el ítem.
 
 | Catálogo | Tabla de la ficha | Qué se valida con él |
 |---|---|---|
@@ -552,7 +597,7 @@ Los catálogos de la ficha técnica (formas de pago, impuestos y tarifas de IVA,
 
 
 **Qué NO está cargado, y por qué** (la documentación del proyecto no lo trae y no se inventó):
-- **ICE (Tabla 18):** la tabla de la ficha no es utilizable (columnas por fecha ilegibles); el ítem sigue llevando `codigoPorcentajeIce` + `tarifaIce`, y el request de ICE debe traer su `tarifa`.
+- **ICE (Tabla 18) e IRBPNR:** cargados en `tarifa_impuesto` (migración V20) con la columna `tipo_tarifa`: `PORCENTAJE` (ad valorem) o `ESPECIFICA` (USD por unidad). Un código con las dos modalidades (3031) tiene una fila por tipo y se usa la porcentual salvo que el request pida `tipoTarifa: ESPECIFICA`. La ficha publica valores hasta 2023; las tarifas específicas se actualizan cada año con `PUT /catalogos/tarifa_impuesto` (fila nueva con `vigente_desde`, la anterior se cierra con `vigente_hasta`), sin desplegar.
 - **Códigos de retención de Renta** (303, 304, 312, …) y **`codSustento`**: pertenecen al Catálogo del Anexo Transaccional Simplificado (ATS), que no está en `documentacion/`. Las tablas existen (la de sustento, vacía); se cargan con `PUT /catalogos/retencion` y `PUT /catalogos/sustento_tributario` desde el catálogo oficial. Mientras estén vacías solo se valida el formato; desde que tengan filas la validación pasa a ser estricta.
 - **Fechas de vigencia de las tarifas de IVA:** la ficha lista los códigos (0, 2, 3, 4, 5, 6, 7, 8, 10) sin fechas; se cargaron sin fecha. Para acotar una tarifa cuando el SRI la cambie: `PUT /catalogos/tarifa_impuesto` con `vigente_hasta`.
 - **Países, tipos de comprobante del ATS y demás tablas** de la ficha: nadie los necesita todavía.
@@ -566,7 +611,7 @@ Controles que el XSD no hace y que se aplican antes de generar el XML (todos dev
 | Regla | Dónde |
 |---|---|
 | Un ítem dado de baja (`activo=false`) no se puede facturar cuando el impuesto se deriva del ítem | `comprobantes` |
-| `tieneIce=true` exige `codigoPorcentajeIce` y `tarifaIce >= 0` | `inventario` |
+| Un código de ICE o IRBPNR debe existir y estar vigente en el catálogo a la fecha de emisión (`COMP-400-202`); la tarifa mandada debe coincidir con la del catálogo | `comprobantes` |
 | `07` (consumidor final) exige la identificación `9999999999999`, y ese número solo es válido con `07` (Tabla 6) | `comprobantes` |
 | RUC (`04`) = 13 dígitos; cédula (`05`) = 10 dígitos (máscaras de la Tabla 5). No se valida el dígito verificador: el algoritmo no está en la ficha | `comprobantes` |
 | `valorRetenido` = `baseImponible × porcentajeRetener / 100` (tolerancia de 1 centavo) | `comprobantes` |
@@ -609,12 +654,26 @@ Alcance: **los 7 servicios** usan el mismo esquema. Las excepciones propias de c
 | `ComprobanteService` | Solo el flujo común de emisión (`emitir`): validar establecimiento y punto de emisión, reservar el secuencial, generar y validar el XML y dejarlo en el outbox. |
 | `construccion/Constructor*` (6) | Armar el agregado de UN tipo (factura, nota de crédito, nota de débito, guía de remisión, retención, liquidación de compra), todos detrás de `ConstructorComprobante<R>`. **Agregar un tipo = agregar una clase** (abierto a extensión, sin tocar el flujo). |
 | `construccion/ConstructorComun` | Encabezado (clave de acceso, snapshot de la empresa), pagos, campos adicionales y fechas dd/MM/aaaa. |
-| `construccion/ConstructorDetalles` | Líneas de detalle: ítems en lote, impuestos desde el catálogo, totales. |
+| `construccion/ConstructorDetalles` | Líneas de detalle: ítems en lote, impuestos desde el catálogo, totales. El ICE (% sobre el subtotal de la línea) entra en la base del IVA (art. 58 LRTI): base IVA = subtotal + ICE. El IRBPNR es tarifa específica: base = unidades, valor = unidades × tarifa, fuera de la base del IVA. |
 | `ActualizacionComprobanteService` | Aplicar al comprobante las transiciones que manda el orquestador (`MARCAR_*`) y generar el RIDE al autorizar. |
 | `ComprobanteConsultaService` | Consultas (por id, XML, RIDE, listado), siempre acotadas a la empresa de la api-key. |
 | `EventosComprobante` | Contenido y serialización de `ComprobanteCreado` y `ComprobanteAutorizado` para el outbox. |
 
 Dos reglas: (1) **el ciclo de vida solo avanza**: `EstadoComprobante.puedePasarA` rechaza un comando repetido o fuera de orden, y el agregado `Comprobante` valida cada transición; (2) **las fechas dd/MM/aaaa son estrictas**: `31/02/2026` se rechaza (`COMP-400-408`) y no se corrige en silencio.
+
+
+### 7.10 Ticket: recibo corto para impresora de recibos
+
+`GET /comprobantes/api/v1/comprobantes/{id}/ticket?formato=texto|escpos&ancho=80|58` devuelve los datos mínimos para entregar al cliente: emisor, número, fecha, cliente, líneas, totales (los mismos del RIDE, `TotalesComprobante`), forma de pago y estado de autorización con la clave de acceso. No guarda nada y se puede pedir en cualquier estado (si no está autorizado lo dice). Solo factura, nota de crédito, nota de débito y liquidación de compra (`COMP-400-811` en los demás).
+- `formato=texto` (por defecto): texto plano UTF-8 ya ajustado al papel. Los anchos son configuración, no código: `ticket.anchos.<mm>=<columnas>` y `ticket.ancho-por-defecto` en `application.properties` (hoy 58 mm = 32 columnas y 80 mm = 48); un papel nuevo es una línea más.
+- `formato=escpos`: bytes ESC/POS para enviar tal cual a la impresora (negrita, corte parcial); solo ASCII, porque la página de códigos varía por modelo.
+El servicio no imprime: el punto de venta toma la respuesta y la manda a la impresora (por red, USB o un agente local). Código: `TicketService` → puerto `GeneradorTicket` → `infrastructure/ticket/TicketGenerador`.
+
+
+### 7.11 Excepciones y fechas (commons)
+
+- **Excepciones:** toda excepción que llega al cliente es una `ApiException` con su entrada del catálogo (`CodigoError`, `FirmaError`, `ErrorComun`...) y parámetros; el texto sale de `mensajes.properties` y no hay constructores con texto fijo. Las fallas de infraestructura (serializar un payload, generar XML o RIDE, cifrar, contactar al SRI) son `ErrorInternoException(causa, ENTRADA)` con estado 5xx: el cliente recibe el texto genérico y el código, y el detalle con su causa queda en el log `GEN-403`. `IllegalStateException`/`IllegalArgumentException` quedan para invariantes de programación y validación de configuración al arrancar. Los permisos por api-key se piden con `TokenPrincipal.exigirEmpresa/exigirAlcance/exigirEscritura/exigirAdmin`.
+- **Fechas:** `FechasSri` y `ZonaHoraria` (`com.facturacion.commons.time`) son el único lugar con los patrones de fecha y la zona de Ecuador; "hoy" es `FechasSri.obtenerHoy()`, la fecha de Ecuador y no la del servidor.
 
 
 ## 8. Autenticación y autorización multi-tenant (api-key JWT)
@@ -702,18 +761,34 @@ Cómo se resolvió cada integración externa:
 | Kafka broker (host) | 9091 (`kafka/.env` → `KAFKA_HOST_PORT`) | — |
 | Kafka UI | 8080 | — |
 
+### 10.1 Puesta en producción: qué hace el servicio y qué la plataforma
+
+| Tema | Lo resuelve | Configuración |
+|---|---|---|
+| Límite de peticiones, bloqueo por intentos de login y de creación de api-keys, cuotas por api-key | **WSO2** (políticas de throttling por aplicación, IP y recurso) | Políticas en `POST /identidad/api/v1/usuarios/login`, `POST …/usuarios` (alta), `PATCH …/usuarios/me/password`, `POST …/api-keys` y `POST /comprobantes/api/v1/*`; el servicio devuelve `429` solo si su propio pool se satura |
+| TLS, WAF, lista de IP, tamaño máximo de cuerpo | WSO2 / balanceador | TLS 1.2+; cuerpo máximo acorde al logo (200 KB), la imagen del ítem y el `.p12`; los servicios no se publican, solo el gateway |
+| `/q/health`, `/q/metrics`, swagger | Red interna | Fuera del gateway público; Swagger y OpenAPI ya están apagados en producción |
+| Secretos (clave de cifrado de los `.p12`, llaves JWT, base, SMTP) | Gestor de secretos (Vault o KMS) | Se inyectan como variables de entorno desde `env/<ambiente>.secretos.env`; nunca en archivos versionados; rotación documentada |
+| Alta disponibilidad | Plataforma | Postgres con réplica y failover; Kafka con 3 brokers y `replication.factor=3`, `min.insync.replicas=2`; 2 o más réplicas de cada servicio (outbox con `SKIP LOCKED` e inbox ya lo toleran) |
+| Salud y reinicio | Compose / orquestador | `healthcheck` sobre `/q/health/ready`, límites de CPU y memoria, `restart: unless-stopped` |
+| Observabilidad | Plataforma | Prometheus + Grafana sobre `/q/metrics`; alertas: DLQ con mensajes, sagas `EXPIRADA`, `NOTIFICACION_FALLIDA` sostenida, certificados por vencer, SRI sin responder |
+| Respaldos y retención (7 años de XML y RIDE) | Plataforma | Respaldo diario de Postgres con restauración ensayada; archivado de los XML autorizados |
+| Hora | Servidor | NTP sincronizado: la fecha de emisión y la clave de acceso dependen de la hora (los servicios calculan "hoy" en hora de Ecuador) |
+
+Dentro del servicio, lo que protege su disponibilidad: bcrypt en ejecutor acotado (`identidad.password.hilos`, `identidad.password.cola`), llamadas al SRI y firma fuera del event loop con `TrabajoBloqueante`, saga con watchdog, DLQ y reintentos.
+
+
 ## 11. Fuera de alcance, a propósito
 
-- **Sin proveedor de identidad externo (OIDC/Keycloak)** — `identidad-service` es autenticación propia del ecosistema (JWT firmado con Ed25519, ver sección 8), no un reemplazo de un IdP externo si un cliente lo necesitara más adelante. Sin rate-limiting/lockout en `/usuarios/login` (fuerza bruta fuera de alcance) y sin flujo de **reset** de contraseña por correo (el típico "olvidé mi contraseña", sin conocer la actual) — sí existe **cambio** de contraseña autenticado (`PATCH /usuarios/me/password`, exige la contraseña actual, ver sección 8), que es un caso distinto.
+- **Sin proveedor de identidad externo (OIDC/Keycloak)** — `identidad-service` es autenticación propia del ecosistema (JWT firmado con Ed25519, ver sección 8), no un reemplazo de un IdP externo si un cliente lo necesitara más adelante. El límite de peticiones y el bloqueo por intentos (login, creación de api-keys) los aplica el gateway WSO2 (ver 10.1), no el servicio. Sin flujo de **reset** de contraseña por correo (el típico "olvidé mi contraseña", sin conocer la actual) — sí existe **cambio** de contraseña autenticado (`PATCH /usuarios/me/password`, exige la contraseña actual, ver sección 8), que es un caso distinto.
 - **Sin manifiestos de Kubernetes** — el objetivo de despliegue es Docker Compose.
 - **Sin esquema de contingencia del SRI** — solo se implementó el esquema offline (el que usa el SRI en producción); el esquema de contingencia online queda fuera de alcance.
-- **IVA e ICE calculados de forma independiente sobre la misma base imponible** — la ley ecuatoriana real calcula IVA sobre (base + ICE) para ítems con ICE; documentado como simplificación conocida en el código de `comprobantes-service`.
 - **Factura 1.1.0 (bloque de reembolso)** — fuera de alcance; si se agrega en el futuro, cada tipo de comprobante nuevo o campo opcional nuevo debe re-verificarse contra una llamada real de Recepción antes de darse por bueno (la ficha técnica por sí sola no basta para detectar desajustes de XSD).
 - **El reintento automático de notificación es opcional y acotado** — por defecto, si `NotificacionFallida` deja la saga en `NOTIFICACION_FALLIDA`, reenviar el correo es una operación manual. El job `ReenvioNotificacionesJob` (4.2) lo automatiza solo si se enciende, y con un tope de intentos (3) a propósito: reintentar SMTP indefinidamente sin intervención podría enmascarar un problema real de configuración, como una contraseña de aplicación inválida, y agotar la cuota diaria del proveedor.
 
 ### Pendientes conocidos
 
-- **El login no tiene límite de intentos** (fuerza bruta): conviene un limitador en la entrada o un bloqueo temporal por cuenta/IP. `POST /usuarios` responde `409` a un correo repetido.
+- **El login no se limita en el servicio** (fuerza bruta): el límite por cliente, IP y cuenta se configura en WSO2 (10.1). El servicio solo protege su propio pool: bcrypt corre en un ejecutor acotado y, saturado, responde `429` (`IDE-429-001`). `POST /usuarios` responde `409` a un correo repetido.
 - **La nota de crédito no valida contra el documento que modifica** (que exista, sea de la misma empresa y no exceda su valor): confía en el número y la fecha que manda el cliente.
 - **No se valida el dígito verificador de cédula/RUC** a propósito: el SRI es la autoridad y tiene excepciones. La longitud y el tipo sí se validan.
 - **Los consumidores de Kafka** no validan el sobre del mensaje de forma uniforme: firma y sri-conector rechazan un comando sin `eventId`/`comprobanteId` (va a la DLQ), el resto depende de que venga bien formado. Los DLQ no tienen consumidor ni alerta (ver 6.5).
@@ -732,7 +807,7 @@ El código transversal vive una sola vez en `facturacion-commons` (jar, paquete 
 | `exception` | `ApiException` y sus derivadas: `NotFoundException`, `SinPermisoException`, `TokenInvalidoException`, `ConflictoException`, `ErrorNegocioException` |
 | `security` | `JwtVerificador`, `ApiKeyAuthFilter`, `TokenPrincipal`, `@PermiteSesion`, `SecurityRequirementOpenApiFilter` (los 6 servicios de dominio; identidad conserva su propia seguridad de sesión) |
 | `paging` | `PageRequest`, `PagedResponse`, `PageResult` |
-| `reactive` | `TrabajoBloqueante`: corre trabajo bloqueante (p. ej. bcrypt) fuera del event loop y vuelve al contexto de Vert.x |
+| `reactive` | `TrabajoBloqueante`: único lugar que corre trabajo bloqueante (firma XML, parseo SOAP, leer un archivo subido, bcrypt) fuera del event loop y vuelve al contexto de Vert.x; admite un ejecutor propio y acotado |
 
 **Qué NO se comparte, a propósito:** los records de mensajes Kafka, las entidades JPA/outbox/inbox, los modelos de réplica local (`ConfiguracionEmpresaLocal`, `EstablecimientoLocal`...) y cualquier regla de negocio — compartirlos acoplaría los bounded contexts y su despliegue independiente. El jar es solo infraestructura transversal y todas sus dependencias son `provided` (no cambia el classpath de los servicios). Un `META-INF/beans.xml` hace que Quarkus lo indexe y descubra sus `@Provider` y beans CDI.
 

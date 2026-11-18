@@ -12,6 +12,7 @@ import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.commons.security.TokenPrincipal;
 import com.facturacion.firma.domain.repository.EmpresaRepository;
 import com.facturacion.firma.domain.repository.EstablecimientoRepository;
+import com.facturacion.firma.shared.error.FirmaError;
 
 /**
  * Autorización por empresa en la frontera REST: una api-key solo opera sobre su propia empresa (y sus
@@ -42,7 +43,7 @@ public class AccesoEmpresa {
         return empresaRepository.findById(empresaId)
             .onItem().transformToUni(empresa -> empresa != null && tokenPrincipal.esDeLaEmpresa(empresa.getRuc())
                 ? Uni.createFrom().voidItem()
-                : Uni.createFrom().failure(new NotFoundException("Empresa no encontrada: " + empresaId)));
+                : Uni.createFrom().failure(new NotFoundException(FirmaError.EMPRESA_NO_ENCONTRADA, empresaId)));
     }
 
     /** Como {@link #exigirEmpresa}, pero para operaciones que modifican la empresa: además exige rol ADMIN. */
@@ -66,6 +67,6 @@ public class AccesoEmpresa {
                 establecimiento != null && empresaId.equals(establecimiento.getEmpresaId())
                     ? Uni.createFrom().voidItem()
                     : Uni.createFrom().failure(
-                        new NotFoundException("Establecimiento no encontrado: " + establecimientoId)));
+                        new NotFoundException(FirmaError.ESTABLECIMIENTO_NO_ENCONTRADO, establecimientoId)));
     }
 }

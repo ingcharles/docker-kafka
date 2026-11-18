@@ -13,7 +13,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import com.facturacion.commons.exception.ErrorInternoException;
 import com.facturacion.firma.domain.port.Cifrador;
+import com.facturacion.firma.shared.error.FirmaError;
 
 /**
  * Cifrado en reposo (AES-256-GCM) para el contenido del .p12 y su
@@ -54,7 +56,7 @@ public class CifradoService implements Cifrador {
             System.arraycopy(textoCifrado, 0, resultado, iv.length, textoCifrado.length);
             return resultado;
         } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("No se pudo cifrar el material criptográfico", e);
+            throw new ErrorInternoException(e, FirmaError.CIFRADO_FALLIDO);
         }
     }
 
@@ -66,7 +68,7 @@ public class CifradoService implements Cifrador {
             cipher.init(Cipher.DECRYPT_MODE, claveAes, new GCMParameterSpec(TAMANO_TAG_BITS, iv));
             return cipher.doFinal(textoCifrado);
         } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("No se pudo descifrar el material criptográfico", e);
+            throw new ErrorInternoException(e, FirmaError.DESCIFRADO_FALLIDO);
         }
     }
 
@@ -74,7 +76,7 @@ public class CifradoService implements Cifrador {
         try {
             return MessageDigest.getInstance("SHA-256").digest(claveMaestra.getBytes(StandardCharsets.UTF_8));
         } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("No se pudo derivar la clave de cifrado", e);
+            throw new ErrorInternoException(e, FirmaError.CLAVE_CIFRADO_NO_DERIVABLE);
         }
     }
 }

@@ -12,8 +12,8 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 import com.facturacion.commons.error.Mensajes;
+import com.facturacion.commons.exception.ConflictoException;
 import com.facturacion.firma.shared.exception.CertificadoInvalidoException;
-import com.facturacion.firma.shared.exception.CodigoDuplicadoException;
 import com.facturacion.firma.shared.exception.RucDuplicadoException;
 
 /** Mantiene alineados el enum del catálogo y mensajes.properties, y los estados HTTP de sus excepciones. */
@@ -46,12 +46,12 @@ class FirmaErrorTest {
         assertEquals("Ya existe una empresa registrada con el RUC 1722039953001", ruc.getMessage());
         assertEquals(409, ruc.getError().estadoHttp());
 
-        CodigoDuplicadoException codigo = new CodigoDuplicadoException("Ya existe el establecimiento 001");
-        assertEquals("Ya existe el establecimiento 001", codigo.getMessage());
+        ConflictoException codigo = new ConflictoException(FirmaError.ESTABLECIMIENTO_DUPLICADO, "001");
+        assertEquals("Ya existe un establecimiento activo con el código 001 para esta empresa", codigo.getMessage());
         assertEquals(409, codigo.getError().estadoHttp());
 
-        CertificadoInvalidoException cert = new CertificadoInvalidoException("clave incorrecta", new RuntimeException());
-        assertEquals("clave incorrecta", cert.getMessage());
+        CertificadoInvalidoException cert = new CertificadoInvalidoException(FirmaError.CERTIFICADO_INVALIDO, new RuntimeException());
+        assertEquals("El archivo no es un .p12 válido o la contraseña dada no lo abre", cert.getMessage());
         assertEquals(400, cert.getError().estadoHttp());
     }
 }

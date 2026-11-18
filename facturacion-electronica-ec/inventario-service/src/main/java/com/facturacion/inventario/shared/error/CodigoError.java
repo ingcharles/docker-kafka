@@ -12,14 +12,18 @@ public enum CodigoError implements ErrorCatalogo {
     // Clasificación del ítem
     CATEGORIA_INCOMPATIBLE("INV-400-001", 400, "item.categoria_incompatible"),
     ITEM_NO_ES_PRODUCTO("INV-400-002", 400, "item.no_es_producto"),
-    ICE_SIN_CODIGO_PORCENTAJE("INV-400-003", 400, "item.ice.sin_codigo_porcentaje"),
-    ICE_SIN_TARIFA("INV-400-004", 400, "item.ice.sin_tarifa"),
 
     // Imágenes
-    IMAGEN_INVALIDA("INV-400-005", 400, "imagen.invalida"),
+    IMAGEN_VACIA("INV-400-005", 400, "imagen.vacia"),
+    IMAGEN_MUY_GRANDE("INV-400-007", 400, "imagen.muy_grande"),
+    IMAGEN_TIPO_NO_ADMITIDO("INV-400-008", 400, "imagen.tipo_no_admitido"),
 
     // Existencias
-    STOCK_INSUFICIENTE("INV-409-001", 409, "stock.insuficiente");
+    ITEM_NO_ENCONTRADO("INV-404-001", 404, "item.no_encontrado"),
+    CATEGORIA_NO_ENCONTRADA("INV-404-002", 404, "categoria.no_encontrada"),
+    IMAGEN_NO_ENCONTRADA("INV-404-003", 404, "imagen.no_encontrada"),
+    STOCK_INSUFICIENTE("INV-409-001", 409, "stock.insuficiente"),
+    ARCHIVO_IMAGEN_ILEGIBLE("INV-400-006", 400, "imagen.archivo_ilegible");
 
     private final String codigo;
     private final int estadoHttp;

@@ -7,7 +7,7 @@ import com.facturacion.identidad.domain.model.entity.PuntoEmisionLocal;
 public interface PuntoEmisionLocalRepository {
 
     /** Upsert por (ruc, establecimientoCodigo, codigo) — se llama al recibir PuntoEmisionRegistrado/Actualizado desde Kafka. */
-    Uni<Void> upsert(PuntoEmisionLocal puntoEmision);
+    Uni<Void> insertarOActualizar(PuntoEmisionLocal puntoEmision);
 
     Uni<PuntoEmisionLocal> findByRucAndEstablecimientoCodigoAndCodigo(String ruc, String establecimientoCodigo,
             String codigo);

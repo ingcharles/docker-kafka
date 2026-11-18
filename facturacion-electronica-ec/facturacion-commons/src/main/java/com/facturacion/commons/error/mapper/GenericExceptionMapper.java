@@ -1,6 +1,7 @@
 package com.facturacion.commons.error.mapper;
 
 import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
@@ -31,6 +32,6 @@ public class GenericExceptionMapper implements ExceptionMapper<Exception> {
         LogCodificado.error(LOG, exception, CodigoLogComun.EXCEPCION_NO_CONTROLADA, null);
         ApiErrorResponse body = new ApiErrorResponse(500, "Internal Server Error",
             Mensajes.obtenerTexto(ErrorComun.ERROR_INTERNO), null, ErrorComun.ERROR_INTERNO.codigo());
-        return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(body).build();
+        return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(body).type(MediaType.APPLICATION_JSON).build();
     }
 }

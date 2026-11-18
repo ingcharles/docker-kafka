@@ -48,7 +48,7 @@ public class ConstructorRetencion implements ConstructorComprobante<CrearRetenci
     @Override
     public Uni<Comprobante> construir(CrearRetencionRequest request, long secuencial, CatalogosSriAFecha catalogos) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = comun.encabezado(request.getEmpresa(), TipoComprobante.RETENCION, secuencial,
+        Comprobante comprobante = comun.armarEncabezado(request.getEmpresa(), TipoComprobante.RETENCION, secuencial,
             ahora);
 
         List<DetalleComprobante> detalles = new ArrayList<>();
@@ -110,7 +110,7 @@ public class ConstructorRetencion implements ConstructorComprobante<CrearRetenci
                 docRequest.getImporteTotal(),
                 impuestosDocSustento,
                 retenciones,
-                comun.pagos(docRequest.getPagos(), docRequest.getImporteTotal(), false, catalogos)));
+                comun.armarPagos(docRequest.getPagos(), docRequest.getImporteTotal(), false, catalogos)));
         }
 
         CatalogosValidador.validarTipoIdentificacion(catalogos, request.getSujetoRetenidoTipoIdentificacion(),
@@ -132,7 +132,7 @@ public class ConstructorRetencion implements ConstructorComprobante<CrearRetenci
             request.getParteRelacionada() == null || request.getParteRelacionada().isBlank()
                 ? "NO"
                 : request.getParteRelacionada());
-        comprobante.setCamposAdicionales(comun.camposAdicionales(request.getCampoAdicional()));
+        comprobante.setCamposAdicionales(comun.armarCamposAdicionales(request.getCampoAdicional()));
         return Uni.createFrom().item(comprobante);
     }
 }

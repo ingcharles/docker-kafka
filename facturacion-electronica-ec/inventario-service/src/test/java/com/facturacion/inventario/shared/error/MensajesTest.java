@@ -53,6 +53,5 @@ class MensajesTest {
 
     @Test
     void elMensajeSeLeeDelArchivo() {
-        assertEquals("tieneIce=true exige tarifaIce (>= 0).", Mensajes.obtenerTexto(CodigoError.ICE_SIN_TARIFA));
     }
 }

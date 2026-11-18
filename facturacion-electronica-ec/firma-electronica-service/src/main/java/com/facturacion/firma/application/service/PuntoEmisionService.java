@@ -16,6 +16,9 @@ import io.smallrye.mutiny.Uni;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.facturacion.commons.error.ErrorComun;
+import com.facturacion.commons.exception.ConflictoException;
+import com.facturacion.commons.exception.ErrorInternoException;
 import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.firma.application.dto.ActualizarPuntoEmisionRequest;
 import com.facturacion.firma.application.dto.CrearPuntoEmisionRequest;
@@ -31,7 +34,7 @@ import com.facturacion.firma.domain.repository.EmpresaRepository;
 import com.facturacion.firma.domain.repository.EstablecimientoRepository;
 import com.facturacion.firma.domain.repository.PuntoEmisionRepository;
 import com.facturacion.firma.shared.constant.MessagingConstants;
-import com.facturacion.firma.shared.exception.CodigoDuplicadoException;
+import com.facturacion.firma.shared.error.FirmaError;
 
 /** CRUD de puntos de emisión de un {@link Establecimiento} — ver {@link EstablecimientoService}. */
 @ApplicationScoped
@@ -64,9 +67,8 @@ public class PuntoEmisionService {
                 .existsByEstablecimientoIdAndCodigo(establecimientoId, request.getCodigo())
                 .onItem().transformToUni(existe -> {
                     if (Boolean.TRUE.equals(existe)) {
-                        return Uni.createFrom().failure(new CodigoDuplicadoException(
-                            "Ya existe un punto de emisión activo con el código " + request.getCodigo()
-                                + " para este establecimiento"));
+                        return Uni.createFrom().failure(new ConflictoException(
+                            FirmaError.PUNTO_EMISION_DUPLICADO, request.getCodigo()));
                     }
                     Instant ahora = Instant.now();
                     PuntoEmision puntoEmision = new PuntoEmision(UUID.randomUUID(), establecimientoId,
@@ -80,11 +82,11 @@ public class PuntoEmisionService {
             @Valid ActualizarPuntoEmisionRequest request) {
         return resolverEstablecimientoYEmpresa(empresaId, establecimientoId)
             .onItem().transformToUni(par -> repository.findById(id)
-                .onItem().ifNull().failWith(() -> new NotFoundException("Punto de emisión no encontrado: " + id))
+                .onItem().ifNull().failWith(() -> new NotFoundException(FirmaError.PUNTO_EMISION_NO_ENCONTRADO, id))
                 .onItem().transformToUni(existente -> {
                     if (!existente.getEstablecimientoId().equals(establecimientoId)) {
                         return Uni.createFrom().failure(
-                            new NotFoundException("Punto de emisión no encontrado: " + id));
+                            new NotFoundException(FirmaError.PUNTO_EMISION_NO_ENCONTRADO, id));
                     }
                     existente.setDescripcion(request.getDescripcion());
                     existente.setActivo(request.isActivo());
@@ -101,10 +103,10 @@ public class PuntoEmisionService {
     @WithSession
     public Uni<PuntoEmisionResponse> obtener(UUID establecimientoId, UUID id) {
         return repository.findById(id)
-            .onItem().ifNull().failWith(() -> new NotFoundException("Punto de emisión no encontrado: " + id))
+            .onItem().ifNull().failWith(() -> new NotFoundException(FirmaError.PUNTO_EMISION_NO_ENCONTRADO, id))
             .onItem().transformToUni(puntoEmision -> {
                 if (!puntoEmision.getEstablecimientoId().equals(establecimientoId)) {
-                    return Uni.createFrom().failure(new NotFoundException("Punto de emisión no encontrado: " + id));
+                    return Uni.createFrom().failure(new NotFoundException(FirmaError.PUNTO_EMISION_NO_ENCONTRADO, id));
                 }
                 return Uni.createFrom().item(mapper.toResponse(puntoEmision));
             });
@@ -115,14 +117,14 @@ public class PuntoEmisionService {
 
     private Uni<EmpresaEstablecimiento> resolverEstablecimientoYEmpresa(UUID empresaId, UUID establecimientoId) {
         return empresaRepository.findById(empresaId)
-            .onItem().ifNull().failWith(() -> new NotFoundException("Empresa no encontrada: " + empresaId))
+            .onItem().ifNull().failWith(() -> new NotFoundException(FirmaError.EMPRESA_NO_ENCONTRADA, empresaId))
             .onItem().transformToUni(empresa -> establecimientoRepository.findById(establecimientoId)
                 .onItem().ifNull().failWith(() ->
-                    new NotFoundException("Establecimiento no encontrado: " + establecimientoId))
+                    new NotFoundException(FirmaError.ESTABLECIMIENTO_NO_ENCONTRADO, establecimientoId))
                 .onItem().transformToUni(establecimiento -> {
                     if (!establecimiento.getEmpresaId().equals(empresaId)) {
                         return Uni.createFrom().failure(
-                            new NotFoundException("Establecimiento no encontrado: " + establecimientoId));
+                            new NotFoundException(FirmaError.ESTABLECIMIENTO_NO_ENCONTRADO, establecimientoId));
                     }
                     return Uni.createFrom().item(new EmpresaEstablecimiento(empresa, establecimiento));
                 }));
@@ -162,7 +164,7 @@ public class PuntoEmisionService {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("No se pudo serializar el payload del outbox", e);
+            throw new ErrorInternoException(e, ErrorComun.PAYLOAD_NO_SERIALIZABLE);
         }
     }
 }

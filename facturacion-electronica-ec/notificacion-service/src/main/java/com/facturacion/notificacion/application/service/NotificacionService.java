@@ -17,7 +17,9 @@ import io.vertx.core.Vertx;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.facturacion.commons.error.ErrorComun;
 import com.facturacion.commons.error.LogCodificado;
+import com.facturacion.commons.exception.ErrorInternoException;
 import com.facturacion.commons.exception.NotFoundException;
 import com.facturacion.notificacion.application.dto.NotificacionEnviadaResponse;
 import com.facturacion.notificacion.application.event.ComprobanteEventMessage;
@@ -35,6 +37,7 @@ import com.facturacion.notificacion.domain.service.ClaveAcceso;
 import com.facturacion.notificacion.domain.service.MotivoFalla;
 import com.facturacion.notificacion.shared.constant.MessagingConstants;
 import com.facturacion.notificacion.shared.error.CodigoLog;
+import com.facturacion.notificacion.shared.error.NotificacionError;
 
 /**
  * Dueño del agregado NotificacionEnviada. {@link #procesarComprobanteAutorizado}
@@ -96,7 +99,7 @@ public class NotificacionService {
                         .onItem().transform(ignorado -> (String) null)
                         .onFailure().recoverWithItem(falla -> {
                             LogCodificado.error(LOG, falla, CodigoLog.CORREO_FALLIDO, "claveAcceso=" + evento.claveAcceso());
-                            return MotivoFalla.de(falla);
+                            return MotivoFalla.obtenerMotivo(falla);
                         });
                 }))
             .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
@@ -143,9 +146,9 @@ public class NotificacionService {
         return notificacionRepository.findByComprobanteId(comprobanteId)
             // Una notificación de otra empresa se trata como inexistente (404): no se revela que existe.
             .onItem().transform(n -> n != null && empresaRuc != null
-                && empresaRuc.equals(ClaveAcceso.rucDelEmisor(n.getClaveAcceso())) ? n : null)
+                && empresaRuc.equals(ClaveAcceso.obtenerRucDelEmisor(n.getClaveAcceso())) ? n : null)
             .onItem().ifNull().failWith(() ->
-                new NotFoundException("No hay ninguna notificación para el comprobante " + comprobanteId))
+                new NotFoundException(NotificacionError.NOTIFICACION_NO_ENCONTRADA, comprobanteId))
             .map(mapper::toResponse);
     }
 
@@ -153,7 +156,7 @@ public class NotificacionService {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("No se pudo serializar el payload del outbox", e);
+            throw new ErrorInternoException(e, ErrorComun.PAYLOAD_NO_SERIALIZABLE);
         }
     }
 }

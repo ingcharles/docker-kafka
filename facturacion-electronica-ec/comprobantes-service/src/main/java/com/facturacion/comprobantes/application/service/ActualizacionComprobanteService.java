@@ -10,7 +10,9 @@ import io.smallrye.mutiny.Uni;
 
 import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.commons.exception.ConflictoException;
+import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.commons.exception.NotFoundException;
+import com.facturacion.commons.time.FechasSri;
 import com.facturacion.comprobantes.application.event.ActualizarComprobanteCommand;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
@@ -20,7 +22,7 @@ import com.facturacion.comprobantes.domain.repository.CatalogoSriRepository;
 import com.facturacion.comprobantes.domain.repository.ComprobanteRepository;
 import com.facturacion.comprobantes.domain.repository.ConfiguracionEmpresaLocalRepository;
 import com.facturacion.comprobantes.shared.constant.MessagingConstants;
-import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 import com.facturacion.comprobantes.shared.error.CodigoLog;
 
 /**
@@ -59,7 +61,7 @@ public class ActualizacionComprobanteService {
     }
 
     /** Estado al que lleva cada comando; un comando desconocido es un error de programación del orquestador. */
-    static EstadoComprobante estadoDestino(String tipoComando) {
+    static EstadoComprobante obtenerEstadoDestino(String tipoComando) {
         return switch (tipoComando) {
             case MessagingConstants.COMANDO_MARCAR_FIRMADO -> EstadoComprobante.FIRMADO;
             case MessagingConstants.COMANDO_MARCAR_FIRMA_FALLIDA -> EstadoComprobante.FIRMA_FALLIDA;
@@ -67,8 +69,7 @@ public class ActualizacionComprobanteService {
             case MessagingConstants.COMANDO_MARCAR_NOTIFICADO -> EstadoComprobante.NOTIFICADO;
             case MessagingConstants.COMANDO_MARCAR_AUTORIZADO -> EstadoComprobante.AUTORIZADO;
             case MessagingConstants.COMANDO_MARCAR_STOCK_INSUFICIENTE -> EstadoComprobante.STOCK_INSUFICIENTE;
-            default -> throw new IllegalArgumentException(
-                "Tipo de comando de comprobante desconocido: " + tipoComando);
+            default -> throw new ErrorNegocioException(CodigoError.COMANDO_DESCONOCIDO, tipoComando);
         };
     }
 
@@ -76,20 +77,18 @@ public class ActualizacionComprobanteService {
     public Uni<ResultadoComando> aplicarComando(ActualizarComprobanteCommand command) {
         return comprobanteRepository.findById(command.comprobanteId())
             .onItem().ifNull().failWith(() ->
-                new NotFoundException("Comprobante no encontrado: " + command.comprobanteId()))
+                new NotFoundException(CodigoError.COMPROBANTE_NO_ENCONTRADO, command.comprobanteId()))
             .onItem().transformToUni(comprobante -> {
                 if (MessagingConstants.COMANDO_REENVIAR_NOTIFICACION.equals(command.tipoComando())) {
                     return reenviarNotificacion(comprobante);
                 }
-                EstadoComprobante destino = estadoDestino(command.tipoComando());
-                if (comprobante.saltaPasos(destino)) {
+                EstadoComprobante destino = obtenerEstadoDestino(command.tipoComando());
+                if (comprobante.esSaltoDePasos(destino)) {
                     // No se descarta en silencio: el comprobante quedaría atascado aunque el SRI ya lo autorizó.
                     LogCodificado.error(LOG, CodigoLog.COMANDO_FUERA_DE_ORDEN, "comprobanteId=" + comprobante.getId(),
                         command.tipoComando(), command.eventId(), comprobante.getEstado(), destino);
-                    return Uni.<ResultadoComando>createFrom().failure(new IllegalStateException(
-                        "Comando " + command.tipoComando() + " fuera de orden: el comprobante " + comprobante.getId()
-                            + " está " + comprobante.getEstado() + " y no puede pasar a " + destino
-                            + " sin aplicar antes los pasos intermedios"));
+                    return Uni.<ResultadoComando>createFrom().failure(new ConflictoException(CodigoError.COMANDO_FUERA_DE_ORDEN, command.tipoComando(),
+                        comprobante.getId(), comprobante.getEstado(), destino));
                 }
                 if (!comprobante.puedePasarA(destino)) {
                     LogCodificado.warn(LOG, CodigoLog.COMANDO_IGNORADO, "comprobanteId=" + comprobante.getId(), command.tipoComando(),
@@ -142,7 +141,7 @@ public class ActualizacionComprobanteService {
             .onItem().transformToUni(configuracionColor -> configuracionEmpresaLocalRepository
                 .findByRucAndClave(comprobante.getEmpresaRuc(), "ride.logo")
                 .onItem().transformToUni(configuracionLogo -> catalogoSriRepository
-                    .cargar(comprobante.getFechaEmision().atOffset(ZonaHoraria.ECUADOR).toLocalDate())
+                    .cargar(FechasSri.convertirAFecha(comprobante.getFechaEmision()))
                     .onItem().transformToUni(catalogos -> {
                         String colorRide = configuracionColor == null ? null : configuracionColor.getValor();
                         byte[] logo = decodificarLogo(configuracionLogo == null ? null : configuracionLogo.getValor());

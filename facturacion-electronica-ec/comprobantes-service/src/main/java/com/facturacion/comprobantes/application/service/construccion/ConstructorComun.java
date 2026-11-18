@@ -2,10 +2,7 @@ package com.facturacion.comprobantes.application.service.construccion;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.time.format.ResolverStyle;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -13,6 +10,7 @@ import java.util.stream.Collectors;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import com.facturacion.commons.exception.ErrorNegocioException;
+import com.facturacion.commons.time.FechasSri;
 import com.facturacion.comprobantes.application.dto.CampoAdicionalRequest;
 import com.facturacion.comprobantes.application.dto.EmpresaRequest;
 import com.facturacion.comprobantes.application.dto.PagoRequest;
@@ -27,7 +25,6 @@ import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha;
 import com.facturacion.comprobantes.domain.model.vo.Pago;
 import com.facturacion.comprobantes.domain.service.ClaveAccesoGenerador;
 import com.facturacion.comprobantes.domain.service.PagosValidador;
-import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /**
@@ -37,11 +34,8 @@ import com.facturacion.comprobantes.shared.error.CodigoError;
 @ApplicationScoped
 public class ConstructorComun {
 
-    private static final DateTimeFormatter FORMATO_FECHA_ESTRICTO =
-        DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT);
-
     /** Encabezado común a los 6 tipos (clave de acceso, snapshot de la empresa inline, estado inicial). */
-    public Comprobante encabezado(EmpresaRequest empresa, TipoComprobante tipo, long secuencial,
+    public Comprobante armarEncabezado(EmpresaRequest empresa, TipoComprobante tipo, long secuencial,
             Instant ahora) {
         AmbienteSri ambiente = convertirAmbiente(empresa.getAmbiente());
         String claveAcceso = ClaveAccesoGenerador.generar(ClaveAccesoGenerador.obtenerFechaActualEcuador(), tipo, empresa.getRuc(),
@@ -83,7 +77,7 @@ public class ConstructorComun {
      * total (ver {@link PagosValidador}); las formas de pago válidas salen del catálogo de
      * formas de pago (tabla propia). {@code admitePlazo} es false solo para Retención v2.0.0.
      */
-    public List<Pago> pagos(List<PagoRequest> pagosRequest, BigDecimal importeTotal, boolean admitePlazo,
+    public List<Pago> armarPagos(List<PagoRequest> pagosRequest, BigDecimal importeTotal, boolean admitePlazo,
             CatalogosSriAFecha catalogos) {
         if (pagosRequest == null || pagosRequest.isEmpty()) {
             return List.of(new Pago(FormaPagoSri.SIN_UTILIZACION_SISTEMA_FINANCIERO.codigo(), importeTotal, null, null));
@@ -102,13 +96,13 @@ public class ConstructorComun {
      */
     public void validarFechaDocSustento(String ddMmAaaa) {
         try {
-            LocalDate.parse(ddMmAaaa, FORMATO_FECHA_ESTRICTO);
+            FechasSri.leerFecha(ddMmAaaa);
         } catch (DateTimeParseException e) {
             throw new ErrorNegocioException(CodigoError.FECHA_DOC_SUSTENTO_INVALIDA, ddMmAaaa);
         }
     }
 
-    public List<CampoAdicional> camposAdicionales(List<CampoAdicionalRequest> camposRequest) {
+    public List<CampoAdicional> armarCamposAdicionales(List<CampoAdicionalRequest> camposRequest) {
         if (camposRequest == null) {
             return List.of();
         }
@@ -127,7 +121,7 @@ public class ConstructorComun {
             return null;
         }
         try {
-            return LocalDate.parse(ddMmAaaa, FORMATO_FECHA_ESTRICTO).atStartOfDay(ZonaHoraria.ECUADOR).toInstant();
+            return FechasSri.obtenerInicioDelDia(ddMmAaaa);
         } catch (DateTimeParseException e) {
             throw new ErrorNegocioException(CodigoError.FECHA_DOCUMENTO_INVALIDA, ddMmAaaa);
         }

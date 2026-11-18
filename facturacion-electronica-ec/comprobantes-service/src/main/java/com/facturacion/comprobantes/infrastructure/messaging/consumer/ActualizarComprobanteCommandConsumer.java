@@ -42,7 +42,7 @@ public class ActualizarComprobanteCommandConsumer {
     @Incoming("comprobante-comandos-in")
     @WithTransaction
     public Uni<Void> procesarComando(ActualizarComprobanteCommand command) {
-        return processedMessageRepository.alreadyProcessed(command.eventId())
+        return processedMessageRepository.esMensajeProcesado(command.eventId())
             .onItem().transformToUni(processed -> {
                 if (Boolean.TRUE.equals(processed)) {
                     LogCodificado.info(LOG, CodigoLog.COMANDO_DUPLICADO_DESCARTADO, "comprobanteId=" + command.comprobanteId(),

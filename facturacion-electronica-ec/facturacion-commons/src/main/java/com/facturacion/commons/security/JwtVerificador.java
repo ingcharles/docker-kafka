@@ -15,6 +15,7 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 
 import com.facturacion.commons.error.CodigoLogComun;
+import com.facturacion.commons.error.ErrorComun;
 import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.commons.exception.TokenInvalidoException;
 
@@ -47,7 +48,6 @@ public class JwtVerificador {
     private static final String CLAIM_PUNTO_EMISION = "puntoEmision";
     private static final String TIPO_API_KEY = "api_key";
     private static final String TIPO_SESION = "sesion";
-    private static final String MENSAJE_GENERICO = "Token inválido o expirado";
     private static final Pattern RUC = Pattern.compile("\\d{13}");
     private static final Pattern CODIGO_TRES_DIGITOS = Pattern.compile("\\d{3}");
     private static final Set<String> ROLES = Set.of("ADMIN", "OPERADOR", "LECTURA");
@@ -57,16 +57,16 @@ public class JwtVerificador {
 
     public JwtVerificador(@ConfigProperty(name = "identidad.jwt.clave-publica") String clavePublica,
             RevocacionApiKeys revocaciones) {
-        this.clavePublica = ClavesJwt.publica(clavePublica);
+        this.clavePublica = ClavesJwt.leerPublica(clavePublica);
         this.revocaciones = revocaciones;
     }
 
     public TokenPrincipal verificar(String token) {
         Claims claims = parsear(token);
-        if (!TIPO_API_KEY.equals(tipoDe(claims))) {
-            throw new TokenInvalidoException("El token no es una api-key");
+        if (!TIPO_API_KEY.equals(leerTipo(claims))) {
+            throw new TokenInvalidoException(ErrorComun.TOKEN_NO_ES_API_KEY);
         }
-        return principalDeApiKey(claims);
+        return crearPrincipalDeApiKey(claims);
     }
 
     /**
@@ -75,43 +75,43 @@ public class JwtVerificador {
      */
     public TokenPrincipal verificarApiKeyOSesion(String token) {
         Claims claims = parsear(token);
-        String tipo = tipoDe(claims);
+        String tipo = leerTipo(claims);
         if (TIPO_API_KEY.equals(tipo)) {
-            return principalDeApiKey(claims);
+            return crearPrincipalDeApiKey(claims);
         }
         if (TIPO_SESION.equals(tipo)) {
             TokenPrincipal principal = new TokenPrincipal();
-            principal.setUsuarioId(usuarioDe(claims));
+            principal.setUsuarioId(leerUsuarioId(claims));
             return principal;
         }
-        throw new TokenInvalidoException("El token no es una api-key ni un token de sesión válido");
+        throw new TokenInvalidoException(ErrorComun.TOKEN_NO_ES_API_KEY_NI_SESION);
     }
 
-    private TokenPrincipal principalDeApiKey(Claims claims) {
-        String ruc = texto(claims, CLAIM_RUC);
-        String rol = texto(claims, CLAIM_ROL);
-        String establecimiento = texto(claims, CLAIM_ESTABLECIMIENTO);
-        String puntoEmision = texto(claims, CLAIM_PUNTO_EMISION);
+    private TokenPrincipal crearPrincipalDeApiKey(Claims claims) {
+        String ruc = leerTexto(claims, CLAIM_RUC);
+        String rol = leerTexto(claims, CLAIM_ROL);
+        String establecimiento = leerTexto(claims, CLAIM_ESTABLECIMIENTO);
+        String puntoEmision = leerTexto(claims, CLAIM_PUNTO_EMISION);
         if (ruc == null || !RUC.matcher(ruc).matches()) {
-            throw rechazo("la api-key no trae exactamente un ruc de 13 dígitos");
+            throw crearRechazo("la api-key no trae exactamente un ruc de 13 dígitos");
         }
         if (rol == null || !ROLES.contains(rol)) {
-            throw rechazo("la api-key no trae exactamente un rol válido");
+            throw crearRechazo("la api-key no trae exactamente un rol válido");
         }
         if (claims.getId() == null || claims.getId().isBlank()) {
-            throw rechazo("la api-key no trae jti (no se podría revocar)");
+            throw crearRechazo("la api-key no trae jti (no se podría revocar)");
         }
         if (claims.getExpiration() == null) {
-            throw rechazo("la api-key no vence");
+            throw crearRechazo("la api-key no vence");
         }
         if (establecimiento != null && !CODIGO_TRES_DIGITOS.matcher(establecimiento).matches()) {
-            throw rechazo("establecimiento con formato inválido");
+            throw crearRechazo("establecimiento con formato inválido");
         }
         if (puntoEmision != null && (establecimiento == null || !CODIGO_TRES_DIGITOS.matcher(puntoEmision).matches())) {
-            throw rechazo("puntoEmision sin establecimiento o con formato inválido");
+            throw crearRechazo("puntoEmision sin establecimiento o con formato inválido");
         }
         TokenPrincipal principal = new TokenPrincipal();
-        principal.setUsuarioId(usuarioDe(claims));
+        principal.setUsuarioId(leerUsuarioId(claims));
         principal.setRuc(ruc);
         principal.setRol(rol);
         // null en tokens sin acotar — sin restricción.
@@ -127,41 +127,41 @@ public class JwtVerificador {
                 .getPayload();
         } catch (JwtException | IllegalArgumentException e) {
             LogCodificado.debug(LOG, CodigoLogComun.TOKEN_RECHAZADO, null, e.getMessage());
-            throw new TokenInvalidoException(MENSAJE_GENERICO, e);
+            throw new TokenInvalidoException(e, ErrorComun.TOKEN_EXPIRADO_O_INVALIDO);
         }
         // La firma, el emisor y el vencimiento ya son válidos; falta saber si identidad-service la revocó antes de que venza.
         if (revocaciones.estaRevocada(claims.getId())) {
-            throw new TokenInvalidoException("La api-key fue revocada");
+            throw new TokenInvalidoException(ErrorComun.API_KEY_REVOCADA);
         }
         return claims;
     }
 
-    private String tipoDe(Claims claims) {
-        return texto(claims, CLAIM_TIPO);
+    private String leerTipo(Claims claims) {
+        return leerTexto(claims, CLAIM_TIPO);
     }
 
-    private UUID usuarioDe(Claims claims) {
+    private UUID leerUsuarioId(Claims claims) {
         try {
             return UUID.fromString(claims.getSubject());
         } catch (IllegalArgumentException | NullPointerException e) {
-            throw rechazo("el subject no es un usuario válido");
+            throw crearRechazo("el subject no es un usuario válido");
         }
     }
 
     /** El claim como texto; {@code null} si no existe. Si existe pero no es texto (p. ej. una lista) se rechaza. */
-    private String texto(Claims claims, String nombre) {
+    private String leerTexto(Claims claims, String nombre) {
         Object valor = claims.get(nombre);
         if (valor == null) {
             return null;
         }
         if (!(valor instanceof String texto)) {
-            throw rechazo("el claim " + nombre + " debe ser un único texto");
+            throw crearRechazo("el claim " + nombre + " debe ser un único texto");
         }
         return texto;
     }
 
-    private TokenInvalidoException rechazo(String motivo) {
+    private TokenInvalidoException crearRechazo(String motivo) {
         LogCodificado.debug(LOG, CodigoLogComun.TOKEN_RECHAZADO, null, motivo);
-        return new TokenInvalidoException(MENSAJE_GENERICO);
+        return new TokenInvalidoException(ErrorComun.TOKEN_EXPIRADO_O_INVALIDO);
     }
 }

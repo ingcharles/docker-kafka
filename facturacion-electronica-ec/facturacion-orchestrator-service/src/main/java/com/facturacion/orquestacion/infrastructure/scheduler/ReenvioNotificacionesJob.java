@@ -62,7 +62,7 @@ public class ReenvioNotificacionesJob {
         if (!habilitado) {
             return Uni.createFrom().voidItem();
         }
-        return servicio.idsParaReenvioAutomatico(plazos, lote)
+        return servicio.listarIdsParaReenvioAutomatico(plazos, lote)
             .onItem().transformToMulti(ids -> Multi.createFrom().iterable(ids))
             .onItem().transformToUniAndConcatenate(this::atender)
             .collect().asList()

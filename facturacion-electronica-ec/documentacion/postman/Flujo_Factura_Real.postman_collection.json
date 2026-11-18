@@ -172,7 +172,7 @@
             "url": { "raw": "{{inventario_url}}/items", "host": ["{{inventario_url}}"], "path": ["items"] },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"ruc\": \"{{ruc}}\",\n  \"tipo\": \"PRODUCTO\",\n  \"codigoPrincipal\": \"TABLET02\",\n  \"descripcion\": \"Tablet 10 pulgadas\",\n  \"precioUnitario\": 300.00,\n  \"unidadMedida\": \"unidad\",\n  \"cantidadInicial\": 20,\n  \"costoInicial\": 220.00,\n  \"stockMinimo\": 5,\n  \"codigoImpuesto\": \"2\",\n  \"codigoPorcentaje\": \"4\",\n  \"tieneIce\": false\n}"
+              "raw": "{\n  \"ruc\": \"{{ruc}}\",\n  \"tipo\": \"PRODUCTO\",\n  \"codigoPrincipal\": \"TABLET02\",\n  \"descripcion\": \"Tablet 10 pulgadas\",\n  \"precioUnitario\": 300.00,\n  \"unidadMedida\": \"unidad\",\n  \"cantidadInicial\": 20,\n  \"costoInicial\": 220.00,\n  \"stockMinimo\": 5,\n  \"codigoPorcentajeIva\": \"4\"\n}"
             },
             "description": "El código TABLET02 debe ser único por RUC: si ya existe, cambiarlo."
           },

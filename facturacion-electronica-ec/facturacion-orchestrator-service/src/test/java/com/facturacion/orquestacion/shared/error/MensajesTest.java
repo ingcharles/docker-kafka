@@ -28,6 +28,7 @@ class MensajesTest {
     void mensajesNoUsadosNoSeAcumulan() {
         Set<String> usadas = Arrays.stream(CodigoError.values()).map(CodigoError::claveMensaje)
             .collect(Collectors.toSet());
+        Arrays.stream(OrquestacionError.values()).forEach(e -> usadas.add(e.claveMensaje()));
         Set<String> sobrantes = new HashSet<>(Mensajes.listarClaves());
         sobrantes.removeAll(usadas);
         assertTrue(sobrantes.isEmpty(), "Claves sin código de error: " + sobrantes);

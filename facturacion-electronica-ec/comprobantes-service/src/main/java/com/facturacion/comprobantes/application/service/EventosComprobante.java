@@ -11,6 +11,8 @@ import jakarta.inject.Inject;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.facturacion.commons.error.ErrorComun;
+import com.facturacion.commons.exception.ErrorInternoException;
 import com.facturacion.comprobantes.application.event.ComprobanteAutorizadoEventMessage;
 import com.facturacion.comprobantes.application.event.ComprobanteCreadoEventMessage;
 import com.facturacion.comprobantes.application.event.ItemCantidadEvento;
@@ -45,7 +47,7 @@ public class EventosComprobante {
             comprobante.getXmlGenerado(),
             tieneCorreo(comprobante),
             comprobante.getTipoComprobante().name(),
-            itemsDeInventario(comprobante),
+            obtenerItemsDeInventario(comprobante),
             Instant.now());
         return new EventoSaliente(comprobante.getId(), MessagingConstants.EVENT_TYPE_COMPROBANTE_CREADO,
             MessagingConstants.COMPROBANTE_EVENTS_TOPIC, serializar(mensaje));
@@ -74,7 +76,7 @@ public class EventosComprobante {
     }
 
     /** Líneas que apuntan a un ítem de inventario: las demás (texto libre) no tienen stock que descontar. */
-    private static List<ItemCantidadEvento> itemsDeInventario(Comprobante comprobante) {
+    private static List<ItemCantidadEvento> obtenerItemsDeInventario(Comprobante comprobante) {
         if (comprobante.getDetalles() == null) {
             return List.of();
         }
@@ -93,7 +95,7 @@ public class EventosComprobante {
         try {
             return objectMapper.writeValueAsString(valor);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("No se pudo serializar el payload del outbox", e);
+            throw new ErrorInternoException(e, ErrorComun.PAYLOAD_NO_SERIALIZABLE);
         }
     }
 }

@@ -27,6 +27,8 @@ public enum CodigoError implements ErrorCatalogo {
     PORCENTAJE_IMPUESTO_NO_VIGENTE("COMP-400-202", 400, "impuesto.porcentaje_no_vigente"),
     TARIFA_NO_COINCIDE("COMP-400-203", 400, "impuesto.tarifa_no_coincide"),
     TARIFA_NO_DISPONIBLE("COMP-400-204", 400, "impuesto.tarifa_no_disponible"),
+    BASE_IMPONIBLE_NO_APLICA("COMP-400-205", 400, "impuesto.base_no_aplica"),
+    TIPO_TARIFA_NO_VIGENTE("COMP-400-206", 400, "impuesto.tipo_tarifa_no_vigente"),
 
     // Identificación del receptor (Tabla 6)
     TIPO_IDENTIFICACION_NO_EXISTE("COMP-400-301", 400, "identificacion.tipo_no_existe"),
@@ -59,12 +61,15 @@ public enum CodigoError implements ErrorCatalogo {
 
     // Tipo de comprobante
     TIPO_COMPROBANTE_NO_SOPORTADO("COMP-400-801", 400, "documento.tipo_no_soportado"),
+    TICKET_TIPO_NO_DISPONIBLE("COMP-400-811", 400, "ticket.tipo_no_disponible"),
+    TICKET_PARAMETRO_INVALIDO("COMP-400-812", 400, "ticket.parametro_invalido"),
 
     // Reenvío del correo de un comprobante
     REENVIO_NO_AUTORIZADO("COMP-409-901", 409, "reenvio.no_autorizado"),
     REENVIO_SIN_CORREO("COMP-409-902", 409, "reenvio.sin_correo"),
 
     // Administración de catálogos (API /catalogos)
+    COMPROBANTE_NO_ENCONTRADO("COMP-404-001", 404, "comprobante.no_encontrado"),
     CATALOGO_NO_ENCONTRADO("COMP-404-701", 404, "catalogo.no_encontrado"),
     ESCRITURA_DESHABILITADA("COMP-403-701", 403, "catalogo.escritura_deshabilitada"),
     TOKEN_ADMIN_INVALIDO("COMP-403-702", 403, "catalogo.token_admin_invalido"),
@@ -80,7 +85,21 @@ public enum CodigoError implements ErrorCatalogo {
     CAMPO_FECHA("COMP-400-714", 400, "campo.fecha"),
     CAMPO_BOOLEANO("COMP-400-715", 400, "campo.booleano"),
     RANGO_FUERA_DE_LIMITES("COMP-400-716", 400, "campo.rango_fuera_de_limites"),
-    VIGENCIA_INVERTIDA("COMP-400-717", 400, "campo.vigencia_invertida");
+    VIGENCIA_INVERTIDA("COMP-400-717", 400, "campo.vigencia_invertida"),
+    CAMPO_VALOR_NO_PERMITIDO("COMP-400-718", 400, "campo.valor_no_permitido"),
+    XML_NO_CUMPLE_XSD("COMP-400-821", 400, "xml.no_cumple_xsd"),
+    CAMPOS_ADICIONALES_NO_SERIALIZABLES("COMP-500-001", 500, "comprobante.campos_adicionales_no_serializables"),
+    CAMPOS_ADICIONALES_NO_LEIBLES("COMP-500-002", 500, "comprobante.campos_adicionales_no_leibles"),
+    DETALLES_ADICIONALES_NO_SERIALIZABLES("COMP-500-003", 500, "comprobante.detalles_adicionales_no_serializables"),
+    DETALLES_ADICIONALES_NO_LEIBLES("COMP-500-004", 500, "comprobante.detalles_adicionales_no_leibles"),
+    XML_NO_GENERADO("COMP-500-005", 500, "xml.no_generado"),
+    RIDE_NO_GENERADO("COMP-500-006", 500, "ride.no_generado"),
+    XSD_NO_ENCONTRADO("COMP-500-007", 500, "xsd.no_encontrado"),
+    XSD_NO_COMPILABLE("COMP-500-008", 500, "xsd.no_compilable"),
+    XSD_ERROR_DE_ENTRADA_SALIDA("COMP-500-009", 500, "xsd.error_entrada_salida"),
+    COMANDO_DESCONOCIDO("COMP-400-831", 400, "comando.desconocido"),
+    GUIA_INICIO_TRANSPORTE_NO_ES_LA_EMISION("COMP-400-841", 400, "guia.inicio_transporte_no_es_la_emision"),
+    COMANDO_FUERA_DE_ORDEN("COMP-409-911", 409, "comando.fuera_de_orden");
 
     private final String codigo;
     private final int estadoHttp;

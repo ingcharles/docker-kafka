@@ -25,7 +25,7 @@ public final class ClavesJwt {
     private ClavesJwt() {
     }
 
-    public static PublicKey publica(String texto) {
+    public static PublicKey leerPublica(String texto) {
         byte[] der = decodificar(texto, "pública");
         for (String algoritmo : ALGORITMOS) {
             try {
@@ -39,7 +39,7 @@ public final class ClavesJwt {
         throw new IllegalArgumentException("La clave pública JWT no es una llave Ed25519 ni RSA válida (X.509/SPKI)");
     }
 
-    public static PrivateKey privada(String texto) {
+    public static PrivateKey leerPrivada(String texto) {
         byte[] der = decodificar(texto, "privada");
         for (String algoritmo : ALGORITMOS) {
             try {

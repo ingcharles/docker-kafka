@@ -19,7 +19,7 @@ public class ErrorNegocioException extends ApiException {
         super(error, detalles, parametros);
     }
 
-    public static ErrorNegocioException conDetalles(ErrorCatalogo error, List<String> detalles, Object... parametros) {
+    public static ErrorNegocioException crearConDetalles(ErrorCatalogo error, List<String> detalles, Object... parametros) {
         return new ErrorNegocioException(error, detalles, parametros);
     }
 

@@ -33,7 +33,7 @@ public class ConstructorNotaCredito implements ConstructorComprobante<CrearNotaC
     @Override
     public Uni<Comprobante> construir(CrearNotaCreditoRequest request, long secuencial, CatalogosSriAFecha catalogos) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = comun.encabezado(request.getEmpresa(), TipoComprobante.NOTA_CREDITO, secuencial,
+        Comprobante comprobante = comun.armarEncabezado(request.getEmpresa(), TipoComprobante.NOTA_CREDITO, secuencial,
             ahora);
 
         return constructorDetalles.cargarItems(request.getDetalles(), request.getEmpresa().getRuc())
@@ -58,7 +58,7 @@ public class ConstructorNotaCredito implements ConstructorComprobante<CrearNotaC
                 comprobante.setDocModificadoNumero(request.getDocModificadoNumero());
                 comprobante.setDocModificadoFecha(comun.convertirFecha(request.getDocModificadoFecha()));
                 comprobante.setMotivo(request.getMotivo());
-                comprobante.setCamposAdicionales(comun.camposAdicionales(request.getCampoAdicional()));
+                comprobante.setCamposAdicionales(comun.armarCamposAdicionales(request.getCampoAdicional()));
                 return comprobante;
             });
     }

@@ -50,8 +50,8 @@ class LogFallosMensajeriaInterceptorTest {
 
     @Test
     void elCanalSaleDeLaAnotacionIncoming() throws Exception {
-        assertEquals("canal-de-prueba", LogFallosMensajeriaInterceptor.canal(metodo()));
-        assertEquals("desconocido", LogFallosMensajeriaInterceptor.canal(null));
+        assertEquals("canal-de-prueba", LogFallosMensajeriaInterceptor.obtenerCanal(metodo()));
+        assertEquals("desconocido", LogFallosMensajeriaInterceptor.obtenerCanal(null));
     }
 
     @Test
@@ -59,7 +59,7 @@ class LogFallosMensajeriaInterceptorTest {
         UUID evento = UUID.randomUUID();
         UUID comprobante = UUID.randomUUID();
 
-        String ids = LogFallosMensajeriaInterceptor.idsDelMensaje(
+        String ids = LogFallosMensajeriaInterceptor.extraerIdsDelMensaje(
             new Object[] {new Mensaje(evento, comprobante, "<xml-con-datos/>")});
 
         assertEquals("eventId=" + evento + ", comprobanteId=" + comprobante, ids);
@@ -67,9 +67,9 @@ class LogFallosMensajeriaInterceptorTest {
 
     @Test
     void unMensajeSinIdsOSinParametrosNoDaContexto() {
-        assertNull(LogFallosMensajeriaInterceptor.idsDelMensaje(new Object[] {"texto"}));
-        assertNull(LogFallosMensajeriaInterceptor.idsDelMensaje(new Object[0]));
-        assertNull(LogFallosMensajeriaInterceptor.idsDelMensaje(null));
+        assertNull(LogFallosMensajeriaInterceptor.extraerIdsDelMensaje(new Object[] {"texto"}));
+        assertNull(LogFallosMensajeriaInterceptor.extraerIdsDelMensaje(new Object[0]));
+        assertNull(LogFallosMensajeriaInterceptor.extraerIdsDelMensaje(null));
     }
 
     @Test

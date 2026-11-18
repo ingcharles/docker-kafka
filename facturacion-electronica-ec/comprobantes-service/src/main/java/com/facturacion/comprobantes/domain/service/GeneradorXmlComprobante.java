@@ -12,7 +12,7 @@ import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
  */
 public interface GeneradorXmlComprobante {
 
-    boolean soporta(TipoComprobante tipo);
+    boolean esTipoSoportado(TipoComprobante tipo);
 
     /** El XML sin firmar, listo para pasar a firma-electronica-service. */
     String generar(Comprobante comprobante);

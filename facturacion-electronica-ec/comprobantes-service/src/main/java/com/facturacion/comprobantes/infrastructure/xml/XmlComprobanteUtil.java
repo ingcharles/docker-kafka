@@ -64,7 +64,7 @@ final class XmlComprobanteUtil {
     }
 
     /** dirEstablecimiento es obligatorio en NC/ND/Retención pero este servicio no rastrea establecimientos aparte — se usa la matriz como valor por defecto. */
-    static String direccionEstablecimiento(Comprobante c) {
+    static String obtenerDireccionEstablecimiento(Comprobante c) {
         return c.getDireccionEstablecimiento() != null && !c.getDireccionEstablecimiento().isBlank()
             ? c.getDireccionEstablecimiento()
             : c.getEmpresaDireccionMatriz();
@@ -84,7 +84,7 @@ final class XmlComprobanteUtil {
             agregarTexto(doc, detalle, "precioSinSubsidio", formatearMonto(d.getPrecioSinSubsidio()));
         }
         agregarTexto(doc, detalle, "descuento", formatearMonto(d.getDescuento() == null ? BigDecimal.ZERO : d.getDescuento()));
-        agregarTexto(doc, detalle, "precioTotalSinImpuesto", formatearMonto(d.precioTotalSinImpuesto()));
+        agregarTexto(doc, detalle, "precioTotalSinImpuesto", formatearMonto(d.calcularPrecioTotalSinImpuesto()));
         if (d.getDetallesAdicionales() != null && !d.getDetallesAdicionales().isEmpty()) {
             Element adicionales = doc.createElement("detallesAdicionales");
             for (CampoAdicional adicional : d.getDetallesAdicionales()) {

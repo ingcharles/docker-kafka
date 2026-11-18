@@ -91,7 +91,7 @@ curl -s -X POST $FIR/$EMPRESA_ID/logo -H "Authorization: Bearer $APIKEY" -F "arc
 curl -s -X POST $INV/items -H "Authorization: Bearer $APIKEY" -H 'Content-Type: application/json' -d '{
   "ruc":"1722039953001","tipo":"PRODUCTO","codigoPrincipal":"TABLET02","descripcion":"Tablet 10 pulgadas",
   "precioUnitario":300.00,"unidadMedida":"unidad","cantidadInicial":20,"costoInicial":220.00,"stockMinimo":5,
-  "codigoImpuesto":"2","codigoPorcentaje":"4","tieneIce":false}'              # guarda el "id" → ITEM_ID
+  "codigoPorcentajeIva":"4"}'              # guarda el "id" → ITEM_ID
 ```
 Con `INVENTARIO_DESCUENTO_HABILITADO=false` (orquestador) la factura no reserva ni descuenta stock.
 

@@ -2,6 +2,7 @@ package com.facturacion.comprobantes.application.service.construccion;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -11,6 +12,8 @@ import jakarta.inject.Inject;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.exception.ErrorNegocioException;
+import com.facturacion.commons.time.FechasSri;
 import com.facturacion.comprobantes.application.dto.CrearGuiaRemisionRequest;
 import com.facturacion.comprobantes.application.dto.DestinatarioGuiaRemisionRequest;
 import com.facturacion.comprobantes.application.dto.DetalleGuiaRemisionRequest;
@@ -19,6 +22,7 @@ import com.facturacion.comprobantes.domain.model.entity.DestinatarioGuiaRemision
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /** Arma una guía de remisión (ver {@link ConstructorComprobante}). */
 @ApplicationScoped
@@ -34,7 +38,8 @@ public class ConstructorGuiaRemision implements ConstructorComprobante<CrearGuia
     @Override
     public Uni<Comprobante> construir(CrearGuiaRemisionRequest request, long secuencial, CatalogosSriAFecha catalogos) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = comun.encabezado(request.getEmpresa(), TipoComprobante.GUIA_REMISION, secuencial,
+        validarInicioDelTransporte(request, ahora);
+        Comprobante comprobante = comun.armarEncabezado(request.getEmpresa(), TipoComprobante.GUIA_REMISION, secuencial,
             ahora);
 
         List<DestinatarioGuiaRemision> destinatarios = new ArrayList<>();
@@ -83,7 +88,20 @@ public class ConstructorGuiaRemision implements ConstructorComprobante<CrearGuia
         comprobante.setFechaIniTransporte(comun.convertirFecha(request.getFechaIniTransporte()));
         comprobante.setFechaFinTransporte(comun.convertirFecha(request.getFechaFinTransporte()));
         comprobante.setPlaca(request.getPlaca());
-        comprobante.setCamposAdicionales(comun.camposAdicionales(request.getCampoAdicional()));
+        comprobante.setCamposAdicionales(comun.armarCamposAdicionales(request.getCampoAdicional()));
         return Uni.createFrom().item(comprobante);
+    }
+
+    /**
+     * El SRI toma la fecha de inicio del transporte como la fecha de emisión de la guía y la compara con la de la clave
+     * de acceso: si no es la misma, la rechaza en la recepción. Se avisa aquí, antes de gastar un secuencial.
+     */
+    private void validarInicioDelTransporte(CrearGuiaRemisionRequest request, Instant ahora) {
+        LocalDate emision = FechasSri.convertirAFecha(ahora);
+        LocalDate inicio = FechasSri.convertirAFecha(comun.convertirFecha(request.getFechaIniTransporte()));
+        if (!emision.equals(inicio)) {
+            throw new ErrorNegocioException(CodigoError.GUIA_INICIO_TRANSPORTE_NO_ES_LA_EMISION,
+                FechasSri.formatearFecha(inicio), FechasSri.formatearFecha(emision));
+        }
     }
 }

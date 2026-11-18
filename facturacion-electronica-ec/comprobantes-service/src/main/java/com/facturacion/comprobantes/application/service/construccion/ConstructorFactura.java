@@ -42,7 +42,7 @@ public class ConstructorFactura implements ConstructorComprobante<CrearFacturaRe
     @Override
     public Uni<Comprobante> construir(CrearFacturaRequest request, long secuencial, CatalogosSriAFecha catalogos) {
         Instant ahora = Instant.now();
-        Comprobante comprobante = comun.encabezado(request.getEmpresa(), TipoComprobante.FACTURA, secuencial,
+        Comprobante comprobante = comun.armarEncabezado(request.getEmpresa(), TipoComprobante.FACTURA, secuencial,
             ahora);
 
         return constructorDetalles.cargarItems(request.getDetalles(), request.getEmpresa().getRuc())
@@ -68,9 +68,9 @@ public class ConstructorFactura implements ConstructorComprobante<CrearFacturaRe
                     : request.getPlaca().toUpperCase(java.util.Locale.ROOT));
                 CombustibleSri.exigirPlacaSiHayCombustible(detalles, comprobante.getPlaca());
                 comprobante.setDetalles(detalles);
-                comprobante.setPagos(comun.pagos(request.getPagos(), comprobante.getImporteTotal(), true, catalogos));
+                comprobante.setPagos(comun.armarPagos(request.getPagos(), comprobante.getImporteTotal(), true, catalogos));
                 PagosValidador.validarFacturaNegociable(comprobante.getPagos(), comprobante.getCompradorDireccion());
-                comprobante.setCamposAdicionales(comun.camposAdicionales(request.getCampoAdicional()));
+                comprobante.setCamposAdicionales(comun.armarCamposAdicionales(request.getCampoAdicional()));
                 return comprobante;
             });
     }

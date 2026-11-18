@@ -14,6 +14,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 
+import com.facturacion.commons.error.ErrorComun;
 import com.facturacion.commons.exception.TokenInvalidoException;
 import com.facturacion.commons.security.ClavesJwt;
 import com.facturacion.commons.security.JwtVerificador;
@@ -56,8 +57,8 @@ public class JwtService implements EmisorTokens {
     public JwtService(@ConfigProperty(name = "identidad.jwt.clave-privada") String clavePrivada,
             @ConfigProperty(name = "identidad.jwt.clave-publica") String clavePublica,
             @ConfigProperty(name = "identidad.jwt.sesion.duracion-horas") int sesionDuracionHoras) {
-        this.clavePrivada = ClavesJwt.privada(clavePrivada);
-        this.clavePublica = ClavesJwt.publica(clavePublica);
+        this.clavePrivada = ClavesJwt.leerPrivada(clavePrivada);
+        this.clavePublica = ClavesJwt.leerPublica(clavePublica);
         this.sesionDuracionHoras = sesionDuracionHoras;
     }
 
@@ -79,7 +80,7 @@ public class JwtService implements EmisorTokens {
     public UUID validarTokenSesion(String token) {
         Claims claims = parsear(token);
         if (!TIPO_SESION.equals(claims.get(CLAIM_TIPO, String.class))) {
-            throw new TokenInvalidoException("El token no es un token de sesión");
+            throw new TokenInvalidoException(ErrorComun.TOKEN_NO_ES_SESION);
         }
         return UUID.fromString(claims.getSubject());
     }
@@ -121,7 +122,7 @@ public class JwtService implements EmisorTokens {
                 .parseSignedClaims(token).getPayload();
         } catch (JwtException | IllegalArgumentException e) {
             // El detalle de JJWT (firma, vencimiento, formato) no se devuelve al cliente.
-            throw new TokenInvalidoException("Token inválido o expirado", e);
+            throw new TokenInvalidoException(e, ErrorComun.TOKEN_EXPIRADO_O_INVALIDO);
         }
     }
 }

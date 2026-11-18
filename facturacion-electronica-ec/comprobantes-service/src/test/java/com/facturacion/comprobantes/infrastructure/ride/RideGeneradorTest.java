@@ -15,6 +15,7 @@ import java.util.UUID;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.pdfbox.text.TextPosition;
 import org.junit.jupiter.api.Test;
 
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
@@ -237,5 +238,65 @@ class RideGeneradorTest {
         String texto = extraerTexto(generador.generar(factura(List.of()), null, null, catalogos()));
         assertTrue(texto.contains("FACTURA"));
         assertFalse(texto.contains("VALOR TOTAL"));
+    }
+    /** Y (desde abajo de la página) de la línea de texto que empieza con {@code inicio}, en la primera página. */
+    private static float baselineDe(byte[] pdf, String inicio) throws IOException {
+        float[] encontrada = {Float.NaN};
+        try (PDDocument documento = Loader.loadPDF(pdf)) {
+            PDFTextStripper stripper = new PDFTextStripper() {
+                @Override
+                protected void writeString(String linea, List<TextPosition> posiciones) {
+                    if (Float.isNaN(encontrada[0]) && linea.startsWith(inicio)) {
+                        encontrada[0] = documento.getPage(0).getMediaBox().getHeight() - posiciones.get(0).getYDirAdj();
+                    }
+                }
+            };
+            stripper.setEndPage(1);
+            stripper.getText(documento);
+        }
+        return encontrada[0];
+    }
+
+    private static Comprobante notaSobreFactura(TipoComprobante tipo, String motivo) {
+        Comprobante c = factura(List.of(
+            detalle("5JNJ00K", "CARRITO BASICO", "5", "1.99", "0.30", "9.65", "15", "4", "1.45")));
+        c.setTipoComprobante(tipo);
+        c.setCompradorRazonSocial("CONSUMIDOR DE PRUEBA");
+        c.setDocModificadoTipo(TipoComprobante.FACTURA.codigo());
+        c.setDocModificadoNumero("001-001-000000015");
+        c.setDocModificadoFecha(Instant.parse("2026-11-13T15:00:00Z"));
+        c.setMotivo(motivo);
+        return c;
+    }
+
+    /** La última fila del recuadro del comprador queda dentro del borde, con holgura, aunque haya filas de más. */
+    private void verificarUltimaFilaDentroDelBorde(Comprobante c, int filas, String etiquetaUltimaFila)
+            throws IOException {
+        byte[] pdf = generador.generar(c, null, null, catalogos());
+
+        assertTrue(extraerTexto(pdf).contains(etiquetaUltimaFila), "Falta la fila " + etiquetaUltimaFila);
+        float baselineUltimaFila = baselineDe(pdf, etiquetaUltimaFila);
+        List<List<String>> lineasPorFila = new ArrayList<>();
+        for (int i = 0; i < filas; i++) {
+            lineasPorFila.add(List.of("")); // una línea por fila: los valores de la prueba son cortos
+        }
+        float bordeInferior = RideGenerador.ALTO_PAGINA - RideGenerador.MARGEN - RideGenerador.ALTO_CAJA_EMISOR
+            - RideGenerador.SEPARACION_CAJAS - RideGenerador.calcularAltoCajaComprador(lineasPorFila);
+        assertTrue(baselineUltimaFila - bordeInferior >= 8f,
+            "La última fila toca o cruza el borde: baseline " + baselineUltimaFila + ", borde " + bordeInferior);
+    }
+
+    @Test
+    void enUnaNotaDeCreditoLaUltimaFilaDelRecuadroDelCompradorQuedaDentroDelBorde() throws IOException {
+        // fecha, cédula/RUC, razón social, comprobante que se modifica, fecha a modificar y razón de la modificación
+        verificarUltimaFilaDentroDelBorde(notaSobreFactura(TipoComprobante.NOTA_CREDITO, "AJUSTE DE PRECIO"), 6,
+            "Razón de Modificación:");
+    }
+
+    @Test
+    void enUnaNotaDeDebitoLaUltimaFilaDelRecuadroDelCompradorQuedaDentroDelBorde() throws IOException {
+        // sin razón: fecha, cédula/RUC, razón social, comprobante que se modifica y fecha a modificar
+        verificarUltimaFilaDentroDelBorde(notaSobreFactura(TipoComprobante.NOTA_DEBITO, null), 5,
+            "Fecha Emisión (a modificar):");
     }
 }

@@ -1,19 +1,20 @@
 package com.facturacion.comprobantes.infrastructure.xml;
 
 import java.math.BigDecimal;
-import java.time.format.DateTimeFormatter;
 
 import jakarta.enterprise.context.ApplicationScoped;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import com.facturacion.commons.exception.ErrorInternoException;
+import com.facturacion.commons.time.FechasSri;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.entity.DetalleComprobante;
 import com.facturacion.comprobantes.domain.model.enums.TipoComprobante;
 import com.facturacion.comprobantes.domain.model.vo.Impuesto;
 import com.facturacion.comprobantes.domain.service.GeneradorXmlComprobante;
-import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
+import com.facturacion.comprobantes.shared.error.CodigoError;
 
 /**
  * Genera el XML de Factura conforme al Anexo 1/3 de la ficha técnica del SRI
@@ -28,10 +29,9 @@ import com.facturacion.comprobantes.shared.constant.ZonaHoraria;
 public class GeneradorXmlFactura implements GeneradorXmlComprobante {
 
     private static final String VERSION_XSD = "2.1.0";
-    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     @Override
-    public boolean soporta(TipoComprobante tipo) {
+    public boolean esTipoSoportado(TipoComprobante tipo) {
         return tipo == TipoComprobante.FACTURA;
     }
 
@@ -57,7 +57,7 @@ public class GeneradorXmlFactura implements GeneradorXmlComprobante {
 
             return XmlComprobanteUtil.serializar(doc);
         } catch (Exception e) {
-            throw new IllegalStateException("No se pudo generar el XML de la factura " + c.getId(), e);
+            throw new ErrorInternoException(e, CodigoError.XML_NO_GENERADO, c.getTipoComprobante().nombre(), c.getId());
         }
     }
 
@@ -83,7 +83,7 @@ public class GeneradorXmlFactura implements GeneradorXmlComprobante {
     private Element construirInfoFactura(Document doc, Comprobante c) {
         Element info = doc.createElement("infoFactura");
         XmlComprobanteUtil.agregarTexto(doc, info, "fechaEmision",
-            FORMATO_FECHA.format(c.getFechaEmision().atZone(ZonaHoraria.ECUADOR)));
+            FechasSri.formatearFecha(c.getFechaEmision()));
         if (c.isEmpresaContribuyenteEspecial() && c.getEmpresaNumeroContribuyenteEspecial() != null) {
             XmlComprobanteUtil.agregarTexto(doc, info, "contribuyenteEspecial", c.getEmpresaNumeroContribuyenteEspecial());
         }

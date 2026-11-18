@@ -57,7 +57,7 @@ public class EmpresaEventConsumer {
         empresa.setRazonSocial(evento.razonSocial());
         empresa.setActivo(evento.activo());
         empresa.setActualizadoEn(evento.occurredAt());
-        return repository.upsert(empresa)
+        return repository.insertarOActualizar(empresa)
             .chain(guardada -> otorgarAdminSiAplica(evento));
     }
 

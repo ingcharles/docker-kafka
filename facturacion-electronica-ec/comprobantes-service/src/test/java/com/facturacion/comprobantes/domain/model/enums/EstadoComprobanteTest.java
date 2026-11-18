@@ -39,17 +39,17 @@ class EstadoComprobanteTest {
     @Test
     void unComandoQueSaltaPasosSeDistingueDeUnoRepetidoOAtrasado() {
         // Fuera de orden (el firmado no se aplicó): debe fallar visible, no descartarse.
-        assertTrue(BORRADOR.saltaPasos(AUTORIZADO));
-        assertTrue(BORRADOR.saltaPasos(NO_AUTORIZADO));
-        assertTrue(BORRADOR.saltaPasos(NOTIFICADO));
-        assertTrue(FIRMADO.saltaPasos(NOTIFICADO));
+        assertTrue(BORRADOR.esSaltoDePasos(AUTORIZADO));
+        assertTrue(BORRADOR.esSaltoDePasos(NO_AUTORIZADO));
+        assertTrue(BORRADOR.esSaltoDePasos(NOTIFICADO));
+        assertTrue(FIRMADO.esSaltoDePasos(NOTIFICADO));
         // Repetidos, atrasados o ya válidos: no saltan pasos.
-        assertFalse(FIRMADO.saltaPasos(FIRMADO));
-        assertFalse(AUTORIZADO.saltaPasos(FIRMADO));
-        assertFalse(AUTORIZADO.saltaPasos(AUTORIZADO));
-        assertFalse(BORRADOR.saltaPasos(FIRMADO));
-        assertFalse(FIRMADO.saltaPasos(AUTORIZADO));
-        assertFalse(NOTIFICADO.saltaPasos(AUTORIZADO));
+        assertFalse(FIRMADO.esSaltoDePasos(FIRMADO));
+        assertFalse(AUTORIZADO.esSaltoDePasos(FIRMADO));
+        assertFalse(AUTORIZADO.esSaltoDePasos(AUTORIZADO));
+        assertFalse(BORRADOR.esSaltoDePasos(FIRMADO));
+        assertFalse(FIRMADO.esSaltoDePasos(AUTORIZADO));
+        assertFalse(NOTIFICADO.esSaltoDePasos(AUTORIZADO));
     }
 
     @Test
