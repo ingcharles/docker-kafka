@@ -30,6 +30,8 @@ errores.
 
 **Fechas y zona horaria.** Todo formato o lectura de fecha pasa por `FechasSri` y `ZonaHoraria` de `facturacion-commons` (`FechasSri.formatearFecha(instante)`, `leerFecha`, `obtenerHoy`, ...), siempre en hora de Ecuador. No se crea un `DateTimeFormatter`, un `ZoneOffset` ni un `LocalDate.now()` en un servicio: la fecha de "hoy" es la de Ecuador, no la del servidor.
 
+**Nada bloqueante.** El código de producción no usa `.await()`, `Thread.sleep` ni `.join()`. El trabajo bloqueante o de CPU (firma, SOAP, PDF, archivos, bcrypt) va con `TrabajoBloqueante.ejecutar(...)` de `facturacion-commons`; no se arma a mano `runSubscriptionOn` + `emitOn`. Un consumidor que llama a algo lento (SRI, SMTP, firma) no mantiene una transacción abierta mientras espera: lectura corta, trabajo sin base de datos y una transacción corta con el resultado y el inbox.
+
 **`void` solo si no hay nada que informar** (consumidores de Kafka, `DELETE`). Si la operación puede no hacer nada (comando
 repetido, evento fuera de estado), devuelve un resultado (`ResultadoComando`, `ResultadoEvento`) y regístralo.
 

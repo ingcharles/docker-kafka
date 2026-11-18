@@ -12,6 +12,7 @@ import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.commons.exception.ConflictoException;
 import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.commons.exception.NotFoundException;
+import com.facturacion.commons.reactive.TrabajoBloqueante;
 import com.facturacion.commons.time.FechasSri;
 import com.facturacion.comprobantes.application.event.ActualizarComprobanteCommand;
 import com.facturacion.comprobantes.domain.model.entity.Comprobante;
@@ -146,9 +147,14 @@ public class ActualizacionComprobanteService {
                         String colorRide = configuracionColor == null ? null : configuracionColor.getValor();
                         byte[] logo = decodificarLogo(configuracionLogo == null ? null : configuracionLogo.getValor());
                         // Las descripciones de las formas de pago salen del catálogo (tabla forma_pago).
-                        comprobante.adjuntarRide(rideGenerador.generar(comprobante, colorRide, logo, catalogos));
-                        return comprobanteRepository.update(comprobante)
-                            .chain(this::publicarAutorizadoSiHayCorreo);
+                        // El PDF es CPU (PDFBox, código de barras): fuera del event loop.
+                        return TrabajoBloqueante.ejecutar(
+                                () -> rideGenerador.generar(comprobante, colorRide, logo, catalogos))
+                            .chain(ride -> {
+                                comprobante.adjuntarRide(ride);
+                                return comprobanteRepository.update(comprobante)
+                                    .chain(this::publicarAutorizadoSiHayCorreo);
+                            });
                     })));
     }
 

@@ -112,18 +112,18 @@ public class SriConectorService {
         envio.setEmpresaRuc(command.empresaRuc());
         envio.setAmbiente(ambiente);
         envio.setXmlFirmado(command.xmlFirmado());
-        envio.setEstado(resultado.recibida() ? EstadoEnvioSri.RECIBIDO : EstadoEnvioSri.RECHAZADO_RECEPCION);
+        envio.setEstado(resultado.esRecibida() ? EstadoEnvioSri.RECIBIDO : EstadoEnvioSri.RECHAZADO_RECEPCION);
         envio.setMensajesRecepcion(resultado.mensajes());
         envio.setIntentosAutorizacion(0);
         envio.setCreadoEn(ahora);
         envio.setActualizadoEn(ahora);
 
-        String eventType = resultado.recibida() ? MessagingConstants.EVENT_TYPE_SRI_RECIBIDO
+        String eventType = resultado.esRecibida() ? MessagingConstants.EVENT_TYPE_SRI_RECIBIDO
             : MessagingConstants.EVENT_TYPE_SRI_RECHAZADO_RECEPCION;
         SriResultadoEventMessage mensaje = new SriResultadoEventMessage(UUID.randomUUID(), command.comprobanteId(),
             command.claveAcceso(), eventType, null, null, null, resultado.mensajes(), ahora);
 
-        if (resultado.recibida()) {
+        if (resultado.esRecibida()) {
             LogCodificado.info(LOG, CodigoLog.RECEPCION_RESULTADO, "claveAcceso=" + command.claveAcceso(), envio.getEstado());
         } else {
             LogCodificado.error(LOG, CodigoLog.SRI_RECHAZA_RECEPCION, "claveAcceso=" + command.claveAcceso(), resultado.mensajes());
@@ -180,7 +180,7 @@ public class SriConectorService {
         envio.setIntentosAutorizacion(envio.getIntentosAutorizacion() + 1);
         envio.setUltimaConsultaEn(Instant.now());
 
-        if (resultado.pendiente()) {
+        if (resultado.esPendiente()) {
             if (envio.getIntentosAutorizacion() >= maxIntentos) {
                 // Se agotaron los intentos sin que el SRI diera una respuesta
                 // final — requiere intervención manual (ver EstadoEnvioSri).
@@ -193,19 +193,19 @@ public class SriConectorService {
             return envioSriRepository.update(envio).replaceWithVoid();
         }
 
-        envio.setEstado(resultado.autorizado() ? EstadoEnvioSri.AUTORIZADO : EstadoEnvioSri.NO_AUTORIZADO);
+        envio.setEstado(resultado.esAutorizado() ? EstadoEnvioSri.AUTORIZADO : EstadoEnvioSri.NO_AUTORIZADO);
         envio.setXmlAutorizado(resultado.xmlAutorizacionCompleto());
         envio.setNumeroAutorizacion(resultado.numeroAutorizacion());
         envio.setFechaAutorizacion(resultado.fechaAutorizacion());
         envio.setMotivoRechazo(resultado.motivoRechazo());
 
-        String eventType = resultado.autorizado() ? MessagingConstants.EVENT_TYPE_SRI_AUTORIZADO
+        String eventType = resultado.esAutorizado() ? MessagingConstants.EVENT_TYPE_SRI_AUTORIZADO
             : MessagingConstants.EVENT_TYPE_SRI_NO_AUTORIZADO;
         SriResultadoEventMessage mensaje = new SriResultadoEventMessage(UUID.randomUUID(), envio.getComprobanteId(),
             envio.getClaveAcceso(), eventType, resultado.xmlAutorizacionCompleto(), resultado.numeroAutorizacion(),
             resultado.fechaAutorizacion(), resultado.motivoRechazo(), Instant.now());
 
-        if (resultado.autorizado()) {
+        if (resultado.esAutorizado()) {
             LogCodificado.info(LOG, CodigoLog.AUTORIZACION_RESULTADO, "claveAcceso=" + envio.getClaveAcceso(), envio.getEstado());
         } else {
             LogCodificado.error(LOG, CodigoLog.SRI_NO_AUTORIZA, "claveAcceso=" + envio.getClaveAcceso(), resultado.motivoRechazo());

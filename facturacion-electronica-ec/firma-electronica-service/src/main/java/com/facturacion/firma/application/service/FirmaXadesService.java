@@ -46,16 +46,23 @@ public class FirmaXadesService {
     }
 
     /**
-     * No lleva su propia anotación {@code @WithTransaction}/{@code @WithSession}
-     * a propósito: siempre se invoca desde {@code FirmarComprobanteConsumer},
-     * que ya administra la transacción — reutiliza esa sesión en vez de anidar una nueva.
+     * Los dos pasos juntos (lo usan las pruebas). {@code FirmarComprobanteConsumer} los llama por separado para que la
+     * firma, que es CPU, no ocurra con una transacción abierta reteniendo una conexión.
      */
     public Uni<String> firmarXml(String ruc, String xmlSinFirmar) {
+        return localizarCertificadoVigente(ruc).onItem().transformToUni(certificado -> firmar(certificado, xmlSinFirmar));
+    }
+
+    /**
+     * Paso 1, solo base de datos: el certificado activo y vigente de la empresa. No lleva su propia anotación
+     * {@code @WithTransaction}/{@code @WithSession} a propósito: lo invoca el consumidor dentro de su propia
+     * transacción corta (si el certificado está vencido lo marca EXPIRADO y esa marca debe confirmarse).
+     */
+    public Uni<CertificadoDigital> localizarCertificadoVigente(String ruc) {
         return empresaRepository.findByRuc(ruc)
             .onItem().ifNull().failWith(() ->
                 new CertificadoInvalidoException(FirmaError.EMPRESA_SIN_REGISTRO_PARA_FIRMAR, ruc))
-            .onItem().transformToUni(empresa -> obtenerCertificadoVigente(ruc, empresa.getId()))
-            .onItem().transformToUni(certificado -> firmarEnWorkerPool(certificado, xmlSinFirmar));
+            .onItem().transformToUni(empresa -> obtenerCertificadoVigente(ruc, empresa.getId()));
     }
 
     /**
@@ -85,7 +92,8 @@ public class FirmaXadesService {
             FechasSri.formatearFecha(certificado.getFechaExpiracionCertificado()));
     }
 
-    private Uni<String> firmarEnWorkerPool(CertificadoDigital certificado, String xmlSinFirmar) {
+    /** Paso 2, solo CPU y sin base de datos: descifra el .p12 y firma, fuera del event loop. */
+    public Uni<String> firmar(CertificadoDigital certificado, String xmlSinFirmar) {
         return TrabajoBloqueante.ejecutar(() -> {
             byte[] contenidoP12 = cifradoService.descifrar(certificado.getContenidoCifrado());
             byte[] contrasenaBytes = cifradoService.descifrar(certificado.getContrasenaCifrada());

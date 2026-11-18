@@ -6,7 +6,7 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
 
-import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
+import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.commons.error.LogCodificado;
@@ -43,7 +43,6 @@ public class ComprobanteEventConsumer {
 
     @LogFallosMensajeria
     @Incoming("comprobante-events-in")
-    @WithTransaction
     public Uni<Void> procesarEvento(ComprobanteEventMessage evento) {
         if (!MessagingConstants.EVENT_TYPE_COMPROBANTE_AUTORIZADO.equals(evento.eventType())) {
             return Uni.createFrom().voidItem();
@@ -52,15 +51,19 @@ public class ComprobanteEventConsumer {
             LogCodificado.warn(LOG, CodigoLog.SIN_CORREO_RECEPTOR, "comprobanteId=" + evento.comprobanteId());
             return Uni.createFrom().voidItem();
         }
-        return processedMessageRepository.esMensajeProcesado(evento.eventId())
+        // Sin transacción abierta mientras se envía el correo (SMTP, segundos): una lectura corta del inbox, el envío y,
+        // al final, una transacción corta con el resultado y la marca del inbox.
+        return Panache.withSession(() -> processedMessageRepository.esMensajeProcesado(evento.eventId()))
             .onItem().transformToUni(processed -> {
                 if (Boolean.TRUE.equals(processed)) {
                     LogCodificado.info(LOG, CodigoLog.EVENTO_DUPLICADO_DESCARTADO, "comprobanteId=" + evento.comprobanteId(),
                         evento.eventId());
                     return Uni.createFrom().voidItem();
                 }
-                return notificacionService.procesarComprobanteAutorizado(evento)
-                    .chain(() -> processedMessageRepository.persist(ProcessedMessageEntity.of(evento.eventId())))
+                return notificacionService.enviarCorreo(evento)
+                    .onItem().transformToUni(motivoError -> Panache.withTransaction(
+                        () -> notificacionService.guardarResultado(evento, motivoError)
+                            .chain(() -> processedMessageRepository.persist(ProcessedMessageEntity.of(evento.eventId())))))
                     .replaceWithVoid();
             });
     }

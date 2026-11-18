@@ -9,7 +9,7 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
 
-import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
+import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -23,6 +23,7 @@ import com.facturacion.commons.messaging.LogFallosMensajeria;
 import com.facturacion.firma.application.event.ComprobanteFirmadoEventMessage;
 import com.facturacion.firma.application.event.FirmarComprobanteCommand;
 import com.facturacion.firma.application.service.FirmaXadesService;
+import com.facturacion.firma.domain.model.entity.CertificadoDigital;
 import com.facturacion.firma.infrastructure.inbox.ProcessedMessageEntity;
 import com.facturacion.firma.infrastructure.inbox.ProcessedMessageRepository;
 import com.facturacion.firma.infrastructure.outbox.OutboxEventEntity;
@@ -58,7 +59,6 @@ public class FirmarComprobanteConsumer {
 
     @LogFallosMensajeria
     @Incoming("firma-comandos-in")
-    @WithTransaction
     public Uni<Void> procesarComando(FirmarComprobanteCommand command) {
         // Un comando sin identificadores no se puede procesar ni dejar rastro en la base (el outbox exige el id del
         // comprobante): se rechaza con un motivo claro y SmallRye lo envía al DLQ, en vez de fallar con un error de
@@ -66,22 +66,48 @@ public class FirmarComprobanteConsumer {
         if (command == null || command.eventId() == null || command.comprobanteId() == null) {
             return Uni.createFrom().failure(new ErrorNegocioException(FirmaError.COMANDO_FIRMA_INVALIDO, command));
         }
-        return processedMessageRepository.esMensajeProcesado(command.eventId())
+        // Tres pasos y ninguna transacción abierta mientras se firma (CPU): una lectura corta del inbox, el certificado
+        // (con su propia transacción corta) y, al final, una transacción corta con el resultado y la marca del inbox.
+        return Panache.withSession(() -> processedMessageRepository.esMensajeProcesado(command.eventId()))
             .onItem().transformToUni(processed -> {
                 if (Boolean.TRUE.equals(processed)) {
                     LogCodificado.info(LOG, CodigoLog.COMANDO_DUPLICADO_DESCARTADO, "comprobanteId=" + command.comprobanteId(),
                         command.eventId());
                     return Uni.createFrom().voidItem();
                 }
-                return firmaXadesService.firmarXml(command.ruc(), command.xmlSinFirmar())
-                    .onItem().transformToUni(xmlFirmado -> registrarResultado(command, true, xmlFirmado, null))
-                    .onFailure().recoverWithUni(falla -> {
-                        LogCodificado.error(LOG, falla, CodigoLog.FIRMA_FALLIDA, "comprobanteId=" + command.comprobanteId());
-                        return registrarResultado(command, false, null, falla.getMessage());
-                    })
-                    .chain(() -> processedMessageRepository.persist(ProcessedMessageEntity.of(command.eventId())))
+                return firmarSinTransaccion(command)
+                    .onItem().transformToUni(resultado -> Panache.withTransaction(
+                        () -> registrarResultado(command, resultado.xmlFirmado() != null, resultado.xmlFirmado(),
+                            resultado.motivoError())
+                            .chain(() -> processedMessageRepository.persist(ProcessedMessageEntity.of(command.eventId())))))
                     .replaceWithVoid();
             });
+    }
+
+    /** El resultado de firmar: el XML firmado, o el motivo del fallo (nunca los dos). */
+    private record ResultadoFirma(String xmlFirmado, String motivoError) {
+    }
+
+    /** El certificado localizado, o la falla (certificado vencido, empresa sin certificado...). */
+    private record Localizacion(CertificadoDigital certificado, Throwable falla) {
+    }
+
+    private Uni<ResultadoFirma> firmarSinTransaccion(FirmarComprobanteCommand command) {
+        // Si el certificado está vencido, localizarlo lo marca EXPIRADO y falla: la falla se recupera dentro de la
+        // transacción para que esa marca se confirme.
+        return Panache.withTransaction(() -> firmaXadesService.localizarCertificadoVigente(command.ruc())
+                .onItem().transform(certificado -> new Localizacion(certificado, null))
+                .onFailure().recoverWithItem(falla -> new Localizacion(null, falla)))
+            .onItem().transformToUni(localizacion -> localizacion.falla() != null
+                ? Uni.createFrom().item(registrarFalla(command, localizacion.falla()))
+                : firmaXadesService.firmar(localizacion.certificado(), command.xmlSinFirmar())
+                    .onItem().transform(xmlFirmado -> new ResultadoFirma(xmlFirmado, null))
+                    .onFailure().recoverWithItem(falla -> registrarFalla(command, falla)));
+    }
+
+    private ResultadoFirma registrarFalla(FirmarComprobanteCommand command, Throwable falla) {
+        LogCodificado.error(LOG, falla, CodigoLog.FIRMA_FALLIDA, "comprobanteId=" + command.comprobanteId());
+        return new ResultadoFirma(null, falla.getMessage());
     }
 
     private Uni<Void> registrarResultado(FirmarComprobanteCommand command, boolean exitoso, String xmlFirmado,

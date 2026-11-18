@@ -9,6 +9,7 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
@@ -40,7 +41,7 @@ import com.facturacion.notificacion.shared.error.CodigoLog;
 import com.facturacion.notificacion.shared.error.NotificacionError;
 
 /**
- * Dueño del agregado NotificacionEnviada. {@link #procesarComprobanteAutorizado}
+ * Dueño del agregado NotificacionEnviada. {@link #enviarCorreo}
  * decodifica el RIDE (viene en base64 dentro del evento — este servicio
  * nunca le pide nada a comprobantes-service, cero REST entre servicios),
  * manda el correo real y deja el resultado en el outbox.
@@ -49,6 +50,8 @@ import com.facturacion.notificacion.shared.error.NotificacionError;
 public class NotificacionService {
 
     private static final Logger LOG = Logger.getLogger(NotificacionService.class);
+    private static final String CLAVE_ASUNTO = "notificacion.asunto";
+    private static final String CLAVE_REMITENTE_NOMBRE = "notificacion.remitente_nombre";
 
     private final NotificacionEnviadaRepository notificacionRepository;
     private final CorreoSalida correoService;
@@ -69,48 +72,51 @@ public class NotificacionService {
         this.mapper = mapper;
     }
 
+    /** Ajustes opcionales por empresa (null = nunca se configuraron: {@link CorreoSalida} usa su comportamiento por defecto). */
+    private record AjustesCorreo(String asunto, String remitenteNombre) {
+    }
+
     /**
-     * El envío de correo es I/O bloqueante (JavaMail por debajo) — se
-     * corre en el pool de workers de Mutiny y se vuelve al contexto de
-     * Vert.x del llamador antes de tocar Hibernate Reactive, mismo patrón
-     * que {@code FirmaXadesService}/los clientes SOAP de sri-conector-service.
+     * Envía el correo y devuelve el motivo del fallo ({@code null} si salió bien). No hay transacción ni sesión de base
+     * de datos abierta durante el envío: el SMTP puede tardar segundos (y el limitador de correo hace esperar su turno),
+     * y con una transacción abierta cada correo en vuelo retendría una conexión del pool. Los ajustes de la empresa se
+     * leen en una sesión corta que se cierra antes de enviar; el resultado se guarda después con
+     * {@link #guardarResultado}.
      */
-    @WithTransaction
-    public Uni<Void> procesarComprobanteAutorizado(ComprobanteEventMessage evento) {
+    public Uni<String> enviarCorreo(ComprobanteEventMessage evento) {
         io.vertx.core.Context callingContext = Vertx.currentContext();
         byte[] ridePdf = Base64.getDecoder().decode(evento.ridePdfBase64());
-
-        // Ajustes opcionales por empresa (configuracion_empresa en
-        // firma-electronica-service, vía ConfiguracionEmpresaLocal) — null si
-        // nunca se configuraron, CorreoSalida usa su comportamiento por
-        // defecto en ese caso. Secuencial a propósito (no Uni.combine): dos
-        // consultas Hibernate Reactive concurrentes sobre la misma sesión
-        // reactiva rompen el procesamiento del result set ("Illegal pop()
-        // with non-matching JdbcValuesSourceProcessingState") — mismo bug ya
-        // encontrado y arreglado en ComprobanteService.emitir/SriConectorService.consultarAutorizacion.
-        return configuracionEmpresaLocalRepository.findByRucAndClave(evento.empresaRuc(), "notificacion.asunto")
-            .onItem().transformToUni(configuracionAsunto -> configuracionEmpresaLocalRepository
-                .findByRucAndClave(evento.empresaRuc(), "notificacion.remitente_nombre")
-                .onItem().transformToUni(configuracionRemitente -> {
-                    String asunto = configuracionAsunto == null ? null : configuracionAsunto.getValor();
-                    String remitenteNombre = configuracionRemitente == null ? null : configuracionRemitente.getValor();
-                    return correoService.enviarComprobante(evento.compradorCorreo(), evento.claveAcceso(),
-                            evento.tipoComprobante(), ridePdf, evento.xmlAutorizado(), asunto, remitenteNombre)
-                        .onItem().transform(ignorado -> (String) null)
-                        .onFailure().recoverWithItem(falla -> {
-                            LogCodificado.error(LOG, falla, CodigoLog.CORREO_FALLIDO, "claveAcceso=" + evento.claveAcceso());
-                            return MotivoFalla.obtenerMotivo(falla);
-                        });
+        return Panache.withSession(() -> leerAjustes(evento.empresaRuc()))
+            .onItem().transformToUni(ajustes -> correoService.enviarComprobante(evento.compradorCorreo(),
+                    evento.claveAcceso(), evento.tipoComprobante(), ridePdf, evento.xmlAutorizado(), ajustes.asunto(),
+                    ajustes.remitenteNombre())
+                .onItem().transform(ignorado -> (String) null)
+                .onFailure().recoverWithItem(falla -> {
+                    LogCodificado.error(LOG, falla, CodigoLog.CORREO_FALLIDO, "claveAcceso=" + evento.claveAcceso());
+                    return MotivoFalla.obtenerMotivo(falla);
                 }))
-            .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
-            .onItem().transformToUni(motivoError -> guardarResultado(evento, motivoError));
+            .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()));
+    }
+
+    /**
+     * Secuencial a propósito (no Uni.combine): dos consultas Hibernate Reactive concurrentes sobre la misma sesión
+     * rompen el procesamiento del result set ("Illegal pop() with non-matching JdbcValuesSourceProcessingState").
+     */
+    private Uni<AjustesCorreo> leerAjustes(String empresaRuc) {
+        return configuracionEmpresaLocalRepository.findByRucAndClave(empresaRuc, CLAVE_ASUNTO)
+            .onItem().transformToUni(configuracionAsunto -> configuracionEmpresaLocalRepository
+                .findByRucAndClave(empresaRuc, CLAVE_REMITENTE_NOMBRE)
+                .onItem().transform(configuracionRemitente -> new AjustesCorreo(
+                    configuracionAsunto == null ? null : configuracionAsunto.getValor(),
+                    configuracionRemitente == null ? null : configuracionRemitente.getValor())));
     }
 
     /**
      * Un comprobante tiene una sola notificacion (índice único): el primer envío la crea y un reenvío (evento nuevo
      * del mismo comprobante) actualiza su resultado.
      */
-    private Uni<Void> guardarResultado(ComprobanteEventMessage evento, String motivoError) {
+    @WithTransaction
+    public Uni<Void> guardarResultado(ComprobanteEventMessage evento, String motivoError) {
         Instant ahora = Instant.now();
         return notificacionRepository.findByComprobanteId(evento.comprobanteId())
             .onItem().transformToUni(existente -> {
