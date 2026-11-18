@@ -8,6 +8,7 @@ import java.util.concurrent.CompletionStage;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Message;
@@ -29,13 +30,14 @@ import com.facturacion.identidad.domain.port.RevocacionApiKeysPublicador;
 @ApplicationScoped
 public class KafkaRevocacionApiKeysPublicador implements RevocacionApiKeysPublicador {
 
-    private static final Duration ESPERA_MAXIMA = Duration.ofSeconds(10);
-
     private final Emitter<String> emisor;
+    private final Duration esperaMaxima;
 
     @Inject
-    public KafkaRevocacionApiKeysPublicador(@Channel("apikey-revocaciones-out") Emitter<String> emisor) {
+    public KafkaRevocacionApiKeysPublicador(@Channel("apikey-revocaciones-out") Emitter<String> emisor,
+            @ConfigProperty(name = "identidad.revocaciones.timeout-ack") Duration esperaMaxima) {
         this.emisor = emisor;
+        this.esperaMaxima = esperaMaxima;
     }
 
     @Override
@@ -55,7 +57,7 @@ public class KafkaRevocacionApiKeysPublicador implements RevocacionApiKeysPublic
                 return CompletableFuture.<Void>completedFuture(null);
             }));
         Uni<Void> ack = Uni.createFrom().completionStage((CompletionStage<Void>) confirmado)
-            .ifNoItem().after(ESPERA_MAXIMA).fail();
+            .ifNoItem().after(esperaMaxima).fail();
         return contexto == null ? ack : ack.emitOn(tarea -> contexto.runOnContext(ignorado -> tarea.run()));
     }
 }

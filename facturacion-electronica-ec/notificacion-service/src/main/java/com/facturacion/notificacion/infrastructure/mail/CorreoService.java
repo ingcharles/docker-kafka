@@ -34,6 +34,9 @@ public class CorreoService implements CorreoSalida {
     @ConfigProperty(name = "quarkus.mailer.from")
     String remitenteDefecto;
 
+    @ConfigProperty(name = "notificacion.correo.timeout")
+    java.time.Duration timeoutEnvio;
+
     @Inject
     public CorreoService(ReactiveMailer mailer, MailRateLimiter rateLimiter) {
         this.mailer = mailer;
@@ -59,6 +62,7 @@ public class CorreoService implements CorreoSalida {
         if (remitenteNombre != null && !remitenteNombre.isBlank()) {
             correo.setFrom(remitenteNombre + " <" + remitenteDefecto + ">");
         }
-        return rateLimiter.esperarTurno().chain(() -> mailer.send(correo));
+        // El plazo cuenta solo el envío (no la espera de turno del limitador): un SMTP que no contesta no cuelga el consumidor.
+        return rateLimiter.esperarTurno().chain(() -> mailer.send(correo).ifNoItem().after(timeoutEnvio).fail());
     }
 }

@@ -15,7 +15,7 @@ segundo, se detiene y te dice cómo crearlo.
 ## Antes de empezar (una vez por máquina o servidor)
 
 Los servicios necesitan dos stacks ya levantados, fuera de este compose:
-1. **Kafka** (`../kafka`): `cd ../kafka && cp .env.example .env && docker compose up -d --build` (red `kafka_net`).
+1. **Kafka** (`../kafka`): `cd ../kafka && cp .env.example .env && docker compose up -d --build` (red `kafka_net`). En producción usa el clúster de 3 nodos: `docker compose -f docker-compose.ha.yml up -d --build` (ver `../kafka/README.md`); el `env/produccion.env` ya trae `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_REPLICATION_FACTOR=3` y `KAFKA_MIN_ISR=2`.
 2. **Postgres** del ambiente, en la red `facturacion_net`, con un esquema y un rol por servicio. Las contraseñas de esos roles deben ser **las mismas**
    que pondrás en `*_DB_PASSWORD` del archivo de secretos. Ver `documentacion/FLUJO_FACTURA_REAL.md`, sección 0.
 

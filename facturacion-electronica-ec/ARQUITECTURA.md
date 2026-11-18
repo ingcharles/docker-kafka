@@ -399,7 +399,10 @@ Para reprocesar: corregir la causa (un consumidor roto, una migración pendiente
 | Lado | Configuración | Por qué |
 |---|---|---|
 | Productor | `enable.idempotence=true`, `acks=all` | Evita duplicados por reintento de red; el productor no considera enviado el mensaje hasta que el broker lo confirmó de forma durable. |
+| Productor | `delivery.timeout.ms=25000`, `request.timeout.ms=10000` | Menores que el plazo del relay del outbox (`outbox.relay.timeout-ack`, 30 s): el cliente se rinde antes de que el relay suelte su transacción, así que un broker caído no deja mensajes "en el aire". En la revocación de api-keys: 8 s y 5 s (el usuario espera la respuesta). |
+| Tópicos | `replication.factor` y `min.insync.replicas` por ambiente | `KAFKA_REPLICATION_FACTOR` y `KAFKA_MIN_ISR` (1 y 1 con un broker; 3 y 2 en producción). Con `acks=all` y min ISR 2, un nodo caído no frena ni pierde mensajes; dos caídos detienen las escrituras a propósito (`NOT_ENOUGH_REPLICAS`). Las DLQ se conservan 30 días (`KAFKA_DLQ_RETENCION_MS`), los eventos 7. |
 | Consumidor | `enable.auto.commit=false` | El offset solo se confirma después de que el efecto de negocio ya quedó aplicado y persistido. |
+| Consumidor | sin ajustar `max.poll.*` ni `session.timeout.ms` | SmallRye mantiene un hilo que llama a `poll()` mientras los mensajes se procesan (pausa las particiones), así que un manejador lento (SMTP, SRI) no vence `max.poll.interval.ms`; los valores por defecto de Kafka bastan. |
 | Consumidor | `auto.offset.reset=earliest` | Un consumer group nuevo procesa desde el principio del tópico y no pierde mensajes ya publicados; un servicio nuevo arrancado tarde reprocesa todo el tópico (los consumidores son idempotentes). |
 
 | Consumidor | `failure-strategy=dead-letter-queue` | Ver 6.5. |
@@ -769,7 +772,7 @@ Cómo se resolvió cada integración externa:
 | TLS, WAF, lista de IP, tamaño máximo de cuerpo | WSO2 / balanceador | TLS 1.2+; cuerpo máximo acorde al logo (200 KB), la imagen del ítem y el `.p12`; los servicios no se publican, solo el gateway |
 | `/q/health`, `/q/metrics`, swagger | Red interna | Fuera del gateway público; Swagger y OpenAPI ya están apagados en producción |
 | Secretos (clave de cifrado de los `.p12`, llaves JWT, base, SMTP) | Gestor de secretos (Vault o KMS) | Se inyectan como variables de entorno desde `env/<ambiente>.secretos.env`; nunca en archivos versionados; rotación documentada |
-| Alta disponibilidad | Plataforma | Postgres con réplica y failover; Kafka con 3 brokers y `replication.factor=3`, `min.insync.replicas=2`; 2 o más réplicas de cada servicio (outbox con `SKIP LOCKED` e inbox ya lo toleran) |
+| Alta disponibilidad | Plataforma | Postgres con réplica y failover; Kafka: `../kafka/docker-compose.ha.yml` (3 nodos KRaft, `replication.factor=3`, `min.insync.replicas=2`, sin elección de líder desactualizado) con `env/produccion.env`; 2 o más réplicas de cada servicio (outbox con `SKIP LOCKED` e inbox ya lo toleran) |
 | Salud y reinicio | Compose / orquestador | `healthcheck` sobre `/q/health/ready`, límites de CPU y memoria, `restart: unless-stopped` |
 | Observabilidad | Plataforma | Prometheus + Grafana sobre `/q/metrics`; alertas: DLQ con mensajes, sagas `EXPIRADA`, `NOTIFICACION_FALLIDA` sostenida, certificados por vencer, SRI sin responder |
 | Respaldos y retención (7 años de XML y RIDE) | Plataforma | Respaldo diario de Postgres con restauración ensayada; archivado de los XML autorizados |
@@ -777,6 +780,24 @@ Cómo se resolvió cada integración externa:
 
 Dentro del servicio, lo que protege su disponibilidad: bcrypt en ejecutor acotado (`identidad.password.hilos`, `identidad.password.cola`), llamadas al SRI y firma fuera del event loop con `TrabajoBloqueante`, saga con watchdog, DLQ y reintentos.
 
+
+### 10.2 Timeouts (ninguna espera es infinita)
+
+| Qué | Valor por defecto | Dónde se cambia |
+|---|---|---|
+| Sentencia SQL | 30 s (`statement_timeout`) | `DB_STATEMENT_TIMEOUT` |
+| Espera de un bloqueo de fila (p. ej. el secuencial) | 10 s (`lock_timeout`) | `DB_LOCK_TIMEOUT` |
+| Transacción abierta e inactiva (esperando algo externo) | 60 s (`idle_in_transaction_session_timeout`) | `DB_IDLE_EN_TRANSACCION_TIMEOUT` |
+| Conexión del pool sin uso / vida máxima | 10 min / 30 min | `quarkus.datasource.reactive.idle-timeout`, `max-lifetime` |
+| SRI: conexión / respuesta | 10 s / 30 s | `SRI_TIMEOUT_CONEXION`, `SRI_TIMEOUT_RESPUESTA` |
+| Correo: envío por SMTP | 30 s | `CORREO_TIMEOUT` (`notificacion.correo.timeout`) |
+| Kafka: entrega de un mensaje / petición | 25 s / 10 s | `KAFKA_DELIVERY_TIMEOUT_MS`, `KAFKA_REQUEST_TIMEOUT_MS` |
+| Outbox: ack de Kafka (relay) | 30 s | `OUTBOX_TIMEOUT_ACK` |
+| Revocación de api-key: ack de Kafka | 10 s | `REVOCACIONES_TIMEOUT_ACK` |
+| Apagado ordenado (peticiones en curso) | 30 s (compose espera 45 s) | `SHUTDOWN_TIMEOUT`, `stop_grace_period` |
+| Saga: firma / SRI sin respuesta | 2 min / 15 min | ver 4.1 |
+
+Los timeouts de base de datos se envían a Postgres como parámetros de cada conexión nueva (`quarkus.datasource.reactive.additional-properties.*`); Flyway usa JDBC y no se ve afectado. Cuando un plazo vence, la operación falla con su causa y se reintenta por el camino normal (saga, relay, reenvío); nunca se queda colgada reteniendo una conexión o un hilo.
 
 ## 11. Fuera de alcance, a propósito
 

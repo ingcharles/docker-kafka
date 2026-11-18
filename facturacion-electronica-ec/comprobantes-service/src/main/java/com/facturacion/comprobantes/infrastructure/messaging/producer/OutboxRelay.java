@@ -7,6 +7,7 @@ import java.util.concurrent.CompletionStage;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Message;
@@ -37,6 +38,9 @@ import com.facturacion.comprobantes.shared.error.CodigoLog;
 public class OutboxRelay {
 
     private static final Logger LOG = Logger.getLogger(OutboxRelay.class);
+
+    @ConfigProperty(name = "outbox.relay.timeout-ack")
+    java.time.Duration timeoutAck;
     private static final int BATCH_SIZE = 20;
 
     @Inject
@@ -46,7 +50,7 @@ public class OutboxRelay {
     @Channel("comprobante-events-out")
     Emitter<String> comprobanteEventsEmitter;
 
-    @Scheduled(every = "1s", delayed = "3s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    @Scheduled(every = "1s", delayed = "${outbox.relay.inicio-diferido}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     @WithTransaction
     public Uni<Void> publicarEventosPendientes() {
         return outboxRepository.findUnpublishedBatch(BATCH_SIZE)
@@ -74,8 +78,8 @@ public class OutboxRelay {
         comprobanteEventsEmitter.send(message);
 
         return Uni.createFrom().completionStage((CompletionStage<Void>) delivered)
-            // Sin ack en 30 s (broker caído): se suelta la transacción y sus locks en vez de colgar el relay; se reintenta en el siguiente tick.
-            .ifNoItem().after(java.time.Duration.ofSeconds(30)).fail()
+            // Sin ack en outbox.relay.timeout-ack (broker caído): se suelta la transacción y sus locks en vez de colgar el relay; se reintenta en el siguiente tick.
+            .ifNoItem().after(timeoutAck).fail()
             .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()))
             .onItem().invoke(() -> event.publishedAt = Instant.now())
             .replaceWith(event)

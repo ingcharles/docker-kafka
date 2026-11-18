@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -39,7 +40,12 @@ import com.facturacion.sri.shared.error.SriError;
 public class SriAutorizacionClient implements AutorizacionSri {
 
     private static final Logger LOG = Logger.getLogger(SriAutorizacionClient.class);
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+
+    @ConfigProperty(name = "sri.timeout.conexion")
+    Duration timeoutConexion;
+
+    @ConfigProperty(name = "sri.timeout.respuesta")
+    Duration timeoutRespuesta;
 
     @ConfigProperty(name = "sri.autorizacion.url.pruebas")
     String urlPruebas;
@@ -50,7 +56,12 @@ public class SriAutorizacionClient implements AutorizacionSri {
     @ConfigProperty(name = "sri.url.hosts-permitidos", defaultValue = "*.sri.gob.ec")
     java.util.List<String> hostsPermitidos;
 
-    private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
+    private HttpClient httpClient;
+
+    @PostConstruct
+    void iniciar() {
+        httpClient = HttpClient.newBuilder().connectTimeout(timeoutConexion).build();
+    }
 
     /**
      * @param urlOverride ajuste opcional por empresa (clave {@code sri.autorizacion.url} de
@@ -72,7 +83,7 @@ public class SriAutorizacionClient implements AutorizacionSri {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .timeout(TIMEOUT)
+                .timeout(timeoutRespuesta)
                 .header("Content-Type", "text/xml;charset=UTF-8")
                 .header("SOAPAction", "\"\"")
                 .POST(HttpRequest.BodyPublishers.ofString(sobre, StandardCharsets.UTF_8))

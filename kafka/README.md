@@ -39,7 +39,7 @@ Edita `KAFKA_TOPICS` en `.env`:
 KAFKA_TOPICS=orders:6:1,payments:3:1,notifications:3:1
 ```
 
-El formato es `nombre:particiones:factor-de-replicación`, separado por comas. Luego corre `docker compose up -d topic-init` para (re)ejecutar la creación — es idempotente (`--if-not-exists`), así que no hay problema en volver a correrlo.
+El formato es `nombre:particiones:factor-de-replicación[:config1;config2]`, separado por comas; las configs (p. ej. `min.insync.replicas=2;retention.ms=604800000`) se aplican también a los tópicos que ya existen. Lo que Kafka no deja cambiar así es el factor de replicación de un tópico existente. Luego corre `docker compose up -d topic-init` para (re)ejecutar la creación — es idempotente (`--if-not-exists`), así que no hay problema en volver a correrlo.
 
 ## Prueba manual rápida
 
@@ -50,3 +50,15 @@ docker compose exec broker /opt/kafka/bin/kafka-console-producer.sh \
 docker compose exec broker /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9092 --topic example-topic --from-beginning
 ```
+
+## Alta disponibilidad (3 nodos)
+
+`docker-compose.ha.yml` levanta 3 nodos KRaft (cada uno broker y controlador) con `replication.factor=3`, `min.insync.replicas=2`, elección de líder solo entre réplicas sincronizadas y la creación automática de tópicos apagada. Es el que corresponde a pruebas de carga y producción; el `docker-compose.yml` de un solo nodo es para desarrollo.
+
+```sh
+docker compose -f docker-compose.ha.yml up -d --build
+```
+
+Los clientes usan `broker-1:9092,broker-2:9092,broker-3:9092` y los tópicos se crean con replicación 3 y min ISR 2 (`env/produccion.env` del proyecto de facturación). Comportamiento verificado: con un nodo caído se sigue produciendo y consumiendo; con dos caídos las escrituras se rechazan (`NOT_ENOUGH_REPLICAS`) y, al volver, las réplicas se sincronizan solas. Para probarlo al lado del broker de desarrollo: `KAFKA_NETWORK=kafka_ha_net`, otros puertos (`KAFKA_HOST_PORT_1..3`, `KAFKA_UI_PORT`) y `-p kafkaha`.
+
+Un clúster de un solo nodo existente no se convierte en uno de 3: los tópicos con replicación 1 hay que recrearlos (o reasignar sus réplicas con `kafka-reassign-partitions.sh`).

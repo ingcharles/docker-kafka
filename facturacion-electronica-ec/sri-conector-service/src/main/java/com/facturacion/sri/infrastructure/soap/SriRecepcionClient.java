@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -45,7 +46,12 @@ import com.facturacion.sri.shared.error.SriError;
 public class SriRecepcionClient implements RecepcionSri {
 
     private static final Logger LOG = Logger.getLogger(SriRecepcionClient.class);
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+
+    @ConfigProperty(name = "sri.timeout.conexion")
+    Duration timeoutConexion;
+
+    @ConfigProperty(name = "sri.timeout.respuesta")
+    Duration timeoutRespuesta;
 
     @ConfigProperty(name = "sri.recepcion.url.pruebas")
     String urlPruebas;
@@ -56,7 +62,12 @@ public class SriRecepcionClient implements RecepcionSri {
     @ConfigProperty(name = "sri.url.hosts-permitidos", defaultValue = "*.sri.gob.ec")
     java.util.List<String> hostsPermitidos;
 
-    private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
+    private HttpClient httpClient;
+
+    @PostConstruct
+    void iniciar() {
+        httpClient = HttpClient.newBuilder().connectTimeout(timeoutConexion).build();
+    }
 
     /**
      * Offloading a worker thread — es I/O de red bloqueante (HttpClient.send, no sendAsync).
@@ -81,7 +92,7 @@ public class SriRecepcionClient implements RecepcionSri {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .timeout(TIMEOUT)
+                .timeout(timeoutRespuesta)
                 .header("Content-Type", "text/xml;charset=UTF-8")
                 .header("SOAPAction", "\"\"")
                 .POST(HttpRequest.BodyPublishers.ofString(sobre, StandardCharsets.UTF_8))

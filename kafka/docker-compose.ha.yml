@@ -1,0 +1,129 @@
+# Kafka de ALTA DISPONIBILIDAD: 3 nodos KRaft (cada uno broker + controlador). Tolera la caída de un nodo sin perder
+# mensajes ni dejar de aceptarlos: factor de replicación 3 y min.insync.replicas=2 con acks=all en los productores.
+# Es el que se usa en pruebas de carga y en producción; el docker-compose.yml de esta carpeta (un solo nodo) queda para
+# desarrollo.
+#
+#   docker compose -f docker-compose.ha.yml up -d --build
+#
+# Los servicios se conectan con KAFKA_BOOTSTRAP_SERVERS=broker-1:9092,broker-2:9092,broker-3:9092 y los tópicos se crean
+# con KAFKA_REPLICATION_FACTOR=3 y KAFKA_MIN_ISR=2 (ver facturacion-electronica-ec/env/produccion.env).
+#
+# Un nodo caído: los otros dos siguen con quórum (2 de 3) y min.insync.replicas=2 se sigue cumpliendo. Dos nodos caídos:
+# se detienen las escrituras (a propósito: no se acepta un mensaje que podría perderse) y las lecturas siguen hasta
+# donde haya quórum de controladores.
+x-broker-comun: &broker-comun
+  build:
+    context: ./broker
+  restart: unless-stopped
+  environment: &broker-env
+    KAFKA_PROCESS_ROLES: broker,controller
+    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+    KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+    KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+    KAFKA_CONTROLLER_QUORUM_VOTERS: 1@broker-1:9093,2@broker-2:9093,3@broker-3:9093
+    KAFKA_LOG_DIRS: /var/lib/kafka/data
+    # El mismo cluster id en los tres nodos.
+    CLUSTER_ID: "${KAFKA_CLUSTER_ID:?KAFKA_CLUSTER_ID is required, generate one with: docker run --rm apache/kafka:3.9.0 /opt/kafka/bin/kafka-storage.sh random-uuid}"
+    # Replicación: todo con 3 copias y al menos 2 sincronizadas para aceptar una escritura.
+    KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+    KAFKA_MIN_INSYNC_REPLICAS: 2
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+    KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+    KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+    # Nunca elegir líder a una réplica desactualizada: se prefiere dejar de escribir antes que perder mensajes.
+    KAFKA_UNCLEAN_LEADER_ELECTION_ENABLE: "false"
+    KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    KAFKA_NUM_PARTITIONS: 6
+    KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 3000
+    # Los eventos se conservan 7 días (las DLQ, más: ver KAFKA_TOPICS en facturacion-electronica-ec/docker-compose.yml).
+    KAFKA_LOG_RETENTION_HOURS: 168
+    KAFKA_HEAP_OPTS: "${KAFKA_HEAP_OPTS:--Xms512m -Xmx512m}"
+  healthcheck:
+    test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+    interval: 10s
+    timeout: 10s
+    retries: 12
+    start_period: 30s
+  networks:
+    - kafka_net
+
+services:
+  broker-1:
+    <<: *broker-comun
+    environment:
+      <<: *broker-env
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker-1:9092,PLAINTEXT_HOST://localhost:${KAFKA_HOST_PORT_1:-9094}
+    ports:
+      - "${KAFKA_HOST_PORT_1:-9094}:9094"
+    volumes:
+      - kafka_data_1:/var/lib/kafka/data
+
+  broker-2:
+    <<: *broker-comun
+    environment:
+      <<: *broker-env
+      KAFKA_NODE_ID: 2
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker-2:9092,PLAINTEXT_HOST://localhost:${KAFKA_HOST_PORT_2:-9095}
+    ports:
+      - "${KAFKA_HOST_PORT_2:-9095}:9094"
+    volumes:
+      - kafka_data_2:/var/lib/kafka/data
+
+  broker-3:
+    <<: *broker-comun
+    environment:
+      <<: *broker-env
+      KAFKA_NODE_ID: 3
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker-3:9092,PLAINTEXT_HOST://localhost:${KAFKA_HOST_PORT_3:-9096}
+    ports:
+      - "${KAFKA_HOST_PORT_3:-9096}:9094"
+    volumes:
+      - kafka_data_3:/var/lib/kafka/data
+
+  topic-init:
+    build:
+      context: ./topic-init
+    restart: "no"
+    depends_on:
+      broker-1:
+        condition: service_healthy
+      broker-2:
+        condition: service_healthy
+      broker-3:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: broker-1:9092,broker-2:9092,broker-3:9092
+      KAFKA_TOPICS: ${KAFKA_TOPICS:-example-topic:6:3:min.insync.replicas=2}
+    networks:
+      - kafka_net
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    restart: unless-stopped
+    depends_on:
+      broker-1:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: ha
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker-1:9092,broker-2:9092,broker-3:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    ports:
+      - "${KAFKA_UI_PORT:-8080}:8080"
+    networks:
+      - kafka_net
+
+networks:
+  kafka_net:
+    # El nombre fijo permite que otros proyectos de Compose se conecten a esta red como externa. Para levantar este
+    # clúster al lado del de un solo nodo (pruebas), cambia KAFKA_NETWORK.
+    name: ${KAFKA_NETWORK:-kafka_net}
+    driver: bridge
+
+volumes:
+  kafka_data_1:
+  kafka_data_2:
+  kafka_data_3:

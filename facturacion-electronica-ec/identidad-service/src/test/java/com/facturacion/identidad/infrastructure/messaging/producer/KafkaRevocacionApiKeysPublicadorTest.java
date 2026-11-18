@@ -2,11 +2,13 @@ package com.facturacion.identidad.infrastructure.messaging.producer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -15,6 +17,7 @@ import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Message;
 import org.junit.jupiter.api.Test;
 
+import io.smallrye.mutiny.TimeoutException;
 import io.vertx.core.Context;
 import io.vertx.core.Vertx;
 
@@ -23,6 +26,8 @@ import io.vertx.core.Vertx;
  * abrio la transaccion (si no, Hibernate Reactive falla con HR000069 y el DELETE responde 500).
  */
 class KafkaRevocacionApiKeysPublicadorTest {
+
+    private static final Duration ESPERA = Duration.ofSeconds(5);
 
     /** Confirma el mensaje desde un hilo ajeno, como el hilo de red del productor de Kafka. */
     private static final class EmisorQueConfirmaEnOtroHilo implements Emitter<String> {
@@ -69,7 +74,7 @@ class KafkaRevocacionApiKeysPublicadorTest {
         Vertx vertx = Vertx.vertx();
         try {
             KafkaRevocacionApiKeysPublicador publicador =
-                new KafkaRevocacionApiKeysPublicador(new EmisorQueConfirmaEnOtroHilo());
+                new KafkaRevocacionApiKeysPublicador(new EmisorQueConfirmaEnOtroHilo(), ESPERA);
             CompletableFuture<String> hiloDelContexto = new CompletableFuture<>();
             CompletableFuture<String> hiloDeLaContinuacion = new CompletableFuture<>();
 
@@ -92,7 +97,7 @@ class KafkaRevocacionApiKeysPublicadorTest {
     @Test
     void sinContextoDeVertxTambienCompletaTrasElAck() {
         KafkaRevocacionApiKeysPublicador publicador =
-            new KafkaRevocacionApiKeysPublicador(new EmisorQueConfirmaEnOtroHilo());
+            new KafkaRevocacionApiKeysPublicador(new EmisorQueConfirmaEnOtroHilo(), ESPERA);
         AtomicReference<String> hilo = new AtomicReference<>();
 
         publicador.publicar("jti-2", Instant.now().plusSeconds(60))
@@ -100,5 +105,45 @@ class KafkaRevocacionApiKeysPublicadorTest {
             .await().atMost(Duration.ofSeconds(5));
 
         assertNotEquals(null, hilo.get());
+    }
+    /** Un broker caído: el mensaje nunca se confirma. */
+    private static final class EmisorSinRespuesta implements Emitter<String> {
+        @Override
+        public <M extends Message<? extends String>> void send(M mensaje) {
+        }
+
+        @Override
+        public CompletionStage<Void> send(String carga) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public void complete() {
+        }
+
+        @Override
+        public void error(Exception e) {
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return false;
+        }
+
+        @Override
+        public boolean hasRequests() {
+            return true;
+        }
+    }
+
+    @Test
+    void sinAckDelBrokerLaRevocacionFallaAlVencerElPlazoEnVezDeColgarse() {
+        KafkaRevocacionApiKeysPublicador publicador =
+            new KafkaRevocacionApiKeysPublicador(new EmisorSinRespuesta(), Duration.ofMillis(200));
+
+        CompletionException e = assertThrows(CompletionException.class, () -> publicador
+            .publicar("jti-3", Instant.now().plusSeconds(60)).subscribeAsCompletionStage().join());
+
+        assertTrue(e.getCause() instanceof TimeoutException, e.getCause().toString());
     }
 }
