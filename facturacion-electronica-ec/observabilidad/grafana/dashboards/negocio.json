@@ -1,0 +1,548 @@
+{
+   "annotations" : {
+      "list" : []
+   },
+   "panels" : [
+      {
+         "datasource" : {
+            "type" : "prometheus",
+            "uid" : "prometheus"
+         },
+         "fieldConfig" : {
+            "defaults" : {
+               "thresholds" : {
+                  "mode" : "absolute",
+                  "steps" : [
+                     {
+                        "color" : "green",
+                        "value" : null
+                     },
+                     {
+                        "color" : "red",
+                        "value" : 1
+                     }
+                  ]
+               },
+               "unit" : "none"
+            },
+            "overrides" : []
+         },
+         "gridPos" : {
+            "h" : 4,
+            "w" : 4,
+            "x" : 0,
+            "y" : 0
+         },
+         "id" : 1,
+         "options" : {
+            "colorMode" : "background",
+            "reduceOptions" : {
+               "calcs" : [
+                  "lastNotNull"
+               ]
+            }
+         },
+         "targets" : [
+            {
+               "datasource" : {
+                  "type" : "prometheus",
+                  "uid" : "prometheus"
+               },
+               "expr" : "sum(facturacion_saga_instancias{estado=\"EXPIRADA\"}) or vector(0)",
+               "instant" : true,
+               "refId" : "A"
+            }
+         ],
+         "title" : "Sagas EXPIRADA",
+         "type" : "stat"
+      },
+      {
+         "datasource" : {
+            "type" : "prometheus",
+            "uid" : "prometheus"
+         },
+         "fieldConfig" : {
+            "defaults" : {
+               "thresholds" : {
+                  "mode" : "absolute",
+                  "steps" : [
+                     {
+                        "color" : "green",
+                        "value" : null
+                     },
+                     {
+                        "color" : "red",
+                        "value" : 10
+                     }
+                  ]
+               },
+               "unit" : "none"
+            },
+            "overrides" : []
+         },
+         "gridPos" : {
+            "h" : 4,
+            "w" : 4,
+            "x" : 4,
+            "y" : 0
+         },
+         "id" : 2,
+         "options" : {
+            "colorMode" : "background",
+            "reduceOptions" : {
+               "calcs" : [
+                  "lastNotNull"
+               ]
+            }
+         },
+         "targets" : [
+            {
+               "datasource" : {
+                  "type" : "prometheus",
+                  "uid" : "prometheus"
+               },
+               "expr" : "sum(facturacion_saga_instancias{estado=\"NOTIFICACION_FALLIDA\"}) or vector(0)",
+               "instant" : true,
+               "refId" : "A"
+            }
+         ],
+         "title" : "Correos fallidos",
+         "type" : "stat"
+      },
+      {
+         "datasource" : {
+            "type" : "prometheus",
+            "uid" : "prometheus"
+         },
+         "fieldConfig" : {
+            "defaults" : {
+               "thresholds" : {
+                  "mode" : "absolute",
+                  "steps" : [
+                     {
+                        "color" : "green",
+                        "value" : null
+                     },
+                     {
+                        "color" : "red",
+                        "value" : 100
+                     }
+                  ]
+               },
+               "unit" : "none"
+            },
+            "overrides" : []
+         },
+         "gridPos" : {
+            "h" : 4,
+            "w" : 4,
+            "x" : 8,
+            "y" : 0
+         },
+         "id" : 3,
+         "options" : {
+            "colorMode" : "background",
+            "reduceOptions" : {
+               "calcs" : [
+                  "lastNotNull"
+               ]
+            }
+         },
+         "targets" : [
+            {
+               "datasource" : {
+                  "type" : "prometheus",
+                  "uid" : "prometheus"
+               },
+               "expr" : "sum(facturacion_outbox_pendientes) or vector(0)",
+               "instant" : true,
+               "refId" : "A"
+            }
+         ],
+         "title" : "Outbox sin publicar",
+         "type" : "stat"
+      },
+      {
+         "datasource" : {
+            "type" : "prometheus",
+            "uid" : "prometheus"
+         },
+         "fieldConfig" : {
+            "defaults" : {
+               "thresholds" : {
+                  "mode" : "absolute",
+                  "steps" : [
+                     {
+                        "color" : "green",
+                        "value" : null
+                     },
+                     {
+                        "color" : "red",
+                        "value" : 1
+                     }
+                  ]
+               },
+               "unit" : "none"
+            },
+            "overrides" : []
+         },
+         "gridPos" : {
+            "h" : 4,
+            "w" : 4,
+            "x" : 12,
+            "y" : 0
+         },
+         "id" : 4,
+         "options" : {
+            "colorMode" : "background",
+            "reduceOptions" : {
+               "calcs" : [
+                  "lastNotNull"
+               ]
+            }
+         },
+         "targets" : [
+            {
+               "datasource" : {
+                  "type" : "prometheus",
+                  "uid" : "prometheus"
+               },
+               "expr" : "sum(increase(kafka_topic_partition_current_offset{topic=~\".*\\\\.dlq\"}[24h])) or vector(0)",
+               "instant" : true,
+               "refId" : "A"
+            }
+         ],
+         "title" : "Mensajes nuevos en DLQ (24 h)",
+         "type" : "stat"
+      },
+      {
+         "datasource" : {
+            "type" : "prometheus",
+            "uid" : "prometheus"
+         },
+         "fieldConfig" : {
+            "defaults" : {
+               "thresholds" : {
+                  "mode" : "absolute",
+                  "steps" : [
+                     {
+                        "color" : "green",
+                        "value" : null
+                     },
+                     {
+                        "color" : "red",
+                        "value" : 1
+                     }
+                  ]
+               },
+               "unit" : "none"
+            },
+            "overrides" : []
+         },
+         "gridPos" : {
+            "h" : 4,
+            "w" : 4,
+            "x" : 16,
+            "y" : 0
+         },
+         "id" : 5,
+         "options" : {
+            "colorMode" : "background",
+            "reduceOptions" : {
+               "calcs" : [
+                  "lastNotNull"
+               ]
+            }
+         },
+         "targets" : [
+            {
+               "datasource" : {
+                  "type" : "prometheus",
+                  "uid" : "prometheus"
+               },
+               "expr" : "sum(facturacion_certificados_por_vencer) or vector(0)",
+               "instant" : true,
+               "refId" : "A"
+            }
+         ],
+         "title" : "Certificados por vencer (30 d)",
+         "type" : "stat"
+      },
+      {
+         "datasource" : {
+            "type" : "prometheus",
+            "uid" : "prometheus"
+         },
+         "fieldConfig" : {
+            "defaults" : {
+               "thresholds" : {
+                  "mode" : "absolute",
+                  "steps" : [
+                     {
+                        "color" : "green",
+                        "value" : null
+                     }
+                  ]
+               },
+               "unit" : "none"
+            },
+            "overrides" : []
+         },
+         "gridPos" : {
+            "h" : 4,
+            "w" : 4,
+            "x" : 20,
+            "y" : 0
+         },
+         "id" : 6,
+         "options" : {
+            "colorMode" : "background",
+            "reduceOptions" : {
+               "calcs" : [
+                  "lastNotNull"
+               ]
+            }
+         },
+         "targets" : [
+            {
+               "datasource" : {
+                  "type" : "prometheus",
+                  "uid" : "prometheus"
+               },
+               "expr" : "sum(pg_stat_activity_count)",
+               "instant" : true,
+               "refId" : "A"
+            }
+         ],
+         "title" : "Conexiones a Postgres",
+         "type" : "stat"
+      },
+      {
+         "datasource" : {
+            "type" : "prometheus",
+            "uid" : "prometheus"
+         },
+         "fieldConfig" : {
+            "defaults" : {
+               "custom" : {
+                  "fillOpacity" : 10,
+                  "lineWidth" : 1
+               },
+               "unit" : "none"
+            },
+            "overrides" : []
+         },
+         "gridPos" : {
+            "h" : 8,
+            "w" : 12,
+            "x" : 0,
+            "y" : 4
+         },
+         "id" : 7,
+         "options" : {
+            "legend" : {
+               "displayMode" : "list",
+               "placement" : "bottom"
+            },
+            "tooltip" : {
+               "mode" : "multi"
+            }
+         },
+         "targets" : [
+            {
+               "datasource" : {
+                  "type" : "prometheus",
+                  "uid" : "prometheus"
+               },
+               "expr" : "facturacion_saga_instancias",
+               "legendFormat" : "{{estado}}",
+               "refId" : "A"
+            }
+         ],
+         "title" : "Sagas por estado",
+         "type" : "timeseries"
+      },
+      {
+         "datasource" : {
+            "type" : "prometheus",
+            "uid" : "prometheus"
+         },
+         "fieldConfig" : {
+            "defaults" : {
+               "custom" : {
+                  "fillOpacity" : 10,
+                  "lineWidth" : 1
+               },
+               "unit" : "none"
+            },
+            "overrides" : []
+         },
+         "gridPos" : {
+            "h" : 8,
+            "w" : 12,
+            "x" : 12,
+            "y" : 4
+         },
+         "id" : 8,
+         "options" : {
+            "legend" : {
+               "displayMode" : "list",
+               "placement" : "bottom"
+            },
+            "tooltip" : {
+               "mode" : "multi"
+            }
+         },
+         "targets" : [
+            {
+               "datasource" : {
+                  "type" : "prometheus",
+                  "uid" : "prometheus"
+               },
+               "expr" : "facturacion_outbox_pendientes",
+               "legendFormat" : "{{servicio}}",
+               "refId" : "A"
+            }
+         ],
+         "title" : "Outbox sin publicar por servicio",
+         "type" : "timeseries"
+      },
+      {
+         "datasource" : {
+            "type" : "prometheus",
+            "uid" : "prometheus"
+         },
+         "fieldConfig" : {
+            "defaults" : {
+               "custom" : {
+                  "fillOpacity" : 10,
+                  "lineWidth" : 1
+               },
+               "unit" : "none"
+            },
+            "overrides" : []
+         },
+         "gridPos" : {
+            "h" : 8,
+            "w" : 12,
+            "x" : 0,
+            "y" : 12
+         },
+         "id" : 9,
+         "options" : {
+            "legend" : {
+               "displayMode" : "list",
+               "placement" : "bottom"
+            },
+            "tooltip" : {
+               "mode" : "multi"
+            }
+         },
+         "targets" : [
+            {
+               "datasource" : {
+                  "type" : "prometheus",
+                  "uid" : "prometheus"
+               },
+               "expr" : "sum by (consumergroup) (kafka_consumergroup_lag)",
+               "legendFormat" : "{{consumergroup}}",
+               "refId" : "A"
+            }
+         ],
+         "title" : "Retraso de los consumidores",
+         "type" : "timeseries"
+      },
+      {
+         "datasource" : {
+            "type" : "prometheus",
+            "uid" : "prometheus"
+         },
+         "fieldConfig" : {
+            "defaults" : {
+               "custom" : {
+                  "fillOpacity" : 10,
+                  "lineWidth" : 1
+               },
+               "unit" : "none"
+            },
+            "overrides" : []
+         },
+         "gridPos" : {
+            "h" : 8,
+            "w" : 12,
+            "x" : 12,
+            "y" : 12
+         },
+         "id" : 10,
+         "options" : {
+            "legend" : {
+               "displayMode" : "list",
+               "placement" : "bottom"
+            },
+            "tooltip" : {
+               "mode" : "multi"
+            }
+         },
+         "targets" : [
+            {
+               "datasource" : {
+                  "type" : "prometheus",
+                  "uid" : "prometheus"
+               },
+               "expr" : "sum by (state) (pg_stat_activity_count{datname=\"facturacion\"})",
+               "legendFormat" : "{{state}}",
+               "refId" : "A"
+            }
+         ],
+         "title" : "Conexiones de Postgres por estado",
+         "type" : "timeseries"
+      },
+      {
+         "datasource" : {
+            "type" : "loki",
+            "uid" : "loki"
+         },
+         "gridPos" : {
+            "h" : 10,
+            "w" : 24,
+            "x" : 0,
+            "y" : 20
+         },
+         "id" : 11,
+         "options" : {
+            "showTime" : true,
+            "sortOrder" : "Descending",
+            "wrapLogMessage" : true
+         },
+         "targets" : [
+            {
+               "datasource" : {
+                  "type" : "loki",
+                  "uid" : "loki"
+               },
+               "expr" : "{servicio=~\".+\"} |~ \"\\\\[[A-Z]+-4[0-9]{2}\\\\]\"",
+               "queryType" : "range",
+               "refId" : "A"
+            }
+         ],
+         "title" : "Errores de negocio por código ([XXX-4nn])",
+         "type" : "logs"
+      }
+   ],
+   "refresh" : "30s",
+   "schemaVersion" : 39,
+   "tags" : [
+      "facturacion"
+   ],
+   "templating" : {
+      "list" : []
+   },
+   "time" : {
+      "from" : "now-6h",
+      "to" : "now"
+   },
+   "timezone" : "browser",
+   "title" : "Facturación — Negocio",
+   "uid" : "facturacion-negocio",
+   "version" : 1
+}

@@ -10,7 +10,7 @@ Toda respuesta de error de los microservicios tiene el mismo cuerpo (`ApiErrorRe
 - Cada servicio declara sus errores en un enum que implementa `ErrorCatalogo` (`codigo`, `estadoHttp`, `claveMensaje`); el texto vive en su `mensajes.properties`, nunca en el código.
 - El código de negocio solo lanza la excepción (`throw new NotFoundException(...)`, `new ErrorNegocioException(CodigoError.X, params)`, o una propia que extienda `ApiException`). **No arma `Response`**: el único `ApiExceptionMapper` (jar común) la convierte en HTTP usando su entrada del catálogo.
 - Los `throw new NotFoundException("texto")` / `SinPermisoException` / `TokenInvalidoException` / `ConflictoException` con texto literal siguen funcionando y salen con el código genérico `GEN-*`; para un código propio se usa la sobrecarga con la entrada del catálogo del servicio.
-- Errores que no son del catálogo: `IllegalArgumentException` → 400 `GEN-400-002`; `ConstraintViolationException` (Bean Validation) → 400 `GEN-400-001` con `details`; cualquier otra no controlada → 500 `GEN-500-001` (sin stack trace al cliente).
+- Errores que no son del catálogo: `IllegalArgumentException` → 400 `GEN-400-002`; `ConstraintViolationException` (Bean Validation) → 400 `GEN-400-001` con `details`; una consulta o un bloqueo que vence su plazo en la base de datos (`lock_timeout`, `statement_timeout`, `idle_in_transaction_session_timeout`) → 503 `GEN-503-001` con `Retry-After: 5` y el mismo formato; cualquier otra no controlada → 500 `GEN-500-001` (sin stack trace al cliente).
 
 ## Comunes — `GEN` (facturacion-commons)
 
@@ -34,6 +34,7 @@ Toda respuesta de error de los microservicios tiene el mismo cuerpo (`ApiErrorRe
 | `GEN-403-006` | 403 | Esta operación requiere una api-key con rol ADMIN (la actual es {0}). |
 | `GEN-404-001` | 404 | {0} |
 | `GEN-409-001` | 409 | {0} |
+| `GEN-503-001` | 503 | El servicio está ocupado en este momento: reintenta en unos segundos |
 | `GEN-500-001` | 500 | Ocurrió un error inesperado |
 | `GEN-500-002` | 500 | No se pudo serializar el payload del outbox (el cliente recibe el texto genérico; el detalle queda en el log GEN-403) |
 
@@ -236,6 +237,7 @@ Todo log del código propio lleva un código estable: `[FIR-401] texto (comproba
 |---|---|---|
 | `GEN-101` | DEBUG | Token rechazado: {0} |
 | `GEN-301` | WARN | Revocación de api-key ignorada: {0} |
+| `GEN-302` | WARN | La base de datos venció un plazo (estado SQL {0}: bloqueo, sentencia o transacción inactiva); el cliente recibe 503 y reintenta |
 | `GEN-401` | ERROR | Excepción no controlada en un endpoint; el cliente recibe el 500 genérico |
 | `GEN-402` | ERROR | Falló el procesamiento de un mensaje del canal {0} ({1}): según la estrategia del canal pasa a su DLQ (.dlq) o se descarta |
 | `GEN-403` | ERROR | Falló una operación interna ({0}): {1} — la lanzó una `ErrorInternoException`; el cliente recibe solo el texto genérico y el código |

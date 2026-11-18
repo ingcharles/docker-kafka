@@ -51,14 +51,24 @@ docker compose exec broker /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9092 --topic example-topic --from-beginning
 ```
 
-## Alta disponibilidad (3 nodos)
+## Con réplicas: pruebas (2 nodos) y producción (3 nodos)
 
-`docker-compose.ha.yml` levanta 3 nodos KRaft (cada uno broker y controlador) con `replication.factor=3`, `min.insync.replicas=2`, elección de líder solo entre réplicas sincronizadas y la creación automática de tópicos apagada. Es el que corresponde a pruebas de carga y producción; el `docker-compose.yml` de un solo nodo es para desarrollo.
+`docker-compose.ha.yml` levanta nodos KRaft (cada uno broker y controlador), con elección de líder solo entre réplicas sincronizadas y la creación automática de tópicos apagada. El `docker-compose.yml` de un solo nodo es para desarrollo.
+
+| | Pruebas | Producción |
+|---|---|---|
+| Nodos | 2 | 3 (perfil `tres-nodos`) |
+| `replication.factor` / `min.insync.replicas` | 2 / 2 | 3 / 2 |
+| Un nodo caído | las escrituras se detienen (con 2 controladores no hay mayoría) y vuelven solas a los ~12 s de volver el nodo; lo confirmado no se pierde | se sigue produciendo y consumiendo sin perder mensajes |
+| Dos nodos caídos | — | las escrituras se rechazan (`NOT_ENOUGH_REPLICAS`) a propósito; al volver, las réplicas se sincronizan solas |
 
 ```sh
-docker compose -f docker-compose.ha.yml up -d --build
+# pruebas
+docker compose --env-file env/pruebas.env -f docker-compose.ha.yml up -d --build
+# producción
+docker compose --env-file env/produccion.env -f docker-compose.ha.yml up -d --build
 ```
 
-Los clientes usan `broker-1:9092,broker-2:9092,broker-3:9092` y los tópicos se crean con replicación 3 y min ISR 2 (`env/produccion.env` del proyecto de facturación). Comportamiento verificado: con un nodo caído se sigue produciendo y consumiendo; con dos caídos las escrituras se rechazan (`NOT_ENOUGH_REPLICAS`) y, al volver, las réplicas se sincronizan solas. Para probarlo al lado del broker de desarrollo: `KAFKA_NETWORK=kafka_ha_net`, otros puertos (`KAFKA_HOST_PORT_1..3`, `KAFKA_UI_PORT`) y `-p kafkaha`.
+Las variables de cada ambiente están en `env/pruebas.env` y `env/produccion.env` (el `KAFKA_CLUSTER_ID` se genera una vez por clúster); la lista completa, en `facturacion-electronica-ec/documentacion/VARIABLES_DE_ENTORNO.md`. Los servicios se conectan con `KAFKA_BOOTSTRAP_SERVERS` y los tópicos se crean con `KAFKA_REPLICATION_FACTOR` y `KAFKA_MIN_ISR` (`facturacion-electronica-ec/env/<ambiente>.env`).
 
-Un clúster de un solo nodo existente no se convierte en uno de 3: los tópicos con replicación 1 hay que recrearlos (o reasignar sus réplicas con `kafka-reassign-partitions.sh`).
+Un clúster de un solo nodo existente no se convierte en uno de varios: los tópicos con replicación 1 hay que recrearlos (o reasignar sus réplicas con `kafka-reassign-partitions.sh`). Para probar otro clúster al lado del de desarrollo: otro `KAFKA_NETWORK`, otros puertos y `-p <nombre>`.

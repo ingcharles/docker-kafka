@@ -1,0 +1,42 @@
+// Alloy: lee los logs de los contenedores del proyecto de facturación (por el socket de Docker, solo lectura) y los
+// manda a Loki con la etiqueta "servicio". Si el servicio escribe en JSON (LOG_FORMATO_JSON=true) también saca el
+// nivel como etiqueta, y se puede filtrar por nivel o por código ([FIR-401], [NOT-401]...) en Grafana.
+
+discovery.docker "contenedores" {
+  host = "unix:///var/run/docker.sock"
+  filter {
+    name   = "label"
+    values = ["com.docker.compose.project=facturacion-electronica-ec"]
+  }
+}
+
+discovery.relabel "etiquetas" {
+  targets = discovery.docker.contenedores.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "servicio"
+  }
+}
+
+loki.source.docker "logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.etiquetas.output
+  forward_to = [loki.process.json.receiver]
+}
+
+loki.process "json" {
+  stage.json {
+    expressions = { nivel = "level" }
+  }
+  stage.labels {
+    values = { nivel = "" }
+  }
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

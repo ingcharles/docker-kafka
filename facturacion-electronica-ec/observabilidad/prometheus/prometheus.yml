@@ -1,0 +1,59 @@
+# Prometheus de facturación electrónica. Recolecta cada 15 s las métricas de los 7 servicios (Micrometer, en
+# <root-path>/q/metrics, sin api-key: solo se alcanzan dentro de la red de Docker) y las de los exportadores de
+# Postgres y Kafka. Las reglas de alerta están en reglas/.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/reglas/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: servicios
+    static_configs:
+      - targets: ["identidad-service:8080"]
+        labels: { servicio: identidad, __metrics_path__: /identidad/api/v1/q/metrics }
+      - targets: ["firma-electronica-service:8080"]
+        labels: { servicio: firma-electronica, __metrics_path__: /empresas/api/v1/q/metrics }
+      - targets: ["inventario-service:8080"]
+        labels: { servicio: inventario, __metrics_path__: /inventario/api/v1/q/metrics }
+      - targets: ["comprobantes-service:8080"]
+        labels: { servicio: comprobantes, __metrics_path__: /comprobantes/api/v1/q/metrics }
+      - targets: ["sri-conector-service:8080"]
+        labels: { servicio: sri-conector, __metrics_path__: /sri/api/v1/q/metrics }
+      - targets: ["notificacion-service:8080"]
+        labels: { servicio: notificacion, __metrics_path__: /notificaciones/api/v1/q/metrics }
+      - targets: ["facturacion-orchestrator-service:8080"]
+        labels: { servicio: orquestador, __metrics_path__: /sagas/api/v1/q/metrics }
+
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  - job_name: kafka
+    static_configs:
+      - targets: ["kafka-exporter:9308"]
+
+  - job_name: observabilidad
+    static_configs:
+      - targets: ["prometheus:9090"]
+        labels: { componente: prometheus }
+      - targets: ["alertmanager:9093"]
+        labels: { componente: alertmanager }
+      - targets: ["loki:3100"]
+        labels: { componente: loki }
+      - targets: ["grafana:3000"]
+        labels: { componente: grafana }
+
+  # Solo con el perfil "host" (servidor Linux): CPU, memoria, disco, reloj del servidor y contenedores.
+  - job_name: servidor
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels: { componente: node-exporter }
+      - targets: ["cadvisor:8080"]
+        labels: { componente: cadvisor }

@@ -1,0 +1,140 @@
+# Alertas de facturación electrónica. severidad: critica = actuar ya; aviso = revisar en horario.
+groups:
+  - name: servicios
+    rules:
+      - alert: ServicioCaido
+        expr: up{job="servicios"} == 0
+        for: 2m
+        labels: { severidad: critica }
+        annotations:
+          resumen: "{{ $labels.servicio }} no responde"
+          detalle: "Prometheus no puede leer las métricas de {{ $labels.servicio }} desde hace 2 minutos."
+
+      - alert: ErroresHttp5xx
+        expr: sum by (servicio) (rate(http_server_requests_seconds_count{status=~"5.."}[5m])) > 0.05
+        for: 5m
+        labels: { severidad: critica }
+        annotations:
+          resumen: "{{ $labels.servicio }} responde errores 5xx"
+          detalle: "Más de 3 errores 5xx por minuto durante 5 minutos."
+
+      - alert: LatenciaAlta
+        expr: >
+          sum by (servicio) (rate(http_server_requests_seconds_sum{uri!~".*/q/.*"}[10m]))
+          / sum by (servicio) (rate(http_server_requests_seconds_count{uri!~".*/q/.*"}[10m])) > 2
+        for: 10m
+        labels: { severidad: aviso }
+        annotations:
+          resumen: "{{ $labels.servicio }} tarda más de 2 s en promedio"
+          detalle: "Latencia media de las peticiones por encima de 2 segundos durante 10 minutos."
+
+      - alert: MemoriaJvmAlta
+        expr: sum by (servicio) (jvm_memory_used_bytes{area="heap"}) / sum by (servicio) (jvm_memory_max_bytes{area="heap"}) > 0.9
+        for: 10m
+        labels: { severidad: aviso }
+        annotations:
+          resumen: "{{ $labels.servicio }} usa más del 90 % de su heap"
+          detalle: "Riesgo de OutOfMemory: revisa fugas o sube la memoria del contenedor."
+
+  - name: kafka
+    rules:
+      - alert: MensajesEnDlq
+        expr: sum by (topic) (increase(kafka_topic_partition_current_offset{topic=~".*\\.dlq"}[10m])) > 0
+        for: 0m
+        labels: { severidad: critica }
+        annotations:
+          resumen: "Mensajes nuevos en {{ $labels.topic }}"
+          detalle: "Un mensaje falló y se apartó. Revisa el motivo en los headers dead-letter-reason y reprocésalo."
+
+      - alert: RetrasoDeConsumidor
+        expr: sum by (consumergroup, topic) (kafka_consumergroup_lag) > 100
+        for: 10m
+        labels: { severidad: aviso }
+        annotations:
+          resumen: "{{ $labels.consumergroup }} lleva {{ $value }} mensajes de retraso en {{ $labels.topic }}"
+          detalle: "El consumidor no da abasto o está detenido."
+
+      - alert: KafkaCaido
+        expr: up{job="kafka"} == 0 or kafka_brokers < 1
+        for: 2m
+        labels: { severidad: critica }
+        annotations:
+          resumen: "Kafka no responde"
+          detalle: "Sin broker disponible no se emiten ni se procesan comprobantes."
+
+  - name: postgres
+    rules:
+      - alert: PostgresCaido
+        expr: pg_up == 0 or up{job="postgres"} == 0
+        for: 1m
+        labels: { severidad: critica }
+        annotations:
+          resumen: "Postgres no responde"
+          detalle: "Sin base de datos ningún servicio puede trabajar."
+
+      - alert: ConexionesPostgresAltas
+        expr: sum(pg_stat_activity_count) / max(pg_settings_max_connections) > 0.8
+        for: 5m
+        labels: { severidad: aviso }
+        annotations:
+          resumen: "Postgres usa más del 80 % de sus conexiones"
+          detalle: "7 servicios con pool de hasta 20 conexiones: revisa pools o usa un pooler."
+
+      - alert: InterbloqueosPostgres
+        expr: increase(pg_stat_database_deadlocks{datname="facturacion"}[10m]) > 0
+        labels: { severidad: aviso }
+        annotations:
+          resumen: "Hubo interbloqueos en la base de datos"
+          detalle: "Dos transacciones se bloquearon entre sí; revisa el orden en que toman filas."
+
+  - name: negocio
+    rules:
+      - alert: SagasExpiradas
+        expr: facturacion_saga_instancias{estado="EXPIRADA"} > 0
+        for: 5m
+        labels: { severidad: critica }
+        annotations:
+          resumen: "Hay {{ $value }} sagas EXPIRADA"
+          detalle: "Una saga agotó sus reintentos sin respuesta (firma o SRI). Requiere atención humana: GET /sagas?state=EXPIRADA."
+
+      - alert: NotificacionesFallidasSostenidas
+        expr: facturacion_saga_instancias{estado="NOTIFICACION_FALLIDA"} > 10
+        for: 30m
+        labels: { severidad: aviso }
+        annotations:
+          resumen: "Hay {{ $value }} sagas con el correo fallido"
+          detalle: "Revisa el SMTP o reenvía con POST /sagas/reenviar-notificaciones."
+
+      - alert: OutboxAtascado
+        expr: facturacion_outbox_pendientes > 100
+        for: 5m
+        labels: { severidad: critica }
+        annotations:
+          resumen: "{{ $labels.servicio }} tiene {{ $value }} eventos sin publicar"
+          detalle: "El relay del outbox no está publicando en Kafka."
+
+      - alert: CertificadoPorVencer
+        expr: facturacion_certificados_por_vencer > 0
+        for: 1h
+        labels: { severidad: aviso }
+        annotations:
+          resumen: "Hay {{ $value }} certificado(s) de firma que vencen en menos de 30 días"
+          detalle: "Sube un certificado vigente antes de que venza: uno vencido no firma."
+
+  - name: servidor
+    rules:
+      - alert: RelojDesfasado
+        expr: abs(node_timex_offset_seconds) > 1
+        for: 5m
+        labels: { severidad: critica }
+        annotations:
+          resumen: "El reloj del servidor está desfasado {{ $value }} s"
+          detalle: "La fecha de la clave de acceso depende de la hora: revisa NTP (chrony)."
+
+      - alert: DiscoLleno
+        expr: node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} < 0.1
+        for: 10m
+        labels: { severidad: critica }
+        annotations:
+          resumen: "Menos del 10 % libre en {{ $labels.mountpoint }}"
+          detalle: "Postgres, Kafka y los logs necesitan disco."

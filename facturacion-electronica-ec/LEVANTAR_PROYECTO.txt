@@ -1,0 +1,164 @@
+=====================================================================================================
+FACTURACIÓN ELECTRÓNICA SRI ECUADOR — QUÉ NECESITAS PARA LEVANTAR TODO EN OTRA MÁQUINA
+=====================================================================================================
+Este archivo lista lo que hay que tener y el orden para levantar el proyecto completo desde un
+`git clone`. Los detalles de cada paso están en los documentos que se nombran (todos están en el
+repositorio). No contiene ningún secreto: los valores secretos los generas tú en la máquina nueva.
+
+
+1. QUÉ INCLUYE EL REPOSITORIO
+-----------------------------------------------------------------------------------------------------
+  docker-kafka/
+    postgres/                       Postgres 16 (una base, un esquema y un rol por servicio)
+    kafka/                          Kafka: 1 nodo (desarrollo), 2 nodos (pruebas), 3 nodos (producción)
+    facturacion-electronica-ec/     los 7 microservicios Quarkus + el jar compartido + Compose + docs
+      identidad-service             usuarios, api-keys (JWT)                      puerto 8097
+      firma-electronica-service     empresas, certificados .p12, firma XAdES      puerto 8091
+      inventario-service            ítems, kardex, stock                          puerto 8092
+      comprobantes-service          los 6 tipos de comprobante, XML, RIDE         puerto 8093
+      sri-conector-service          SOAP al SRI (recepción y autorización)        puerto 8094
+      notificacion-service          correo con RIDE y XML                         puerto 8095
+      facturacion-orchestrator-service  la saga de emisión                        puerto 8096
+      observabilidad/               Prometheus, Alertmanager, Grafana, Loki (opcional, con bandera)
+      env/                          configuración por ambiente (desarrollo, pruebas, produccion)
+      documentacion/                guías, ejemplos, VARIABLES_DE_ENTORNO.md, fichas técnicas del SRI
+    ecommerce/                      otro proyecto del repositorio; NO hace falta para este
+
+NO está en el repositorio (lo creas en la máquina nueva): los archivos de secretos
+(env/<ambiente>.secretos.env), el .env de cada stack, el certificado de firma (.p12) de la empresa y
+los datos (volúmenes de Docker).
+
+
+2. SOFTWARE QUE NECESITAS INSTALAR
+-----------------------------------------------------------------------------------------------------
+  - Git.
+  - Docker (Docker Desktop en Windows/Mac; Docker Engine en Linux) con Docker Compose v2.20 o
+    superior (se usan "profiles" y "depends_on ... required: false"). Comprueba: docker compose version
+  - Un shell bash: en Windows, Git Bash (los scripts son .sh). En Linux/Mac ya lo tienes.
+  - openssl (viene con Git Bash) para generar contraseñas.
+  - Conexión a Internet: la primera construcción descarga imágenes de Docker y las dependencias de
+    Maven DENTRO de Docker (no necesitas instalar Java ni Maven para levantar el proyecto).
+  - Solo si vas a compilar o correr las pruebas FUERA de Docker: JDK 21 y Maven 3.9
+    (mvn -B package desde facturacion-electronica-ec/).
+
+Recursos recomendados: 8 GB de RAM libres para Docker (16 GB con la observabilidad y el clúster de
+Kafka de 3 nodos), 15 GB de disco, y estos puertos libres en la máquina:
+  5434 Postgres (5435 el de pruebas) · 9094 Kafka (9095 y 9096 en el clúster) · 8080 Kafka UI
+  8091-8097 los servicios · 3001 Grafana · 9090 Prometheus · 9093 Alertmanager (solo con observabilidad)
+
+
+3. LO QUE TIENES QUE TENER DE TU LADO (no se puede generar)
+-----------------------------------------------------------------------------------------------------
+  a) Acceso a Internet hacia el SRI: celcer.sri.gob.ec (ambiente PRUEBAS) y cel.sri.gob.ec (PRODUCCIÓN).
+  b) El certificado de firma electrónica (.p12) y su contraseña, de cada empresa que va a emitir. Se
+     sube por API (POST /empresas/api/v1/{id}/certificado, ver FLUJO_FACTURA_REAL.md) después de levantar todo.
+  c) Una cuenta de correo SMTP para notificacion-service. Con Gmail: verificación en dos pasos y
+     "contraseña de aplicación" (la contraseña normal no funciona).
+  d) El RUC y los datos de la empresa emisora (razón social, establecimiento, punto de emisión).
+  e) Para PRODUCCIÓN: un Postgres propio (DB_HOST), un dominio con TLS para el frontend (CORS_ORIGINS)
+     y el proxy o gateway (WSO2) delante de los servicios.
+
+
+4. ORDEN PARA LEVANTAR (AMBIENTE DE DESARROLLO O PRUEBAS)
+-----------------------------------------------------------------------------------------------------
+Reemplaza <amb> por desarrollo o pruebas. Todo desde Git Bash.
+
+  PASO 1. Clonar
+      git clone https://github.com/ingcharles/docker-kafka.git
+      cd docker-kafka
+      git checkout <la rama que corresponda>
+
+  PASO 2. Crear los secretos del ambiente (una vez)
+      cd facturacion-electronica-ec
+      cp env/secretos.env.example env/<amb>.secretos.env
+      Completa cada valor del archivo copiado (SIN comillas):
+        openssl rand -base64 24    -> una vez por cada *_DB_PASSWORD (siete) y POSTGRES_PASSWORD
+        openssl rand -base64 32    -> FIRMA_CIFRADO_CLAVE_MAESTRA y CATALOGOS_ADMIN_TOKEN
+        ./scripts/generar-claves-jwt.sh >> env/<amb>.secretos.env    (agrega las dos llaves JWT)
+        SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM -> tu cuenta de correo
+      IMPORTANTE: guarda FIRMA_CIFRADO_CLAVE_MAESTRA en un lugar seguro: si se pierde, los
+      certificados guardados no se pueden descifrar.
+      Revisa: ./scripts/compose.sh <amb> config -q     (no imprime nada si está bien)
+
+  PASO 3. Postgres  (usa los mismos archivos de ambiente: las contraseñas no se duplican)
+      cd ../postgres
+      desarrollo: docker compose --env-file ../facturacion-electronica-ec/env/desarrollo.env \
+                    --env-file ../facturacion-electronica-ec/env/desarrollo.secretos.env up -d --build
+      pruebas:    docker compose -p facturacion-pruebas --env-file ../facturacion-electronica-ec/env/pruebas.env \
+                    --env-file ../facturacion-electronica-ec/env/pruebas.secretos.env up -d --build
+      (crea la red "facturacion_net", el esquema y el rol de cada servicio; las tablas las crea
+       Flyway solo, cuando cada servicio arranca)
+
+  PASO 4. Kafka
+      cd ../kafka
+      desarrollo (1 nodo):
+          cp .env.example .env        # y pon un KAFKA_CLUSTER_ID nuevo (ver abajo)
+          docker compose up -d --build
+      pruebas (2 nodos):
+          edita env/pruebas.env (KAFKA_CLUSTER_ID)
+          docker compose --env-file env/pruebas.env -f docker-compose.ha.yml up -d --build
+      Generar un KAFKA_CLUSTER_ID:
+          docker run --rm apache/kafka:3.9.0 /opt/kafka/bin/kafka-storage.sh random-uuid
+      (crea la red "kafka_net"; los tópicos los crea el job de facturación en el paso siguiente)
+
+  PASO 5. Los 7 servicios
+      cd ../facturacion-electronica-ec
+      for s in comprobantes-service firma-electronica-service facturacion-orchestrator-service \
+               inventario-service sri-conector-service notificacion-service identidad-service; do
+        ./scripts/compose.sh <amb> build $s
+      done                                # se construyen de a uno: pesan en memoria; tarda ~10-15 min
+      ./scripts/compose.sh <amb> up -d
+      ./scripts/compose.sh <amb> ps       # los 7 deben quedar en "healthy" (≈1 min)
+
+  PASO 6. Comprobar
+      for p in 8091/empresas 8092/inventario 8093/comprobantes 8094/sri 8095/notificaciones 8096/sagas 8097/identidad; do
+        printf "%s " $p; curl -s -o /dev/null -w '%{http_code}\n' http://localhost:${p%%/*}/${p#*/}/api/v1/q/health/ready
+      done                                # los siete deben responder 200
+
+  PASO 7. Primer uso (crear usuario, empresa, certificado y emitir)
+      Sigue documentacion/FLUJO_FACTURA_REAL.md (paso a paso, con curl) o documentacion/GUIA_PRUEBAS_MANUALES.md.
+      Resumen: crear usuario -> login -> registrar la empresa (RUC) -> subir el .p12 -> crear la
+      api-key de la empresa -> emitir una factura -> ver la saga hasta AUTORIZADO.
+      También hay una colección Postman en documentacion/postman y scripts de ejemplo en scripts/ejemplos/.
+
+
+5. OBSERVABILIDAD (OPCIONAL)
+-----------------------------------------------------------------------------------------------------
+  Pon OBSERVABILIDAD_HABILITADA=true en env/<amb>.env (y LOG_FORMATO_JSON=true si quieres logs en JSON), agrega
+  GRAFANA_ADMIN_PASSWORD y OBSERVABILIDAD_DB_PASSWORD al archivo de secretos, crea el rol de solo lectura de Postgres
+  (observabilidad/crear-rol-monitoreo.sql) y vuelve a correr ./scripts/compose.sh <amb> up -d.
+  Grafana: http://localhost:3001. Guía completa: observabilidad/README.md.
+
+
+6. PRODUCCIÓN (DIFERENCIAS)
+-----------------------------------------------------------------------------------------------------
+  - Usa tu propio Postgres: pon su host en DB_HOST dentro de env/produccion.env (no uses el paso 3).
+  - Kafka de 3 nodos: cd kafka && docker compose --env-file env/produccion.env -f docker-compose.ha.yml up -d --build
+  - Reemplaza en env/produccion.env los valores CAMBIAR-... (DB_HOST, CORS_ORIGINS con https y sin *).
+  - Secretos NUEVOS y distintos a los de otros ambientes. No expongas los puertos 8091-8097 a Internet: ponlos
+    detrás del proxy/gateway con TLS (WSO2: límite de peticiones, bloqueo de login, tamaño de cuerpo).
+  - Haz respaldo de la base antes de actualizar (las migraciones corren solas).
+  - Una empresa con ambiente PRODUCCION emite documentos con validez legal.
+
+
+7. DÓNDE ESTÁ CADA COSA (DOCUMENTOS)
+-----------------------------------------------------------------------------------------------------
+  env/README.md                         ambientes y operación diaria
+  documentacion/VARIABLES_DE_ENTORNO.md TODAS las variables, su valor por defecto y qué hacen
+  documentacion/FLUJO_FACTURA_REAL.md   de cero a una factura autorizada
+  documentacion/GUIA_PRUEBAS_MANUALES.md pruebas manuales por API
+  documentacion/EJEMPLOS_COMPROBANTES.md ejemplos de los 6 tipos y resultados contra el SRI
+  ARQUITECTURA.md                       cómo está hecho (servicios, saga, estados, Kafka, base de datos)
+  CATALOGO_ERRORES.md                   códigos de error y de log
+  CLAUDE.md                             reglas de código del proyecto
+  kafka/README.md · postgres/README.md · observabilidad/README.md
+
+
+8. SI ALGO FALLA
+-----------------------------------------------------------------------------------------------------
+  - "PKIX path building failed" al construir: tu red intercepta el TLS hacia Maven Central; cambia de red.
+  - Un servicio no queda "healthy": ./scripts/compose.sh <amb> logs <servicio>. Casi siempre falta un secreto o
+    Postgres/Kafka no están arriba (pasos 3 y 4 antes que el 5).
+  - "network ... not found": faltó levantar Postgres (facturacion_net) o Kafka (kafka_net).
+  - Los scripts .sh deben tener saltos de línea LF; el repositorio ya lo fuerza (.gitattributes).
+=====================================================================================================

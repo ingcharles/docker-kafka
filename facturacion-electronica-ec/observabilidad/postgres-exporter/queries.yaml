@@ -1,0 +1,41 @@
+# Métricas de negocio que se leen directamente de la base de datos (además de las de Postgres). Solo cuentan filas:
+# el rol de monitoreo tiene permiso de SELECT únicamente sobre las columnas que aquí se usan
+# (ver crear-rol-monitoreo.sql), nunca sobre datos personales.
+#
+# El nombre de cada métrica es <consulta>_<columna>: facturacion_saga + instancias = facturacion_saga_instancias.
+
+facturacion_saga:
+  query: "SELECT state AS estado, COUNT(*)::float AS instancias FROM orquestacion.saga_instance GROUP BY state"
+  metrics:
+    - estado:
+        usage: "LABEL"
+        description: "Estado de la saga"
+    - instancias:
+        usage: "GAUGE"
+        description: "Sagas en ese estado"
+
+# Cada SELECT devuelve una fila aunque no haya pendientes (0), para que la serie exista siempre.
+facturacion_outbox:
+  query: >
+    SELECT 'comprobantes' AS servicio, COUNT(*)::float AS pendientes FROM comprobantes.outbox_event WHERE published_at IS NULL
+    UNION ALL SELECT 'firma-electronica', COUNT(*)::float FROM firma_electronica.outbox_event WHERE published_at IS NULL
+    UNION ALL SELECT 'inventario', COUNT(*)::float FROM inventario.outbox_event WHERE published_at IS NULL
+    UNION ALL SELECT 'notificacion', COUNT(*)::float FROM notificacion.outbox_event WHERE published_at IS NULL
+    UNION ALL SELECT 'orquestador', COUNT(*)::float FROM orquestacion.outbox_event WHERE published_at IS NULL
+    UNION ALL SELECT 'sri-conector', COUNT(*)::float FROM sri.outbox_event WHERE published_at IS NULL
+  metrics:
+    - servicio:
+        usage: "LABEL"
+        description: "Servicio dueño del outbox"
+    - pendientes:
+        usage: "GAUGE"
+        description: "Eventos del outbox todavía sin publicar en Kafka"
+
+facturacion_certificados:
+  query: >
+    SELECT COUNT(*)::float AS por_vencer FROM firma_electronica.certificado_digital
+    WHERE estado = 'ACTIVO' AND fecha_expiracion_certificado < NOW() + INTERVAL '30 days'
+  metrics:
+    - por_vencer:
+        usage: "GAUGE"
+        description: "Certificados de firma activos que vencen en menos de 30 días"

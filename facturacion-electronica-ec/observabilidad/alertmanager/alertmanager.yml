@@ -1,0 +1,38 @@
+# Alertmanager: agrupa las alertas de Prometheus y las envía. Por defecto solo las muestra en su pantalla
+# (http://localhost:9093) y en Grafana; para recibirlas por correo o Teams, descomenta y completa un receptor.
+# Los secretos NO van aquí: usa archivos montados (smtp_auth_password_file) o variables del servidor.
+route:
+  receiver: pantalla
+  group_by: [alertname, servicio]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: [severidad="critica"]
+      receiver: pantalla         # cambia por "correo" cuando lo configures
+      repeat_interval: 1h
+
+receivers:
+  - name: pantalla
+
+  # --- Ejemplo: correo (descomenta y ajusta) ---
+  # - name: correo
+  #   email_configs:
+  #     - to: operaciones@tu-dominio.example
+  #       from: alertas@tu-dominio.example
+  #       smarthost: smtp.gmail.com:587
+  #       auth_username: alertas@tu-dominio.example
+  #       auth_password_file: /run/secrets/alertmanager_smtp_password
+  #       send_resolved: true
+
+  # --- Ejemplo: Teams (webhook) ---
+  # - name: teams
+  #   webhook_configs:
+  #     - url_file: /run/secrets/alertmanager_teams_url
+  #       send_resolved: true
+
+inhibit_rules:
+  # Si un servicio está caído, no avisar además de sus errores 5xx ni de su latencia.
+  - source_matchers: [alertname="ServicioCaido"]
+    target_matchers: [alertname=~"ErroresHttp5xx|LatenciaAlta|MemoriaJvmAlta"]
+    equal: [servicio]

@@ -27,5 +27,12 @@ if [ ! -f "$secretos" ]; then
   exit 1
 fi
 
+# Banderas opcionales (true/false) en env/<ambiente>.env o en el archivo de secretos: cada una activa el perfil de
+# Compose que levanta sus contenedores. Sin la bandera, esos contenedores no existen y los servicios funcionan igual.
+valor() { grep -hE "^$1=" "$config" "$secretos" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r'; }
+perfiles=()
+[ "$(valor OBSERVABILIDAD_HABILITADA)" = "true" ] && perfiles+=(--profile observabilidad)
+[ "$(valor OBSERVABILIDAD_HOST_HABILITADA)" = "true" ] && perfiles+=(--profile host)
+
 # El segundo --env-file gana si una variable aparece en los dos.
-exec docker compose --env-file "$config" --env-file "$secretos" "$@"
+exec docker compose --env-file "$config" --env-file "$secretos" "${perfiles[@]+"${perfiles[@]}"}" "$@"

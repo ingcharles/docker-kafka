@@ -1,0 +1,77 @@
+# Postgres compartido de facturación electrónica SRI Ecuador: una sola base
+# ("facturacion"), un esquema + un rol de mínimo privilegio por microservicio
+# (ver init/00-schemas.sh). Los microservicios de ../facturacion-electronica-ec se conectan a este contenedor por la red
+# externa `facturacion_net` (nombre fijo), con el hostname `DB_HOST` (`facturacion-db` por defecto; en pruebas,
+# `facturacion-test-db`) — levanta este stack primero.
+#
+# Usa los mismos archivos de ambiente que los servicios, así las contraseñas no se duplican:
+#   docker compose --env-file ../facturacion-electronica-ec/env/<ambiente>.env \
+#                  --env-file ../facturacion-electronica-ec/env/<ambiente>.secretos.env up -d --build
+# (en pruebas agrega `-p facturacion-pruebas` para que tenga su propio volumen de datos)
+services:
+  facturacion-db:
+    build:
+      context: .
+    container_name: ${DB_HOST:-facturacion-db}
+    restart: unless-stopped
+    # Varios servicios con pool reactivo de hasta 20 conexiones cada uno en
+    # modo prod pueden superar el max_connections=100 por defecto de Postgres.
+    command: postgres -c max_connections=200
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-facturacion}
+      INVENTARIO_DB_PASSWORD: ${INVENTARIO_DB_PASSWORD:?INVENTARIO_DB_PASSWORD is required}
+      FIRMA_DB_PASSWORD: ${FIRMA_DB_PASSWORD:?FIRMA_DB_PASSWORD is required}
+      COMPROBANTES_DB_PASSWORD: ${COMPROBANTES_DB_PASSWORD:?COMPROBANTES_DB_PASSWORD is required}
+      SRI_DB_PASSWORD: ${SRI_DB_PASSWORD:?SRI_DB_PASSWORD is required}
+      NOTIFICACION_DB_PASSWORD: ${NOTIFICACION_DB_PASSWORD:?NOTIFICACION_DB_PASSWORD is required}
+      ORQUESTACION_DB_PASSWORD: ${ORQUESTACION_DB_PASSWORD:?ORQUESTACION_DB_PASSWORD is required}
+      IDENTIDAD_DB_PASSWORD: ${IDENTIDAD_DB_PASSWORD:?IDENTIDAD_DB_PASSWORD is required}
+    volumes:
+      - facturacion_pg_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - facturacion_net
+
+  # Crea las tablas: aplica las migraciones Flyway de cada microservicio.
+  # Uso: docker compose --profile migrar run --rm migraciones
+  migraciones:
+    profiles: ["migrar"]
+    image: flyway/flyway:11-alpine
+    entrypoint: ["sh", "/scripts/migrar.sh"]
+    depends_on:
+      facturacion-db:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-facturacion}
+      DB_HOST: ${DB_HOST:-facturacion-db}
+      INVENTARIO_DB_PASSWORD: ${INVENTARIO_DB_PASSWORD:?INVENTARIO_DB_PASSWORD is required}
+      FIRMA_DB_PASSWORD: ${FIRMA_DB_PASSWORD:?FIRMA_DB_PASSWORD is required}
+      COMPROBANTES_DB_PASSWORD: ${COMPROBANTES_DB_PASSWORD:?COMPROBANTES_DB_PASSWORD is required}
+      SRI_DB_PASSWORD: ${SRI_DB_PASSWORD:?SRI_DB_PASSWORD is required}
+      NOTIFICACION_DB_PASSWORD: ${NOTIFICACION_DB_PASSWORD:?NOTIFICACION_DB_PASSWORD is required}
+      ORQUESTACION_DB_PASSWORD: ${ORQUESTACION_DB_PASSWORD:?ORQUESTACION_DB_PASSWORD is required}
+      IDENTIDAD_DB_PASSWORD: ${IDENTIDAD_DB_PASSWORD:?IDENTIDAD_DB_PASSWORD is required}
+    volumes:
+      - ./scripts:/scripts:ro
+      - ${FACTURACION_PROYECTO_DIR:-../facturacion-electronica-ec}:/proyecto:ro
+    networks:
+      - facturacion_net
+
+# Nombre fijo (sin prefijo del proyecto de Compose), igual que kafka_net, para
+# que el stack de microservicios se conecte como red externa.
+networks:
+  facturacion_net:
+    name: facturacion_net
+    driver: bridge
+
+volumes:
+  facturacion_pg_data:
