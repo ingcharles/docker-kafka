@@ -29,10 +29,18 @@ fi
 
 # Banderas opcionales (true/false) en env/<ambiente>.env o en el archivo de secretos: cada una activa el perfil de
 # Compose que levanta sus contenedores. Sin la bandera, esos contenedores no existen y los servicios funcionan igual.
-valor() { grep -hE "^$1=" "$config" "$secretos" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r'; }
+valor() { grep -hE "^$1=" "$config" "$secretos" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r' || true; }
 perfiles=()
 [ "$(valor OBSERVABILIDAD_HABILITADA)" = "true" ] && perfiles+=(--profile observabilidad)
 [ "$(valor OBSERVABILIDAD_HOST_HABILITADA)" = "true" ] && perfiles+=(--profile host)
+
+# PgBouncer (bandera PGBOUNCER_HABILITADO, la levanta ../postgres/compose.sh): los servicios se conectan al pooler en vez de a
+# Postgres; las migraciones Flyway siguen yendo directo.
+if [ "$(valor PGBOUNCER_HABILITADO)" = "true" ]; then
+  host_bd="$(valor DB_HOST)"
+  export DB_POOL_HOST="${host_bd:-facturacion-db}-pgbouncer"
+  export DB_POOL_PORT=6432
+fi
 
 # El segundo --env-file gana si una variable aparece en los dos.
 exec docker compose --env-file "$config" --env-file "$secretos" "${perfiles[@]+"${perfiles[@]}"}" "$@"

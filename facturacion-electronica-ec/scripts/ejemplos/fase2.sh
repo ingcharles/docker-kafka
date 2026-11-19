@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 source "$(dirname "$0")/lib.sh"
 : > "$RES"
-DOC='"docModificadoTipo":"01","docModificadoNumero":"001-001-000000015","docModificadoFecha":"17/11/2026"'   # factura F01, autorizada
-CLAVE_F01=1711202601172203995300110010010000000158408025015
+# Una nota de crédito solo puede modificar un documento autorizado y no puede superar su valor (con todas las notas ya emitidas
+# sobre él): se emite antes una factura base de monto alto y se espera su autorización; todas las notas la modifican.
+emitir FBASE facturas "{\"empresa\":$EMP,$COMP,\"detalles\":[{\"codigoPrincipal\":\"BASE\",\"descripcion\":\"Factura base de las notas\",\"cantidad\":1,\"precioUnitario\":1000.00,\"impuestos\":[$IVA15]}]}"
+esperar 300
+SEC_BASE=$(grep '^FBASE|' "$RES" | cut -d'|' -f4)
+FECHA_BASE=$(date -u -d '-5 hours' +%d/%m/%Y)   # fecha de emisión en hora de Ecuador
+DOC="\"docModificadoTipo\":\"01\",\"docModificadoNumero\":\"001-001-$SEC_BASE\",\"docModificadoFecha\":\"$FECHA_BASE\""
 
 det() { echo "{\"codigoPrincipal\":\"$1\",\"descripcion\":\"$2\",\"cantidad\":$3,\"precioUnitario\":$4,\"impuestos\":[$5]$6}"; }
 

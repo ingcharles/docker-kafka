@@ -26,13 +26,12 @@ import com.facturacion.notificacion.application.dto.NotificacionEnviadaResponse;
 import com.facturacion.notificacion.application.event.ComprobanteEventMessage;
 import com.facturacion.notificacion.application.event.NotificacionResultadoEventMessage;
 import com.facturacion.notificacion.application.mapper.NotificacionEnviadaResponseMapper;
-import com.facturacion.notificacion.domain.model.entity.ConfiguracionEmpresaLocal;
 import com.facturacion.notificacion.domain.model.entity.NotificacionEnviada;
 import com.facturacion.notificacion.domain.model.enums.EstadoNotificacion;
+import com.facturacion.notificacion.domain.model.enums.TipoComprobanteCorreo;
 import com.facturacion.notificacion.domain.port.CorreoSalida;
 import com.facturacion.notificacion.domain.port.EventoSaliente;
 import com.facturacion.notificacion.domain.port.EventosSalientes;
-import com.facturacion.notificacion.domain.repository.ConfiguracionEmpresaLocalRepository;
 import com.facturacion.notificacion.domain.repository.NotificacionEnviadaRepository;
 import com.facturacion.notificacion.domain.service.ClaveAcceso;
 import com.facturacion.notificacion.domain.service.MotivoFalla;
@@ -50,30 +49,24 @@ import com.facturacion.notificacion.shared.error.NotificacionError;
 public class NotificacionService {
 
     private static final Logger LOG = Logger.getLogger(NotificacionService.class);
-    private static final String CLAVE_ASUNTO = "notificacion.asunto";
-    private static final String CLAVE_REMITENTE_NOMBRE = "notificacion.remitente_nombre";
 
     private final NotificacionEnviadaRepository notificacionRepository;
     private final CorreoSalida correoService;
-    private final ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository;
+    private final LectorAjustesCorreo lectorAjustes;
     private final EventosSalientes salientes;
     private final ObjectMapper objectMapper;
     private final NotificacionEnviadaResponseMapper mapper;
 
     @Inject
     public NotificacionService(NotificacionEnviadaRepository notificacionRepository, CorreoSalida correoService,
-            ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository,
+            LectorAjustesCorreo lectorAjustes,
             EventosSalientes salientes, ObjectMapper objectMapper, NotificacionEnviadaResponseMapper mapper) {
         this.notificacionRepository = notificacionRepository;
         this.correoService = correoService;
-        this.configuracionEmpresaLocalRepository = configuracionEmpresaLocalRepository;
+        this.lectorAjustes = lectorAjustes;
         this.salientes = salientes;
         this.objectMapper = objectMapper;
         this.mapper = mapper;
-    }
-
-    /** Ajustes opcionales por empresa (null = nunca se configuraron: {@link CorreoSalida} usa su comportamiento por defecto). */
-    private record AjustesCorreo(String asunto, String remitenteNombre) {
     }
 
     /**
@@ -86,10 +79,11 @@ public class NotificacionService {
     public Uni<String> enviarCorreo(ComprobanteEventMessage evento) {
         io.vertx.core.Context callingContext = Vertx.currentContext();
         byte[] ridePdf = Base64.getDecoder().decode(evento.ridePdfBase64());
-        return Panache.withSession(() -> leerAjustes(evento.empresaRuc()))
-            .onItem().transformToUni(ajustes -> correoService.enviarComprobante(evento.compradorCorreo(),
-                    evento.claveAcceso(), evento.tipoComprobante(), ridePdf, evento.xmlAutorizado(), ajustes.asunto(),
-                    ajustes.remitenteNombre())
+        TipoComprobanteCorreo tipo = TipoComprobanteCorreo.obtenerPorNombre(evento.tipoComprobante());
+        return Panache.withSession(() -> lectorAjustes.leer(evento.empresaRuc(), tipo, obtenerNombreDeLaEmpresa(evento)))
+            .onItem().transformToUni(ajustes -> correoService.enviarComprobante(new CorreoSalida.Comprobante(
+                    evento.compradorCorreo(), evento.claveAcceso(), evento.tipoComprobante(),
+                    evento.compradorRazonSocial(), evento.importeTotal(), ridePdf, evento.xmlAutorizado(), ajustes))
                 .onItem().transform(ignorado -> (String) null)
                 .onFailure().recoverWithItem(falla -> {
                     LogCodificado.error(LOG, falla, CodigoLog.CORREO_FALLIDO, "claveAcceso=" + evento.claveAcceso());
@@ -98,17 +92,10 @@ public class NotificacionService {
             .emitOn(runnable -> callingContext.runOnContext(ignored -> runnable.run()));
     }
 
-    /**
-     * Secuencial a propósito (no Uni.combine): dos consultas Hibernate Reactive concurrentes sobre la misma sesión
-     * rompen el procesamiento del result set ("Illegal pop() with non-matching JdbcValuesSourceProcessingState").
-     */
-    private Uni<AjustesCorreo> leerAjustes(String empresaRuc) {
-        return configuracionEmpresaLocalRepository.findByRucAndClave(empresaRuc, CLAVE_ASUNTO)
-            .onItem().transformToUni(configuracionAsunto -> configuracionEmpresaLocalRepository
-                .findByRucAndClave(empresaRuc, CLAVE_REMITENTE_NOMBRE)
-                .onItem().transform(configuracionRemitente -> new AjustesCorreo(
-                    configuracionAsunto == null ? null : configuracionAsunto.getValor(),
-                    configuracionRemitente == null ? null : configuracionRemitente.getValor())));
+    /** El nombre de la empresa para el texto del correo: su nombre comercial o, si no tiene, su razón social. */
+    private static String obtenerNombreDeLaEmpresa(ComprobanteEventMessage evento) {
+        String comercial = evento.empresaNombreComercial();
+        return comercial != null && !comercial.isBlank() ? comercial : evento.empresaRazonSocial();
     }
 
     /**

@@ -10,6 +10,7 @@ import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
@@ -40,6 +41,7 @@ import com.facturacion.comprobantes.application.dto.CrearNotaCreditoRequest;
 import com.facturacion.comprobantes.application.dto.CrearNotaDebitoRequest;
 import com.facturacion.comprobantes.application.dto.CrearRetencionRequest;
 import com.facturacion.comprobantes.application.dto.EmpresaRequest;
+import com.facturacion.comprobantes.application.dto.ResultadoEmision;
 import com.facturacion.comprobantes.application.service.ComprobanteConsultaService;
 import com.facturacion.comprobantes.application.service.ComprobanteService;
 import com.facturacion.comprobantes.application.service.ReenvioNotificacionService;
@@ -48,6 +50,7 @@ import com.facturacion.comprobantes.domain.model.entity.Comprobante;
 import com.facturacion.comprobantes.domain.model.enums.EstadoComprobante;
 import com.facturacion.comprobantes.domain.model.enums.FormatoTicket;
 import com.facturacion.comprobantes.domain.model.vo.AnchoTicket;
+import com.facturacion.comprobantes.shared.constant.ApiConstants;
 
 /**
  * Superficie de observabilidad y de creación:
@@ -64,6 +67,10 @@ public class ComprobanteResource {
 
     /** Parte de la cabecera Content-Disposition del ticket: nombre del archivo con la clave de acceso y la extensión. */
     private static final String NOMBRE_ARCHIVO = "; filename=\"ticket-%s%s\"";
+
+    private static final String DESCRIPCION_CLAVE = "Clave única por comprobante (8 a 128 caracteres: letras, números y . _ : -). "
+        + "Si reintentas la petición con la misma clave y el mismo cuerpo, recibes el comprobante ya creado (cabecera "
+        + "Idempotency-Replayed: true) en vez de uno nuevo; con otro cuerpo, 422.";
 
     private final ComprobanteService comprobanteService;
     private final ComprobanteConsultaService consultaService;
@@ -93,6 +100,19 @@ public class ComprobanteResource {
         tokenPrincipal.exigirAlcance(empresa.getRuc(), empresa.getEstablecimiento(), empresa.getPuntoEmision());
     }
 
+    /**
+     * Arma el 201 de una emisión con su {@code Location}. Si es la respuesta de una solicitud anterior con la misma clave de
+     * idempotencia, agrega la cabecera {@code Idempotency-Replayed: true}.
+     */
+    private Response armarRespuestaCreacion(ResultadoEmision resultado, UriInfo uriInfo) {
+        URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(resultado.comprobante().getId().toString())
+            .build();
+        Response respuesta = Respuestas.creado(location, resultado.comprobante());
+        return resultado.repetida()
+            ? Response.fromResponse(respuesta).header(ApiConstants.HEADER_EMISION_REPETIDA, Boolean.TRUE).build()
+            : respuesta;
+    }
+
     @POST
     @Path("/facturas")
     @Consumes(MediaType.APPLICATION_JSON)
@@ -100,14 +120,12 @@ public class ComprobanteResource {
     @APIResponse(responseCode = "201", description = "Factura creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
     @APIResponse(responseCode = "403", description = "La api-key no es del ruc de la empresa")
-    public Uni<Response> crearFactura(@Valid CrearFacturaRequest request, @Context UriInfo uriInfo) {
+    public Uni<Response> crearFactura(@Valid CrearFacturaRequest request,
+            @HeaderParam(ApiConstants.HEADER_CLAVE_IDEMPOTENCIA) @Parameter(description = DESCRIPCION_CLAVE) String claveIdempotencia,
+            @Context UriInfo uriInfo) {
         validarAlcance(request.getEmpresa());
-        return comprobanteService.crearFactura(request)
-            .map(response -> {
-                URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
-                    .build();
-                return Respuestas.creado(location, response);
-            });
+        return comprobanteService.crearFactura(request, claveIdempotencia)
+            .map(resultado -> armarRespuestaCreacion(resultado, uriInfo));
     }
 
     @POST
@@ -117,14 +135,12 @@ public class ComprobanteResource {
     @APIResponse(responseCode = "201", description = "Nota de crédito creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
     @APIResponse(responseCode = "403", description = "La api-key no es del ruc de la empresa")
-    public Uni<Response> crearNotaCredito(@Valid CrearNotaCreditoRequest request, @Context UriInfo uriInfo) {
+    public Uni<Response> crearNotaCredito(@Valid CrearNotaCreditoRequest request,
+            @HeaderParam(ApiConstants.HEADER_CLAVE_IDEMPOTENCIA) @Parameter(description = DESCRIPCION_CLAVE) String claveIdempotencia,
+            @Context UriInfo uriInfo) {
         validarAlcance(request.getEmpresa());
-        return comprobanteService.crearNotaCredito(request)
-            .map(response -> {
-                URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
-                    .build();
-                return Respuestas.creado(location, response);
-            });
+        return comprobanteService.crearNotaCredito(request, claveIdempotencia)
+            .map(resultado -> armarRespuestaCreacion(resultado, uriInfo));
     }
 
     @POST
@@ -134,14 +150,12 @@ public class ComprobanteResource {
     @APIResponse(responseCode = "201", description = "Nota de débito creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
     @APIResponse(responseCode = "403", description = "La api-key no es del ruc de la empresa")
-    public Uni<Response> crearNotaDebito(@Valid CrearNotaDebitoRequest request, @Context UriInfo uriInfo) {
+    public Uni<Response> crearNotaDebito(@Valid CrearNotaDebitoRequest request,
+            @HeaderParam(ApiConstants.HEADER_CLAVE_IDEMPOTENCIA) @Parameter(description = DESCRIPCION_CLAVE) String claveIdempotencia,
+            @Context UriInfo uriInfo) {
         validarAlcance(request.getEmpresa());
-        return comprobanteService.crearNotaDebito(request)
-            .map(response -> {
-                URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
-                    .build();
-                return Respuestas.creado(location, response);
-            });
+        return comprobanteService.crearNotaDebito(request, claveIdempotencia)
+            .map(resultado -> armarRespuestaCreacion(resultado, uriInfo));
     }
 
     @POST
@@ -151,14 +165,12 @@ public class ComprobanteResource {
     @APIResponse(responseCode = "201", description = "Guía de remisión creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
     @APIResponse(responseCode = "403", description = "La api-key no es del ruc de la empresa")
-    public Uni<Response> crearGuiaRemision(@Valid CrearGuiaRemisionRequest request, @Context UriInfo uriInfo) {
+    public Uni<Response> crearGuiaRemision(@Valid CrearGuiaRemisionRequest request,
+            @HeaderParam(ApiConstants.HEADER_CLAVE_IDEMPOTENCIA) @Parameter(description = DESCRIPCION_CLAVE) String claveIdempotencia,
+            @Context UriInfo uriInfo) {
         validarAlcance(request.getEmpresa());
-        return comprobanteService.crearGuiaRemision(request)
-            .map(response -> {
-                URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
-                    .build();
-                return Respuestas.creado(location, response);
-            });
+        return comprobanteService.crearGuiaRemision(request, claveIdempotencia)
+            .map(resultado -> armarRespuestaCreacion(resultado, uriInfo));
     }
 
     @POST
@@ -168,14 +180,12 @@ public class ComprobanteResource {
     @APIResponse(responseCode = "201", description = "Retención creada en estado BORRADOR")
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
     @APIResponse(responseCode = "403", description = "La api-key no es del ruc de la empresa")
-    public Uni<Response> crearRetencion(@Valid CrearRetencionRequest request, @Context UriInfo uriInfo) {
+    public Uni<Response> crearRetencion(@Valid CrearRetencionRequest request,
+            @HeaderParam(ApiConstants.HEADER_CLAVE_IDEMPOTENCIA) @Parameter(description = DESCRIPCION_CLAVE) String claveIdempotencia,
+            @Context UriInfo uriInfo) {
         validarAlcance(request.getEmpresa());
-        return comprobanteService.crearRetencion(request)
-            .map(response -> {
-                URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
-                    .build();
-                return Respuestas.creado(location, response);
-            });
+        return comprobanteService.crearRetencion(request, claveIdempotencia)
+            .map(resultado -> armarRespuestaCreacion(resultado, uriInfo));
     }
 
     @POST
@@ -186,14 +196,11 @@ public class ComprobanteResource {
     @APIResponse(responseCode = "400", description = "Solicitud inválida")
     @APIResponse(responseCode = "403", description = "La api-key no es del ruc de la empresa")
     public Uni<Response> crearLiquidacionCompra(@Valid CrearLiquidacionCompraRequest request,
+            @HeaderParam(ApiConstants.HEADER_CLAVE_IDEMPOTENCIA) @Parameter(description = DESCRIPCION_CLAVE) String claveIdempotencia,
             @Context UriInfo uriInfo) {
         validarAlcance(request.getEmpresa());
-        return comprobanteService.crearLiquidacionCompra(request)
-            .map(response -> {
-                URI location = uriInfo.getBaseUriBuilder().path("comprobantes").path(response.getId().toString())
-                    .build();
-                return Respuestas.creado(location, response);
-            });
+        return comprobanteService.crearLiquidacionCompra(request, claveIdempotencia)
+            .map(resultado -> armarRespuestaCreacion(resultado, uriInfo));
     }
 
     @GET

@@ -1,6 +1,8 @@
 package com.facturacion.comprobantes.infrastructure.persistence.repository;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,7 +11,9 @@ import java.util.stream.Collectors;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.persistence.LockModeType;
 
+import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.panache.common.Page;
 import io.smallrye.mutiny.Uni;
 
@@ -24,6 +28,12 @@ import com.facturacion.comprobantes.infrastructure.persistence.mapper.Comprobant
 
 @ApplicationScoped
 public class ComprobanteRepositoryImpl implements ComprobanteRepository {
+
+    private static final String CONSULTA_POR_NUMERO = "empresaRuc = ?1 and tipoComprobante = ?2 and establecimiento = ?3 "
+        + "and puntoEmision = ?4 and secuencial = ?5";
+    private static final String SUMA_NOTAS_CREDITO = "select sum(c.importeTotal) from ComprobanteEntity c "
+        + "where c.empresaRuc = :ruc and c.tipoComprobante = :tipo and c.docModificadoTipo = :docTipo "
+        + "and c.docModificadoNumero = :docNumero and c.estado in :estados";
 
     private final ComprobantePanacheRepository repository;
     private final SecuencialComprobantePanacheRepository secuencialRepository;
@@ -69,6 +79,30 @@ public class ComprobanteRepositoryImpl implements ComprobanteRepository {
         return repository.find("claveAcceso", claveAcceso)
             .<ComprobanteEntity>firstResult()
             .map(entity -> entity == null ? null : mapper.toDomain(entity));
+    }
+
+    @Override
+    public Uni<Comprobante> buscarParaModificar(String ruc, TipoComprobante tipo, String establecimiento,
+            String puntoEmision, String secuencial) {
+        return repository.find(CONSULTA_POR_NUMERO, ruc, tipo.name(), establecimiento, puntoEmision, secuencial)
+            .withLock(LockModeType.PESSIMISTIC_WRITE)
+            .<ComprobanteEntity>firstResult()
+            .map(entity -> entity == null ? null : mapper.toDomain(entity));
+    }
+
+    @Override
+    public Uni<BigDecimal> sumarNotasCreditoVigentes(String ruc, String docModificadoTipo, String docModificadoNumero) {
+        List<String> estadosVigentes = Arrays.stream(EstadoComprobante.values())
+            .filter(EstadoComprobante::cuentaComoEmitido).map(EstadoComprobante::name).collect(Collectors.toList());
+        return Panache.getSession()
+            .chain(sesion -> sesion.createQuery(SUMA_NOTAS_CREDITO, BigDecimal.class)
+                .setParameter("ruc", ruc)
+                .setParameter("tipo", TipoComprobante.NOTA_CREDITO.name())
+                .setParameter("docTipo", docModificadoTipo)
+                .setParameter("docNumero", docModificadoNumero)
+                .setParameter("estados", estadosVigentes)
+                .getSingleResult())
+            .map(suma -> suma == null ? BigDecimal.ZERO : suma);
     }
 
     @Override

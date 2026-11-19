@@ -99,7 +99,20 @@ public enum CodigoError implements ErrorCatalogo {
     XSD_ERROR_DE_ENTRADA_SALIDA("COMP-500-009", 500, "xsd.error_entrada_salida"),
     COMANDO_DESCONOCIDO("COMP-400-831", 400, "comando.desconocido"),
     GUIA_INICIO_TRANSPORTE_NO_ES_LA_EMISION("COMP-400-841", 400, "guia.inicio_transporte_no_es_la_emision"),
-    COMANDO_FUERA_DE_ORDEN("COMP-409-911", 409, "comando.fuera_de_orden");
+    COMANDO_FUERA_DE_ORDEN("COMP-409-911", 409, "comando.fuera_de_orden"),
+
+    // Idempotencia de la emisión (cabecera Idempotency-Key)
+    IDEMPOTENCIA_CLAVE_REQUERIDA("COMP-400-851", 400, "idempotencia.clave_requerida"),
+    IDEMPOTENCIA_CLAVE_INVALIDA("COMP-400-852", 400, "idempotencia.clave_invalida"),
+    IDEMPOTENCIA_CLAVE_REUTILIZADA("COMP-422-851", 422, "idempotencia.clave_reutilizada"),
+    IDEMPOTENCIA_EN_CURSO("COMP-409-921", 409, "idempotencia.en_curso"),
+
+    // Nota de crédito y de débito contra el documento que modifican
+    DOCUMENTO_MODIFICADO_NUMERO_INVALIDO("COMP-400-861", 400, "documento_modificado.numero_invalido"),
+    DOCUMENTO_MODIFICADO_FECHA_FUTURA("COMP-400-862", 400, "documento_modificado.fecha_futura"),
+    DOCUMENTO_MODIFICADO_NO_AUTORIZADO("COMP-400-863", 400, "documento_modificado.no_autorizado"),
+    DOCUMENTO_MODIFICADO_FECHA_NO_COINCIDE("COMP-400-864", 400, "documento_modificado.fecha_no_coincide"),
+    NC_EXCEDE_VALOR_DEL_DOCUMENTO("COMP-400-865", 400, "nc.excede_valor_del_documento");
 
     private final String codigo;
     private final int estadoHttp;

@@ -50,11 +50,9 @@ public class CrearGuiaRemisionRequest {
     private String placa;
 
     @NotEmpty
-    @Valid
-    private List<DestinatarioGuiaRemisionRequest> destinatarios;
+    private List<@Valid DestinatarioGuiaRemisionRequest> destinatarios;
 
-    @Valid
-    private List<CampoAdicionalRequest> campoAdicional = List.of();
+    private List<@Valid CampoAdicionalRequest> campoAdicional = List.of();
 
     public EmpresaRequest getEmpresa() {
         return empresa;

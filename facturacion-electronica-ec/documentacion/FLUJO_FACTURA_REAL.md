@@ -96,8 +96,11 @@ curl -s -X POST $INV/items -H "Authorization: Bearer $APIKEY" -H 'Content-Type: 
 Con `INVENTARIO_DESCUENTO_HABILITADO=false` (orquestador) la factura no reserva ni descuenta stock.
 
 ## 4. Emitir la factura
+
+Agrega siempre la cabecera `Idempotency-Key` con una clave única por comprobante (un UUID sirve): si la petición se corta y la repites con la misma clave y el mismo cuerpo, recibes la factura que ya se creó (`Idempotency-Replayed: true`) en vez de una segunda que gastaría otro secuencial. Con otro cuerpo y la misma clave, `422`. Detalle: `ARQUITECTURA.md`, 3.1.
+
 ```bash
-curl -s -X POST $COM/facturas -H "Authorization: Bearer $APIKEY" -H 'Content-Type: application/json' -d '{
+curl -s -X POST $COM/facturas -H "Authorization: Bearer $APIKEY" -H "Idempotency-Key: $(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen)" -H 'Content-Type: application/json' -d '{
   "empresa":{"ruc":"1722039953001","razonSocial":"ANCHUNDIA VALENCIA CARLOS EDUARDO","direccionMatriz":"LLANO CHICO",
             "ambiente":"PRUEBAS","establecimiento":"001","puntoEmision":"001"},
   "compradorTipoIdentificacion":"05","compradorIdentificacion":"1710034065","compradorRazonSocial":"Consumidor de Prueba",

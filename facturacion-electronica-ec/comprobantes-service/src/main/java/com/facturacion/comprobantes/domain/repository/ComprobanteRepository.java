@@ -1,5 +1,6 @@
 package com.facturacion.comprobantes.domain.repository;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 import io.smallrye.mutiny.Uni;
@@ -18,6 +19,16 @@ public interface ComprobanteRepository {
     Uni<Comprobante> findById(UUID id);
 
     Uni<Comprobante> findByClaveAcceso(String claveAcceso);
+
+    /**
+     * El comprobante de esa empresa con ese tipo y número, o {@code null}. Lo deja bloqueado hasta el final de la
+     * transacción para que dos notas de crédito sobre el mismo documento no se comprueben a la vez.
+     */
+    Uni<Comprobante> buscarParaModificar(String ruc, TipoComprobante tipo, String establecimiento, String puntoEmision,
+            String secuencial);
+
+    /** Suma del importe de las notas de crédito vigentes (no falladas ni rechazadas) emitidas sobre un documento. */
+    Uni<BigDecimal> sumarNotasCreditoVigentes(String ruc, String docModificadoTipo, String docModificadoNumero);
 
     Uni<PageResult<Comprobante>> findPaged(int page, int limit, EstadoComprobante estado, String empresaRuc);
 

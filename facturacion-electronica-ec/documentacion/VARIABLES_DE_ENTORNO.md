@@ -27,6 +27,12 @@ Una variable de entorno es un valor que se le pasa a un programa desde afuera, s
 | `INVENTARIO_DESCUENTO_HABILITADO` | `true` | La saga reserva y descuenta stock de inventario en las facturas con ítems de inventario. |
 | `SAGA_WATCHDOG_HABILITADO` | `true` | El orquestador reintenta o expira las sagas que esperan una respuesta. |
 | `SAGA_REENVIO_NOTIFICACIONES_HABILITADO` | `false` | Reenvío automático de correos fallidos (envía correos solo). |
+| `PGBOUNCER_HABILITADO` | `false` | PgBouncer entre los servicios y Postgres (`../postgres/compose.sh` lo levanta y `scripts/compose.sh` apunta los servicios a él). |
+| `REPLICACION_HABILITADA` | `false` | Réplica de solo lectura de Postgres (necesita `REPLICACION_DB_PASSWORD`). |
+| `RESPALDO_HABILITADO` | `false` | Respaldo continuo de Postgres con pgBackRest: WAL archivado, completo semanal y diferencial diario; restaura a un instante exacto. |
+| `RESPALDO_ALMACEN_LOCAL_HABILITADO` | `true` (desarrollo y pruebas), `false` (producción) | Levanta un almacén S3 propio (SeaweedFS) para los respaldos; solo desarrollo y pruebas. |
+| `ALERTAS_CORREO_HABILITADO` | `false` | Alertmanager envía las alertas por correo (necesita la observabilidad activa y las `ALERTAS_*` de la sección 8). |
+| `COMPROBANTES_IDEMPOTENCIA_OBLIGATORIA` | `false` | Si es `true`, toda emisión debe traer la cabecera `Idempotency-Key` (sin ella, `400`). |
 | `COMPOSE_PROFILES` | vacío | Perfiles de Compose a activar (p. ej. `tres-nodos` en el Kafka de producción). Con `scripts/compose.sh` no hace falta: las banderas de arriba los activan. |
 
 ## 2. Secretos (obligatorios, sin valor por defecto; van en `env/<ambiente>.secretos.env`)
@@ -42,13 +48,17 @@ Una variable de entorno es un valor que se le pasa a un programa desde afuera, s
 | `CATALOGOS_ADMIN_TOKEN` | Token para modificar catálogos (`PUT /catalogos/...`). Vacío = escritura deshabilitada (403). |
 | `GRAFANA_ADMIN_PASSWORD` | Clave del administrador de Grafana (con la observabilidad activa). |
 | `OBSERVABILIDAD_DB_PASSWORD` | Clave del rol `observabilidad` de Postgres (solo lectura; `observabilidad/crear-rol-monitoreo.sql`). |
+| `REPLICACION_DB_PASSWORD` | Clave del usuario `replicador` (con `REPLICACION_HABILITADA=true`). |
+| `RESPALDO_CIFRADO_CLAVE` | Clave AES-256 con la que pgBackRest cifra los respaldos. **Sin ella no se restaura**: guárdala también fuera del servidor. |
+| `RESPALDO_S3_ACCESS_KEY`, `RESPALDO_S3_SECRET_KEY` | Claves de acceso al S3 de los respaldos (en desarrollo y pruebas, las del almacén propio). |
+| `ALERTAS_SMTP_PASSWORD` | Clave de la cuenta SMTP de las alertas (si el servidor pide autenticación). |
 
 ## 3. Generales (Compose)
 
 | Variable | Por defecto | Qué hace |
 |---|---|---|
 | `POSTGRES_DB` | `facturacion` | Nombre de la base de datos. |
-| `POSTGRES_USER` / `POSTGRES_PORT` | `postgres` / `5434` (desarrollo) | Solo documentan el acceso desde el host (psql, DBeaver). |
+| `POSTGRES_USER` / `POSTGRES_PORT` | `postgres` / `5436` (desarrollo), `5435` (pruebas) | Solo documentan el acceso desde el host (psql, DBeaver). |
 | `DB_HOST` | `facturacion-db` | Nombre del servidor Postgres dentro de la red de Docker. En producción, el host real. |
 | `CORS_ORIGINS` | `http://localhost:3000,http://localhost:5173` | Orígenes del frontend permitidos (sin comodín). En producción es obligatorio un dominio real con https. |
 | `FIRMA_SERVICE_PORT` … `IDENTIDAD_SERVICE_PORT` | `8091` firma, `8092` inventario, `8093` comprobantes, `8094` SRI, `8095` notificación, `8096` orquestador, `8097` identidad | Puerto del host de cada API. |
@@ -93,6 +103,8 @@ Se pasan a **todos** los servicios.
 | `DB_LOCK_TIMEOUT` | `10s` | Esperar un bloqueo (p. ej. el secuencial) más que esto falla con `503`. |
 | `DB_IDLE_EN_TRANSACCION_TIMEOUT` | `60s` | Una transacción abierta e inactiva se cierra. |
 | `SHUTDOWN_TIMEOUT` | `PT30S` | Al apagar, se esperan las peticiones en curso hasta este plazo (Compose espera 45 s: `stop_grace_period`). |
+| `JVM_MAX_RAM_PORCENTAJE` | `70` | Porcentaje de la memoria del contenedor que puede usar el heap de la JVM. |
+| `JVM_OPCIONES_EXTRA` | vacío | Opciones adicionales de la JVM (p. ej. `-XX:+UseZGC`). |
 
 Productores de Kafka (todos menos identidad):
 
@@ -115,6 +127,7 @@ Productores de Kafka (todos menos identidad):
 | sri-conector | `SRI_TIMEOUT_CONEXION` / `SRI_TIMEOUT_RESPUESTA` | `PT10S` / `PT30S` | Plazos de conexión y respuesta del SRI. |
 | sri-conector | `SRI_URL_HOSTS_PERMITIDOS` | `*.sri.gob.ec` | Dominios a los que se puede llamar (un override por empresa fuera de la lista se ignora). |
 | notificacion | `CORREO_TIMEOUT` | `PT30S` | Plazo del envío por SMTP. |
+| notificacion | `PLANTILLA_CORREO_CACHE_TTL` / `PLANTILLA_CORREO_CACHE_MAXIMO` | `60S` / `2000` | Cuánto se guarda en memoria la plantilla de correo de cada empresa y cuántas se guardan. |
 | orquestador | `SAGA_WATCHDOG_INTERVALO` | `30s` | Cada cuánto revisa las sagas. |
 | orquestador | `SAGA_WATCHDOG_MAX_REINTENTOS` | `3` | Reintentos antes de pasar a `EXPIRADA`. |
 | orquestador | `SAGA_WATCHDOG_PLAZO_FIRMA` / `SAGA_WATCHDOG_PLAZO_SRI` | `PT2M` / `PT15M` | Cuánto espera la firma y el SRI antes de reintentar. |
@@ -128,7 +141,7 @@ Los plazos usan formato ISO-8601 (`PT30S` = 30 segundos, `PT2M` = 2 minutos) o `
 
 ## 7. Conexión a la base de datos (por servicio)
 
-Compose arma la URL a partir de `DB_HOST` y `POSTGRES_DB`; el usuario sale del servicio y no se pasa desde Compose (se llama como su rol).
+Compose arma la URL a partir de `DB_HOST` y `POSTGRES_DB` (la reactiva usa `DB_POOL_HOST`/`DB_POOL_PORT` cuando `PGBOUNCER_HABILITADO=true`; la JDBC de Flyway siempre va directa); el usuario sale del servicio y no se pasa desde Compose (se llama como su rol).
 
 | Servicio | Usuario (por defecto) | URLs |
 |---|---|---|
@@ -150,3 +163,57 @@ Con `mvn quarkus:dev` (sin Docker) las URLs por defecto apuntan a `localhost:543
 | `PROMETHEUS_PORT` / `ALERTMANAGER_PORT` / `GRAFANA_PORT` | `9090` / `9093` / `3001` | Puertos del host. |
 | `PROMETHEUS_RETENCION` | `15d` | Cuánto conserva Prometheus las métricas. |
 | `GRAFANA_ADMIN_USER` | `admin` | Usuario administrador de Grafana. |
+| `ALERTAS_CORREO_DESTINATARIOS` | vacío | Correos que reciben las alertas, separados por coma (obligatorio con `ALERTAS_CORREO_HABILITADO=true`). |
+| `ALERTAS_CORREO_REMITENTE` | vacío | Remitente de las alertas (obligatorio con la bandera). |
+| `ALERTAS_SMTP_HOST` | `smtp.gmail.com:587` | Servidor SMTP `host:puerto`. |
+| `ALERTAS_SMTP_USUARIO` | vacío | Usuario SMTP (vacío si el servidor no pide autenticación). |
+| `ALERTAS_SMTP_REQUIERE_TLS` | `true` | `false` solo para un servidor de pruebas sin TLS. |
+
+## 9. Contenedores de los servicios (límites y endurecimiento)
+
+Se aplican a los 7 microservicios (`x-contenedor` y `x-jvm` en `docker-compose.yml`). Además cada contenedor corre con sistema de archivos de solo lectura (`/tmp` aparte), sin capacidades de Linux (`cap_drop: ALL`), sin poder escalar privilegios (`no-new-privileges`), con `init` (recoge procesos zombi) y rotación de logs.
+
+| Variable | Por defecto | Qué hace |
+|---|---|---|
+| `CONTENEDOR_MEMORIA` | `1g` | Memoria máxima de cada servicio; al pasarla Docker lo reinicia en vez de dejar que se coma al servidor. |
+| `CONTENEDOR_CPUS` | `2.0` | CPU máxima de cada servicio. |
+| `CONTENEDOR_PIDS` | `512` | Procesos/hilos máximos (corta una fuga de hilos). |
+| `LOG_ROTACION_TAMANO` / `LOG_ROTACION_ARCHIVOS` | `10m` / `5` | Rotación del log de Docker de cada contenedor (50 MB máximo por servicio). |
+| `JVM_MAX_RAM_PORCENTAJE` | `70` | Ver sección 5. |
+
+Dimensionar: con `CONTENEDOR_MEMORIA=1g` y `JVM_MAX_RAM_PORCENTAJE=70` el heap llega a ~700 MB; el resto es memoria fuera del heap (hilos, buffers, metaspace). En producción mide con Grafana (tablero Servicios, memoria) y ajusta por servicio con `docker-compose.override.yml`.
+
+## 10. Postgres: pooler, réplica y respaldo (stack `../postgres`)
+
+Todas viven en `env/<ambiente>.env` (o en el archivo de secretos las claves) y las lee `../postgres/compose.sh`. Guía completa: `../postgres/README.md`.
+
+| Variable | Por defecto | Qué hace |
+|---|---|---|
+| `DB_MAX_CONEXIONES` | `200` | `max_connections` de Postgres (la réplica debe tener al menos el mismo). |
+| `PGBOUNCER_POOL_POR_ROL` | `10` | Conexiones reales a Postgres por servicio. |
+| `PGBOUNCER_MAX_CONEXIONES_BD` | `100` | Conexiones reales totales de PgBouncer a Postgres. |
+| `PGBOUNCER_POOL_RESERVA` | `3` | Conexiones extra por servicio si hay espera. |
+| `PGBOUNCER_MAX_CLIENTES` | `1000` | Conexiones de los servicios que PgBouncer acepta. |
+| `PGBOUNCER_ESPERA_MAXIMA` | `30` | Segundos que espera un cliente una conexión antes de fallar. |
+| `PGBOUNCER_SENTENCIAS_PREPARADAS` | `200` | Sentencias preparadas por conexión que PgBouncer rastrea. |
+| `PGBOUNCER_MEMORIA` | `128m` | Límite de memoria del contenedor. |
+| `REPLICA_PORT` | `5437` | Puerto del host de la réplica. |
+| `REPLICACION_MAX_WAL_RETENIDO` | `10GB` | WAL máximo que el primario guarda para una réplica caída. |
+| `RESPALDO_REPO` | `posix` (en los env de ambiente: `s3`) | Dónde guarda pgBackRest: `posix` (volumen) o `s3`. |
+| `RESPALDO_S3_ENDPOINT` | `<DB_HOST>-almacen:9000` | Servidor S3 `host:puerto` (en producción, el de tu proveedor). |
+| `RESPALDO_S3_BUCKET` / `RESPALDO_S3_REGION` / `RESPALDO_S3_RUTA` | `respaldos-facturacion` / `us-east-1` / `/pgbackrest` | Bucket, región y carpeta dentro del bucket. |
+| `RESPALDO_S3_ESTILO_URI` | `path` | `path` (almacén propio, MinIO, Ceph) o `host` (AWS S3). |
+| `RESPALDO_S3_VERIFICAR_TLS` | `y` (`n` en desarrollo) | Verifica el certificado del S3; `n` solo con el almacén propio autofirmado. |
+| `RESPALDO_RETENCION_COMPLETOS` / `RESPALDO_RETENCION_DIFERENCIALES` | `4` / `7` | Respaldos completos y diferenciales que se conservan. |
+| `RESPALDO_CRON_COMPLETO` / `RESPALDO_CRON_DIFERENCIAL` | `0 2 * * 0` / `0 2 * * 1-6` | Cuándo corren (formato cron, en `RESPALDO_ZONA_HORARIA`). |
+| `RESPALDO_ZONA_HORARIA` | `America/Guayaquil` | Zona horaria de esas horas. |
+| `RESPALDO_ARCHIVE_TIMEOUT` | `60` | Segundos máximos entre dos archivados de WAL (pérdida máxima de datos si el disco muere). |
+| `RESPALDO_PROCESOS` | `2` | Procesos paralelos de pgBackRest. |
+
+## 11. Idempotencia de la emisión (comprobantes)
+
+| Variable | Por defecto | Qué hace |
+|---|---|---|
+| `COMPROBANTES_IDEMPOTENCIA_OBLIGATORIA` | `false` | Ver sección 1. |
+| `COMPROBANTES_IDEMPOTENCIA_RETENCION` | `P7D` | Cuánto tiempo una clave `Idempotency-Key` devuelve el mismo comprobante; pasado ese plazo se purga y la misma clave emitiría uno nuevo. |
+| `COMPROBANTES_IDEMPOTENCIA_PURGA_CADA` | `1h` | Cada cuánto se borran las claves vencidas. |

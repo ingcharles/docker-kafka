@@ -1,0 +1,4 @@
+{#include correo/base.txt}
+{#intro}Se emitió a su nombre un comprobante electrónico, ya autorizado por el SRI.
+{/intro}
+{/include}

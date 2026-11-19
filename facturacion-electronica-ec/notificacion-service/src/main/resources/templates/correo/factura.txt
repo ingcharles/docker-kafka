@@ -1,0 +1,4 @@
+{#include correo/base.txt}
+{#intro}Se emitió a su nombre una factura electrónica, ya autorizada por el SRI. Sus datos están abajo.
+{/intro}
+{/include}

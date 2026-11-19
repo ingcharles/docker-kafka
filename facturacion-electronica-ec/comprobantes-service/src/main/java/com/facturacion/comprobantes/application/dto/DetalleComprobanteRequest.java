@@ -46,16 +46,14 @@ public class DetalleComprobanteRequest {
      * llamador que no usa inventario-service (o que necesita un impuesto
      * puntual distinto al del catálogo) siempre puede seguir mandándolo a mano.
      */
-    @Valid
-    private List<ImpuestoRequest> impuestos;
+    private List<@Valid ImpuestoRequest> impuestos;
 
     /**
      * Detalles adicionales de la línea ({@code <detAdicional nombre valor/>} del XML; la columna "Detalles Adicionales" del
      * RIDE), hasta 3. Si el ítem tiene unidad de medida y no se manda un detalle "Medida", se agrega solo.
      */
-    @Valid
     @Size(max = 3, message = "una línea admite como máximo 3 detalles adicionales")
-    private List<CampoAdicionalRequest> detallesAdicionales;
+    private List<@Valid CampoAdicionalRequest> detallesAdicionales;
 
     public List<CampoAdicionalRequest> getDetallesAdicionales() {
         return detallesAdicionales;

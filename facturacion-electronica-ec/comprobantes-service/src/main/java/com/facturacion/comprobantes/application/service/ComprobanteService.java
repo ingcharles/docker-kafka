@@ -20,6 +20,7 @@ import com.facturacion.comprobantes.application.dto.CrearNotaCreditoRequest;
 import com.facturacion.comprobantes.application.dto.CrearNotaDebitoRequest;
 import com.facturacion.comprobantes.application.dto.CrearRetencionRequest;
 import com.facturacion.comprobantes.application.dto.EmpresaRequest;
+import com.facturacion.comprobantes.application.dto.ResultadoEmision;
 import com.facturacion.comprobantes.application.mapper.ComprobanteResponseMapper;
 import com.facturacion.comprobantes.application.service.construccion.ConstructorFactura;
 import com.facturacion.comprobantes.application.service.construccion.ConstructorGuiaRemision;
@@ -66,6 +67,7 @@ public class ComprobanteService {
     private final ComprobanteResponseMapper mapper;
     private final EventosSalientes salientes;
     private final EventosComprobante eventos;
+    private final EmisionIdempotente emisionIdempotente;
     private final ConstructorFactura constructorFactura;
     private final ConstructorNotaCredito constructorNotaCredito;
     private final ConstructorNotaDebito constructorNotaDebito;
@@ -80,7 +82,7 @@ public class ComprobanteService {
             ConfiguracionEmpresaLocalRepository configuracionEmpresaLocalRepository,
             GeneradorXml xmlResolver, ValidadorXml xsdValidador,
             CatalogoSriRepository catalogoSriRepository, ComprobanteResponseMapper mapper,
-            EventosSalientes salientes, EventosComprobante eventos,
+            EventosSalientes salientes, EventosComprobante eventos, EmisionIdempotente emisionIdempotente,
             ConstructorFactura constructorFactura, ConstructorNotaCredito constructorNotaCredito,
             ConstructorNotaDebito constructorNotaDebito, ConstructorGuiaRemision constructorGuiaRemision,
             ConstructorRetencion constructorRetencion, ConstructorLiquidacionCompra constructorLiquidacionCompra) {
@@ -94,6 +96,7 @@ public class ComprobanteService {
         this.mapper = mapper;
         this.salientes = salientes;
         this.eventos = eventos;
+        this.emisionIdempotente = emisionIdempotente;
         this.constructorFactura = constructorFactura;
         this.constructorNotaCredito = constructorNotaCredito;
         this.constructorNotaDebito = constructorNotaDebito;
@@ -103,39 +106,46 @@ public class ComprobanteService {
     }
 
     @WithTransaction
-    public Uni<ComprobanteResponse> crearFactura(@Valid CrearFacturaRequest request) {
-        return emitir(request.getEmpresa(), TipoComprobante.FACTURA,
+    public Uni<ResultadoEmision> crearFactura(@Valid CrearFacturaRequest request, String claveIdempotencia) {
+        return emitirUnaVez(request.getEmpresa(), request, TipoComprobante.FACTURA, claveIdempotencia,
             (secuencial, catalogos) -> constructorFactura.construir(request, secuencial, catalogos));
     }
 
     @WithTransaction
-    public Uni<ComprobanteResponse> crearNotaCredito(@Valid CrearNotaCreditoRequest request) {
-        return emitir(request.getEmpresa(), TipoComprobante.NOTA_CREDITO,
+    public Uni<ResultadoEmision> crearNotaCredito(@Valid CrearNotaCreditoRequest request, String claveIdempotencia) {
+        return emitirUnaVez(request.getEmpresa(), request, TipoComprobante.NOTA_CREDITO, claveIdempotencia,
             (secuencial, catalogos) -> constructorNotaCredito.construir(request, secuencial, catalogos));
     }
 
     @WithTransaction
-    public Uni<ComprobanteResponse> crearNotaDebito(@Valid CrearNotaDebitoRequest request) {
-        return emitir(request.getEmpresa(), TipoComprobante.NOTA_DEBITO,
+    public Uni<ResultadoEmision> crearNotaDebito(@Valid CrearNotaDebitoRequest request, String claveIdempotencia) {
+        return emitirUnaVez(request.getEmpresa(), request, TipoComprobante.NOTA_DEBITO, claveIdempotencia,
             (secuencial, catalogos) -> constructorNotaDebito.construir(request, secuencial, catalogos));
     }
 
     @WithTransaction
-    public Uni<ComprobanteResponse> crearGuiaRemision(@Valid CrearGuiaRemisionRequest request) {
-        return emitir(request.getEmpresa(), TipoComprobante.GUIA_REMISION,
+    public Uni<ResultadoEmision> crearGuiaRemision(@Valid CrearGuiaRemisionRequest request, String claveIdempotencia) {
+        return emitirUnaVez(request.getEmpresa(), request, TipoComprobante.GUIA_REMISION, claveIdempotencia,
             (secuencial, catalogos) -> constructorGuiaRemision.construir(request, secuencial, catalogos));
     }
 
     @WithTransaction
-    public Uni<ComprobanteResponse> crearRetencion(@Valid CrearRetencionRequest request) {
-        return emitir(request.getEmpresa(), TipoComprobante.RETENCION,
+    public Uni<ResultadoEmision> crearRetencion(@Valid CrearRetencionRequest request, String claveIdempotencia) {
+        return emitirUnaVez(request.getEmpresa(), request, TipoComprobante.RETENCION, claveIdempotencia,
             (secuencial, catalogos) -> constructorRetencion.construir(request, secuencial, catalogos));
     }
 
     @WithTransaction
-    public Uni<ComprobanteResponse> crearLiquidacionCompra(@Valid CrearLiquidacionCompraRequest request) {
-        return emitir(request.getEmpresa(), TipoComprobante.LIQUIDACION_COMPRA,
+    public Uni<ResultadoEmision> crearLiquidacionCompra(@Valid CrearLiquidacionCompraRequest request, String claveIdempotencia) {
+        return emitirUnaVez(request.getEmpresa(), request, TipoComprobante.LIQUIDACION_COMPRA, claveIdempotencia,
             (secuencial, catalogos) -> constructorLiquidacionCompra.construir(request, secuencial, catalogos));
+    }
+
+    /** Emite el comprobante una sola vez por clave de idempotencia (ver {@link EmisionIdempotente}); sin clave, emite siempre. */
+    private Uni<ResultadoEmision> emitirUnaVez(EmpresaRequest empresa, Object solicitud, TipoComprobante tipo,
+            String claveIdempotencia, BiFunction<Long, CatalogosSriAFecha, Uni<Comprobante>> constructor) {
+        return emisionIdempotente.ejecutar(empresa.getRuc(), claveIdempotencia, tipo, solicitud,
+            () -> emitir(empresa, tipo, constructor));
     }
 
     /** Lo que necesita el constructor de cada tipo de comprobante además del request. */

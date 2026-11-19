@@ -43,7 +43,7 @@ los datos (volúmenes de Docker).
 
 Recursos recomendados: 8 GB de RAM libres para Docker (16 GB con la observabilidad y el clúster de
 Kafka de 3 nodos), 15 GB de disco, y estos puertos libres en la máquina:
-  5434 Postgres (5435 el de pruebas) · 9094 Kafka (9095 y 9096 en el clúster) · 8080 Kafka UI
+  5436 Postgres (5435 el de pruebas, 5437 su réplica) · 9094 Kafka (9095 y 9096 en el clúster) · 8080 Kafka UI
   8091-8097 los servicios · 3001 Grafana · 9090 Prometheus · 9093 Alertmanager (solo con observabilidad)
 
 
@@ -82,10 +82,9 @@ Reemplaza <amb> por desarrollo o pruebas. Todo desde Git Bash.
 
   PASO 3. Postgres  (usa los mismos archivos de ambiente: las contraseñas no se duplican)
       cd ../postgres
-      desarrollo: docker compose --env-file ../facturacion-electronica-ec/env/desarrollo.env \
-                    --env-file ../facturacion-electronica-ec/env/desarrollo.secretos.env up -d --build
-      pruebas:    docker compose -p facturacion-pruebas --env-file ../facturacion-electronica-ec/env/pruebas.env \
-                    --env-file ../facturacion-electronica-ec/env/pruebas.secretos.env up -d --build
+      ./compose.sh desarrollo up -d --build     (o pruebas / produccion)
+      (usa env/<ambiente>.env y .secretos.env de los servicios; traduce las banderas PGBOUNCER_HABILITADO,
+       REPLICACION_HABILITADA y RESPALDO_* a los contenedores opcionales: PgBouncer, réplica y respaldo)
       (crea la red "facturacion_net", el esquema y el rol de cada servicio; las tablas las crea
        Flyway solo, cuando cada servicio arranca)
 
@@ -128,6 +127,20 @@ Reemplaza <amb> por desarrollo o pruebas. Todo desde Git Bash.
   GRAFANA_ADMIN_PASSWORD y OBSERVABILIDAD_DB_PASSWORD al archivo de secretos, crea el rol de solo lectura de Postgres
   (observabilidad/crear-rol-monitoreo.sql) y vuelve a correr ./scripts/compose.sh <amb> up -d.
   Grafana: http://localhost:3001. Guía completa: observabilidad/README.md.
+  Alertas por correo: ALERTAS_CORREO_HABILITADO=true, destinatarios, remitente y SMTP en env/<amb>.env y
+  ALERTAS_SMTP_PASSWORD en secretos (observabilidad/README.md, "Alertas por correo").
+
+
+5b. POSTGRES: POOLER, RÉPLICA Y RESPALDO (OPCIONALES)
+-----------------------------------------------------------------------------------------------------
+  PGBOUNCER_HABILITADO=true       pooler de conexiones (Postgres atiende pocas aunque los servicios abran 140)
+  REPLICACION_HABILITADA=true     réplica de solo lectura (+ REPLICACION_DB_PASSWORD en secretos)
+  RESPALDO_HABILITADO=true        respaldo continuo con pgBackRest, restaurable a un instante exacto
+                                  (+ RESPALDO_CIFRADO_CLAVE y RESPALDO_S3_* en secretos; GUARDA la clave de cifrado fuera
+                                  del servidor). En desarrollo y pruebas RESPALDO_ALMACEN_LOCAL_HABILITADO=true levanta
+                                  un S3 propio; en producción usa un bucket S3 de tu proveedor.
+  Después de configurar, ensaya: ./compose.sh <amb> up -d --build  y  ./scripts/probar-restauracion.sh <amb>
+  (en ../postgres). Guía: postgres/README.md.
 
 
 6. PRODUCCIÓN (DIFERENCIAS)

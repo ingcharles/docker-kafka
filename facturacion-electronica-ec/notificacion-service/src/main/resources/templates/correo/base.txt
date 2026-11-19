@@ -1,0 +1,17 @@
+{tipoComprobante}
+Documento electrónico autorizado por el SRI
+
+{#if nombreReceptor}Estimado(a) {nombreReceptor},{#else}Estimado(a) cliente,{/if}
+
+{#insert intro /}
+
+{#if numero}Número: {numero}
+{/if}{#if fechaEmision}Fecha de emisión: {fechaEmision}
+{/if}{#if total}Total: USD {total}
+{/if}{#if rucEmisor}RUC del emisor: {rucEmisor}
+{/if}Clave de acceso: {claveAcceso}
+
+Adjuntamos la representación impresa (RIDE, en PDF) y el XML autorizado. El XML es el documento con validez tributaria: consérvelo. También puede consultar el comprobante en el portal SRI en Línea con la clave de acceso.
+
+--
+{#if nombreEmisor}Enviado por {nombreEmisor}. {/if}Este mensaje se generó automáticamente: no responda a este correo.

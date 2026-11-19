@@ -1,5 +1,6 @@
 package com.facturacion.comprobantes.application.event;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -25,6 +26,9 @@ public record ComprobanteAutorizadoEventMessage(
     String tipoComprobante,
     String compradorCorreo,
     String compradorRazonSocial,
+    String empresaRazonSocial,
+    String empresaNombreComercial,
+    BigDecimal importeTotal,
     String ridePdfBase64,
     String xmlAutorizado,
     Instant occurredAt) {

@@ -11,6 +11,8 @@ public enum CodigoLog implements MensajeCatalogo {
 
     COMANDO_DUPLICADO_DESCARTADO("COMP-201", "log.comando_duplicado_descartado"),
     COMANDO_APLICADO("COMP-202", "log.comando_aplicado"),
+    EMISION_REPETIDA_DEVUELTA("COMP-203", "log.emision_repetida_devuelta"),
+    IDEMPOTENCIA_PURGADA("COMP-204", "log.idempotencia_purgada"),
     COMANDO_IGNORADO("COMP-301", "log.comando_ignorado"),
     REENVIO_NO_APLICA("COMP-302", "log.reenvio_no_aplica"),
     LOGO_NO_VALIDO("COMP-303", "log.logo_no_valido"),

@@ -1,0 +1,4 @@
+{#include correo/base.txt}
+{#intro}Se emitió una guía de remisión electrónica, ya autorizada por el SRI. Respalda el traslado de la mercadería indicado en el documento.
+{/intro}
+{/include}

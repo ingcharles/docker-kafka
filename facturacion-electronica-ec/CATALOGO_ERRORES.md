@@ -88,6 +88,15 @@ Toda respuesta de error de los microservicios tiene el mismo cuerpo (`ApiErrorRe
 | `COMP-409-901` | 409 | El comprobante está {0}: solo se reenvía el correo de un comprobante autorizado por el SRI y con RIDE |
 | `COMP-409-902` | 409 | El comprobante no tiene correo del receptor al cual reenviarlo |
 | `COMP-409-911` | 409 | Comando {0} fuera de orden: el comprobante {1} está {2} y no puede pasar a {3} sin aplicar antes los pasos intermedios |
+| `COMP-400-851` | 400 | Falta la cabecera {0}: manda una clave única por cada comprobante que quieres emitir, para poder reintentar sin duplicarlo |
+| `COMP-400-852` | 400 | La cabecera {0} debe tener entre {1} y {2} caracteres (letras, números y . _ : -) |
+| `COMP-422-851` | 422 | La clave de idempotencia ya se usó con una solicitud distinta; usa una clave nueva para un comprobante nuevo |
+| `COMP-409-921` | 409 | La solicitud con esa clave de idempotencia sigue en curso; reintenta en unos segundos |
+| `COMP-400-861` | 400 | docModificadoNumero '{0}' no tiene el formato 001-001-000000001 (establecimiento, punto de emisión y secuencial de 9 dígitos) |
+| `COMP-400-862` | 400 | docModificadoFecha ({0}) no puede ser posterior a hoy ({1}) |
+| `COMP-400-863` | 400 | El documento que modifica ({0}) está {1}: solo se puede modificar un comprobante autorizado por el SRI |
+| `COMP-400-864` | 400 | docModificadoFecha ({0}) no coincide con la fecha de emisión del documento {1}, que es {2} |
+| `COMP-400-865` | 400 | La nota de crédito por {0}, sumada a las ya emitidas sobre el documento {1} ({2}), supera el valor del documento ({3}) |
 | `COMP-404-001` | 404 | Comprobante no encontrado: {0} |
 | `COMP-404-701` | 404 | No existe el catálogo '{0}'. Disponibles: {1}. |
 | `COMP-500-001` | 500 | No se pudo serializar los campos adicionales del comprobante |
@@ -189,7 +198,14 @@ Toda respuesta de error de los microservicios tiene el mismo cuerpo (`ApiErrorRe
 
 | Código | HTTP | Mensaje (`{n}` = parámetro) |
 |---|---|---|
+| `NOT-400-001` | 400 | El tipo de comprobante {0} no tiene plantilla de correo; usa uno de: {1} |
+| `NOT-400-002` | 400 | La variable {0} no existe; las permitidas son: {1} |
+| `NOT-400-003` | 400 | La variable {0} está dentro de una etiqueta HTML: las variables solo pueden ir en el texto del correo, no en atributos como href o src |
+| `NOT-400-004` | 400 | El asunto debe ir en una sola línea |
+| `NOT-400-005` | 400 | La variable {0} no se puede usar en el asunto: es una imagen |
+| `NOT-400-006` | 400 | El cuerpo HTML queda vacío después de quitar lo que no se permite (scripts, formularios, marcos, estilos y direcciones peligrosas) |
 | `NOT-404-001` | 404 | No hay ninguna notificación para el comprobante {0} |
+| `NOT-404-002` | 404 | La empresa no tiene una plantilla de correo propia para {0}: el correo sale con la plantilla por defecto |
 
 ## sri-conector-service — `SRI`
 
@@ -248,6 +264,8 @@ Todo log del código propio lleva un código estable: `[FIR-401] texto (comproba
 |---|---|---|
 | `COMP-201` | INFO | Se descarta el comando {0}: ya se procesó antes |
 | `COMP-202` | INFO | Comando {0} ({1}): {2} |
+| `COMP-203` | INFO | Se devolvió el comprobante ya emitido por una solicitud repetida (clave de idempotencia) |
+| `COMP-204` | INFO | Se purgaron las claves de idempotencia vencidas |
 | `COMP-301` | WARN | Se ignora el comando {0} ({1}): no se puede pasar de {2} a {3} |
 | `COMP-302` | WARN | No se reenvía la notificación: {0} |
 | `COMP-303` | WARN | El ajuste ride.logo no es base64 válido; el RIDE sale sin logo |
@@ -278,7 +296,11 @@ Todo log del código propio lleva un código estable: `[FIR-401] texto (comproba
 | Código | Nivel | Texto |
 |---|---|---|
 | `NOT-201` | INFO | Se descarta el evento {0}: ya se procesó antes |
+| `NOT-202` | INFO | Plantilla de correo {0} guardada (versión {1}) |
+| `NOT-203` | INFO | Plantilla de correo {0} eliminada: el correo vuelve a la plantilla por defecto |
 | `NOT-301` | WARN | ComprobanteAutorizado sin correo del receptor: no debería haberse publicado, se descarta |
+| `NOT-302` | WARN | La plantilla propia de la empresa no se pudo aplicar ({0}): el correo sale con la plantilla por defecto |
+| `NOT-303` | WARN | El logo de la empresa no es una imagen PNG o JPEG válida: el correo sale sin logo |
 | `NOT-401` | ERROR | No se pudo enviar el correo del comprobante; la saga queda en NOTIFICACION_FALLIDA y se reenvía con POST /comprobantes/{id}/reenviar-correo o en masa con POST /sagas/reenviar-notificaciones |
 | `NOT-402` | ERROR | No se pudo publicar el evento del outbox en Kafka; se reintenta en el siguiente ciclo |
 

@@ -10,7 +10,11 @@ import com.facturacion.commons.error.MensajeCatalogo;
 public enum CodigoLog implements MensajeCatalogo {
 
     EVENTO_DUPLICADO_DESCARTADO("NOT-201", "log.evento_duplicado_descartado"),
+    PLANTILLA_GUARDADA("NOT-202", "log.plantilla_guardada"),
+    PLANTILLA_ELIMINADA("NOT-203", "log.plantilla_eliminada"),
     SIN_CORREO_RECEPTOR("NOT-301", "log.sin_correo_receptor"),
+    PLANTILLA_EMPRESA_FALLIDA("NOT-302", "log.plantilla_empresa_fallida"),
+    LOGO_NO_VALIDO("NOT-303", "log.logo_no_valido"),
     CORREO_FALLIDO("NOT-401", "log.correo_fallido"),
     OUTBOX_PUBLICACION_FALLIDA("NOT-402", "log.outbox_publicacion_fallida");
 

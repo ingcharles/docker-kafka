@@ -1,0 +1,1 @@
+{tipoComprobante} {numero}{#if nombreEmisor} - {nombreEmisor}{/if}

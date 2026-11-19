@@ -1,7 +1,7 @@
 # Stack de facturación electrónica SRI Ecuador: los microservicios Quarkus y un
 # job de bootstrap de tópicos. Necesita dos stacks externos ya levantados:
-#   - Postgres: D:/inf_sri/CONTENEDORES/postgres (red `facturacion_net`, host
-#     `facturacion-db`, un esquema por servicio).
+#   - Postgres: ../postgres (red `facturacion_net`, host `DB_HOST`, un esquema por servicio; se levanta con
+#     ../postgres/compose.sh <ambiente> up -d --build).
 #   - Kafka: el broker en ../kafka (red `kafka_net`).
 # Se construye de forma incremental: los servicios se agregan aquí a medida
 # que se van construyendo.
@@ -14,6 +14,31 @@ x-tiempos: &tiempos
   DB_IDLE_EN_TRANSACCION_TIMEOUT: ${DB_IDLE_EN_TRANSACCION_TIMEOUT:-60s}
   SHUTDOWN_TIMEOUT: ${SHUTDOWN_TIMEOUT:-PT30S}
   LOG_FORMATO_JSON: ${LOG_FORMATO_JSON:-false}
+# Máquina virtual de Java: usa un porcentaje de la memoria del contenedor (no un -Xmx fijo) y, si se queda sin memoria, el proceso termina para que
+# restart lo levante limpio en vez de quedar medio vivo. PDFBox guarda su caché de fuentes en /tmp porque el sistema de archivos es de solo lectura.
+x-jvm: &jvm
+  JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=${JVM_MAX_RAM_PORCENTAJE:-70} -XX:+ExitOnOutOfMemoryError -Dpdfbox.fontcache=/tmp ${JVM_OPCIONES_EXTRA:-}
+# Endurecimiento y límites de cada microservicio. Sin un límite de memoria un servicio con fuga se come al servidor y se lleva a los demás;
+# sin cap_drop y no-new-privileges un fallo de seguridad en la aplicación da más poder al atacante. Valores por ambiente: documentacion/VARIABLES_DE_ENTORNO.md.
+x-contenedor: &contenedor
+  restart: unless-stopped
+  stop_grace_period: 45s
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  pids_limit: ${CONTENEDOR_PIDS:-512}
+  mem_limit: ${CONTENEDOR_MEMORIA:-1g}
+  cpus: ${CONTENEDOR_CPUS:-2.0}
+  logging:
+    driver: json-file
+    options:
+      max-size: "${LOG_ROTACION_TAMANO:-10m}"
+      max-file: "${LOG_ROTACION_ARCHIVOS:-5}"
 x-productor-kafka: &productor-kafka
   KAFKA_DELIVERY_TIMEOUT_MS: ${KAFKA_DELIVERY_TIMEOUT_MS:-25000}
   KAFKA_REQUEST_TIMEOUT_MS: ${KAFKA_REQUEST_TIMEOUT_MS:-10000}
@@ -69,15 +94,14 @@ services:
     build:
       context: .
       dockerfile: firma-electronica-service/Dockerfile
-    restart: unless-stopped
-    stop_grace_period: 45s
+    <<: *contenedor
     depends_on:
       facturacion-topic-init:
         condition: service_completed_successfully
     environment:
-      <<: [*tiempos, *productor-kafka]
+      <<: [*tiempos, *productor-kafka, *jvm]
       FIRMA_DB_PASSWORD: ${FIRMA_DB_PASSWORD:?FIRMA_DB_PASSWORD is required}
-      FIRMA_DB_REACTIVE_URL: postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
+      FIRMA_DB_REACTIVE_URL: postgresql://${DB_POOL_HOST:-${DB_HOST:-facturacion-db}}:${DB_POOL_PORT:-5432}/${POSTGRES_DB:-facturacion}
       FIRMA_DB_JDBC_URL: jdbc:postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-broker:9092}
       FIRMA_CIFRADO_CLAVE_MAESTRA: ${FIRMA_CIFRADO_CLAVE_MAESTRA:?FIRMA_CIFRADO_CLAVE_MAESTRA is required}
@@ -93,15 +117,14 @@ services:
     build:
       context: .
       dockerfile: inventario-service/Dockerfile
-    restart: unless-stopped
-    stop_grace_period: 45s
+    <<: *contenedor
     depends_on:
       facturacion-topic-init:
         condition: service_completed_successfully
     environment:
-      <<: [*tiempos, *productor-kafka]
+      <<: [*tiempos, *productor-kafka, *jvm]
       INVENTARIO_DB_PASSWORD: ${INVENTARIO_DB_PASSWORD:?INVENTARIO_DB_PASSWORD is required}
-      INVENTARIO_DB_REACTIVE_URL: postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
+      INVENTARIO_DB_REACTIVE_URL: postgresql://${DB_POOL_HOST:-${DB_HOST:-facturacion-db}}:${DB_POOL_PORT:-5432}/${POSTGRES_DB:-facturacion}
       INVENTARIO_DB_JDBC_URL: jdbc:postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-broker:9092}
       IDENTIDAD_JWT_CLAVE_PUBLICA: ${IDENTIDAD_JWT_CLAVE_PUBLICA:?IDENTIDAD_JWT_CLAVE_PUBLICA is required}
@@ -116,16 +139,18 @@ services:
     build:
       context: .
       dockerfile: comprobantes-service/Dockerfile
-    restart: unless-stopped
-    stop_grace_period: 45s
+    <<: *contenedor
     depends_on:
       facturacion-topic-init:
         condition: service_completed_successfully
     environment:
-      <<: [*tiempos, *productor-kafka]
+      <<: [*tiempos, *productor-kafka, *jvm]
       CONSUMIDOR_FINAL_MONTO_MAXIMO: ${CONSUMIDOR_FINAL_MONTO_MAXIMO:-50.00}
+      COMPROBANTES_IDEMPOTENCIA_OBLIGATORIA: ${COMPROBANTES_IDEMPOTENCIA_OBLIGATORIA:-false}
+      COMPROBANTES_IDEMPOTENCIA_RETENCION: ${COMPROBANTES_IDEMPOTENCIA_RETENCION:-P7D}
+      COMPROBANTES_IDEMPOTENCIA_PURGA_CADA: ${COMPROBANTES_IDEMPOTENCIA_PURGA_CADA:-1h}
       COMPROBANTES_DB_PASSWORD: ${COMPROBANTES_DB_PASSWORD:?COMPROBANTES_DB_PASSWORD is required}
-      COMPROBANTES_DB_REACTIVE_URL: postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
+      COMPROBANTES_DB_REACTIVE_URL: postgresql://${DB_POOL_HOST:-${DB_HOST:-facturacion-db}}:${DB_POOL_PORT:-5432}/${POSTGRES_DB:-facturacion}
       COMPROBANTES_DB_JDBC_URL: jdbc:postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
       # Token para MODIFICAR los catálogos del SRI por PUT /catalogos (son globales, no por empresa). Vacío = escritura deshabilitada.
       CATALOGOS_ADMIN_TOKEN: ${CATALOGOS_ADMIN_TOKEN:-}
@@ -142,18 +167,17 @@ services:
     build:
       context: .
       dockerfile: sri-conector-service/Dockerfile
-    restart: unless-stopped
-    stop_grace_period: 45s
+    <<: *contenedor
     depends_on:
       facturacion-topic-init:
         condition: service_completed_successfully
     environment:
-      <<: [*tiempos, *productor-kafka]
+      <<: [*tiempos, *productor-kafka, *jvm]
       SRI_TIMEOUT_CONEXION: ${SRI_TIMEOUT_CONEXION:-PT10S}
       SRI_TIMEOUT_RESPUESTA: ${SRI_TIMEOUT_RESPUESTA:-PT30S}
       SRI_URL_HOSTS_PERMITIDOS: ${SRI_URL_HOSTS_PERMITIDOS:-*.sri.gob.ec}
       SRI_DB_PASSWORD: ${SRI_DB_PASSWORD:?SRI_DB_PASSWORD is required}
-      SRI_DB_REACTIVE_URL: postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
+      SRI_DB_REACTIVE_URL: postgresql://${DB_POOL_HOST:-${DB_HOST:-facturacion-db}}:${DB_POOL_PORT:-5432}/${POSTGRES_DB:-facturacion}
       SRI_DB_JDBC_URL: jdbc:postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-broker:9092}
       IDENTIDAD_JWT_CLAVE_PUBLICA: ${IDENTIDAD_JWT_CLAVE_PUBLICA:?IDENTIDAD_JWT_CLAVE_PUBLICA is required}
@@ -168,16 +192,15 @@ services:
     build:
       context: .
       dockerfile: notificacion-service/Dockerfile
-    restart: unless-stopped
-    stop_grace_period: 45s
+    <<: *contenedor
     depends_on:
       facturacion-topic-init:
         condition: service_completed_successfully
     environment:
-      <<: [*tiempos, *productor-kafka]
+      <<: [*tiempos, *productor-kafka, *jvm]
       CORREO_TIMEOUT: ${CORREO_TIMEOUT:-PT30S}
       NOTIFICACION_DB_PASSWORD: ${NOTIFICACION_DB_PASSWORD:?NOTIFICACION_DB_PASSWORD is required}
-      NOTIFICACION_DB_REACTIVE_URL: postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
+      NOTIFICACION_DB_REACTIVE_URL: postgresql://${DB_POOL_HOST:-${DB_HOST:-facturacion-db}}:${DB_POOL_PORT:-5432}/${POSTGRES_DB:-facturacion}
       NOTIFICACION_DB_JDBC_URL: jdbc:postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-broker:9092}
       SMTP_HOST: ${SMTP_HOST:?SMTP_HOST is required}
@@ -197,13 +220,12 @@ services:
     build:
       context: .
       dockerfile: facturacion-orchestrator-service/Dockerfile
-    restart: unless-stopped
-    stop_grace_period: 45s
+    <<: *contenedor
     depends_on:
       facturacion-topic-init:
         condition: service_completed_successfully
     environment:
-      <<: [*tiempos, *productor-kafka]
+      <<: [*tiempos, *productor-kafka, *jvm]
       SAGA_WATCHDOG_HABILITADO: ${SAGA_WATCHDOG_HABILITADO:-true}
       SAGA_WATCHDOG_INTERVALO: ${SAGA_WATCHDOG_INTERVALO:-30s}
       SAGA_WATCHDOG_MAX_REINTENTOS: ${SAGA_WATCHDOG_MAX_REINTENTOS:-3}
@@ -217,7 +239,7 @@ services:
       SAGA_REENVIO_NOTIFICACIONES_ESPERA_MINIMA: ${SAGA_REENVIO_NOTIFICACIONES_ESPERA_MINIMA:-PT15M}
       SAGA_REENVIO_NOTIFICACIONES_PLAZO_RESPUESTA: ${SAGA_REENVIO_NOTIFICACIONES_PLAZO_RESPUESTA:-PT10M}
       SAGA_REENVIO_NOTIFICACIONES_MAX_INTENTOS: ${SAGA_REENVIO_NOTIFICACIONES_MAX_INTENTOS:-3}
-      ORQUESTACION_DB_REACTIVE_URL: postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
+      ORQUESTACION_DB_REACTIVE_URL: postgresql://${DB_POOL_HOST:-${DB_HOST:-facturacion-db}}:${DB_POOL_PORT:-5432}/${POSTGRES_DB:-facturacion}
       ORQUESTACION_DB_JDBC_URL: jdbc:postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-broker:9092}
       IDENTIDAD_JWT_CLAVE_PUBLICA: ${IDENTIDAD_JWT_CLAVE_PUBLICA:?IDENTIDAD_JWT_CLAVE_PUBLICA is required}
@@ -232,20 +254,19 @@ services:
     build:
       context: .
       dockerfile: identidad-service/Dockerfile
-    restart: unless-stopped
-    stop_grace_period: 45s
+    <<: *contenedor
     depends_on:
       facturacion-topic-init:
         condition: service_completed_successfully
     environment:
-      <<: *tiempos
+      <<: [*tiempos, *jvm]
       IDENTIDAD_PASSWORD_HILOS: ${IDENTIDAD_PASSWORD_HILOS:-4}
       IDENTIDAD_PASSWORD_COLA: ${IDENTIDAD_PASSWORD_COLA:-100}
       KAFKA_REVOCACIONES_DELIVERY_TIMEOUT_MS: ${KAFKA_REVOCACIONES_DELIVERY_TIMEOUT_MS:-8000}
       KAFKA_REVOCACIONES_REQUEST_TIMEOUT_MS: ${KAFKA_REVOCACIONES_REQUEST_TIMEOUT_MS:-5000}
       REVOCACIONES_TIMEOUT_ACK: ${REVOCACIONES_TIMEOUT_ACK:-PT10S}
       IDENTIDAD_DB_PASSWORD: ${IDENTIDAD_DB_PASSWORD:?IDENTIDAD_DB_PASSWORD is required}
-      IDENTIDAD_DB_REACTIVE_URL: postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
+      IDENTIDAD_DB_REACTIVE_URL: postgresql://${DB_POOL_HOST:-${DB_HOST:-facturacion-db}}:${DB_POOL_PORT:-5432}/${POSTGRES_DB:-facturacion}
       IDENTIDAD_DB_JDBC_URL: jdbc:postgresql://${DB_HOST:-facturacion-db}:5432/${POSTGRES_DB:-facturacion}
       IDENTIDAD_JWT_CLAVE_PRIVADA: ${IDENTIDAD_JWT_CLAVE_PRIVADA:?IDENTIDAD_JWT_CLAVE_PRIVADA is required}
       IDENTIDAD_JWT_CLAVE_PUBLICA: ${IDENTIDAD_JWT_CLAVE_PUBLICA:?IDENTIDAD_JWT_CLAVE_PUBLICA is required}
@@ -283,9 +304,16 @@ services:
     profiles: ["observabilidad"]
     image: prom/alertmanager:v0.27.0
     restart: unless-stopped
-    command:
-      - --config.file=/etc/alertmanager/alertmanager.yml
-      - --storage.path=/alertmanager
+    # La configuración se genera al arrancar con las variables ALERTAS_* (observabilidad/alertmanager/entrypoint.sh).
+    entrypoint: ["/bin/sh", "/etc/alertmanager/entrypoint.sh"]
+    environment:
+      ALERTAS_CORREO_HABILITADO: ${ALERTAS_CORREO_HABILITADO:-false}
+      ALERTAS_CORREO_DESTINATARIOS: ${ALERTAS_CORREO_DESTINATARIOS:-}
+      ALERTAS_CORREO_REMITENTE: ${ALERTAS_CORREO_REMITENTE:-}
+      ALERTAS_SMTP_HOST: ${ALERTAS_SMTP_HOST:-}
+      ALERTAS_SMTP_USUARIO: ${ALERTAS_SMTP_USUARIO:-}
+      ALERTAS_SMTP_PASSWORD: ${ALERTAS_SMTP_PASSWORD:-}
+      ALERTAS_SMTP_REQUIERE_TLS: ${ALERTAS_SMTP_REQUIERE_TLS:-true}
     volumes:
       - ./observabilidad/alertmanager:/etc/alertmanager:ro
       - alertmanager_data:/alertmanager

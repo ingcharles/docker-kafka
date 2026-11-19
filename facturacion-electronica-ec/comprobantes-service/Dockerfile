@@ -15,7 +15,8 @@ RUN mvn -q -B -DskipTests package
 
 # Runtime: solo JRE, no-root, únicamente el layout fast-jar copiado.
 FROM eclipse-temurin:21-jre-alpine
-RUN addgroup -S app && adduser -S app -G app
+# Fuente metricamente compatible con Helvetica: sin ella PDFBox avisa "Using fallback font" en cada RIDE.
+RUN apk add --no-cache font-liberation && addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --from=build --chown=app:app /build/target/quarkus-app/lib/ ./lib/
 COPY --from=build --chown=app:app /build/target/quarkus-app/*.jar ./

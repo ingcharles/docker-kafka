@@ -31,8 +31,7 @@ public class DestinatarioGuiaRemisionRequest {
     private String fechaEmisionDocSustento;
 
     @NotEmpty
-    @Valid
-    private List<DetalleGuiaRemisionRequest> detalles;
+    private List<@Valid DetalleGuiaRemisionRequest> detalles;
 
     public String getIdentificacion() {
         return identificacion;

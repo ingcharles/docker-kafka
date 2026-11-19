@@ -46,16 +46,13 @@ public class DocumentoSustentoRequest {
     private BigDecimal importeTotal;
 
     @NotEmpty
-    @Valid
-    private List<ImpuestoDocSustentoRequest> impuestos;
+    private List<@Valid ImpuestoDocSustentoRequest> impuestos;
 
     @NotEmpty
-    @Valid
-    private List<RetencionLineaRequest> retenciones;
+    private List<@Valid RetencionLineaRequest> retenciones;
 
     /** Forma de pago del documento sustento — si no se manda, se asume "01" (sin utilización del sistema financiero) por el importeTotal. */
-    @Valid
-    private List<PagoRequest> pagos;
+    private List<@Valid PagoRequest> pagos;
 
     public String getCodSustento() {
         return codSustento;

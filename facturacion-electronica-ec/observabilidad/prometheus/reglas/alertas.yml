@@ -113,6 +113,14 @@ groups:
           resumen: "{{ $labels.servicio }} tiene {{ $value }} eventos sin publicar"
           detalle: "El relay del outbox no está publicando en Kafka."
 
+      - alert: ArchivadoWalFallando
+        expr: increase(facturacion_archivado_fallos[15m]) > 0
+        for: 5m
+        labels: { severidad: critica }
+        annotations:
+          resumen: "Postgres no logra archivar el WAL en el repositorio de respaldo"
+          detalle: "El repositorio (S3 o volumen) no responde: el WAL se acumula en el disco de Postgres y el respaldo deja de ser continuo. Revisa con postgres/scripts/respaldo.sh <ambiente> verificar."
+
       - alert: CertificadoPorVencer
         expr: facturacion_certificados_por_vencer > 0
         for: 1h

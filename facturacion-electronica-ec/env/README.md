@@ -4,7 +4,7 @@ Hay tres ambientes. Cada uno tiene su configuración **sin secretos** (se sube a
 
 | Ambiente | Configuración (versionada) | Secretos (ignorado por git) | Base de datos | Job de reenvío de correos |
 |---|---|---|---|---|
-| `desarrollo` | `env/desarrollo.env` | `env/desarrollo.secretos.env` | contenedor `facturacion-db` (host `localhost:5434`) | apagado |
+| `desarrollo` | `env/desarrollo.env` | `env/desarrollo.secretos.env` | contenedor `facturacion-db` (host `localhost:5436`) | apagado |
 | `pruebas` | `env/pruebas.env` | `env/pruebas.secretos.env` | contenedor `facturacion-test-db` (host `localhost:5435`) | **encendido**, cada 2 min |
 | `produccion` | `env/produccion.env` | `env/produccion.secretos.env` | la tuya (`DB_HOST` por definir) | apagado |
 
@@ -16,8 +16,9 @@ segundo, se detiene y te dice cómo crearlo.
 
 Los servicios necesitan dos stacks ya levantados, fuera de este compose:
 1. **Kafka** (`../kafka`): `cd ../kafka && cp .env.example .env && docker compose up -d --build` (red `kafka_net`). En pruebas usa el clúster de 2 nodos y en producción el de 3 (`docker compose --env-file env/<ambiente>.env -f docker-compose.ha.yml up -d --build`, ver `../kafka/README.md`); el `env/<ambiente>.env` de facturación ya trae `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_REPLICATION_FACTOR` y `KAFKA_MIN_ISR` de cada uno. La lista de todas las variables y sus valores por defecto: `documentacion/VARIABLES_DE_ENTORNO.md`.
-2. **Postgres** del ambiente, en la red `facturacion_net`, con un esquema y un rol por servicio. Las contraseñas de esos roles deben ser **las mismas**
-   que pondrás en `*_DB_PASSWORD` del archivo de secretos. Ver `documentacion/FLUJO_FACTURA_REAL.md`, sección 0.
+2. **Postgres** del ambiente, en la red `facturacion_net`, con un esquema y un rol por servicio: `cd ../postgres && ./compose.sh <amb> up -d --build`
+   (usa estos mismos archivos de ambiente, así que las contraseñas `*_DB_PASSWORD` coinciden por construcción). Sus banderas opcionales
+   (PgBouncer, réplica, respaldo con restauración a un instante) están en `../postgres/README.md`.
 
 ## Primera vez en un ambiente
 

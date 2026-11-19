@@ -36,6 +36,36 @@ class ApiExceptionMapperTest {
         assertEquals(409, ApiExceptionMapper.construirCuerpo(new ConflictoException(ErrorComun.CONFLICTO, "x")).getStatus());
     }
 
+    /** Un estado que JAX-RS no trae en {@code Response.Status} (422) sale con su código y frase, no como un 500. */
+    private enum ErrorDePrueba implements com.facturacion.commons.error.ErrorCatalogo {
+        ENTIDAD_NO_PROCESABLE;
+
+        @Override
+        public String codigo() {
+            return "PRUEBA-422-001";
+        }
+
+        @Override
+        public int estadoHttp() {
+            return 422;
+        }
+
+        @Override
+        public String claveMensaje() {
+            return "comun.conflicto";
+        }
+    }
+
+    @Test
+    void unEstadoNoEstandarComoElCuatrocientosVeintidosSeConserva() {
+        ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(
+            new ErrorNegocioException(ErrorDePrueba.ENTIDAD_NO_PROCESABLE));
+
+        assertEquals(422, cuerpo.getStatus());
+        assertEquals("Unprocessable Entity", cuerpo.getError());
+        assertEquals("PRUEBA-422-001", cuerpo.getCodigo());
+    }
+
     @Test
     void errorNegocioUsaLaEntradaDelCatalogoYSusDetalles() {
         ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(

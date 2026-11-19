@@ -68,6 +68,9 @@ public class EventosComprobante {
             comprobante.getTipoComprobante().name(),
             comprobante.getCompradorCorreo(),
             comprobante.getCompradorRazonSocial(),
+            comprobante.getEmpresaRazonSocial(),
+            comprobante.getEmpresaNombreComercial(),
+            comprobante.getImporteTotal(),
             Base64.getEncoder().encodeToString(comprobante.getRidePdf()),
             comprobante.getXmlAutorizado(),
             Instant.now());

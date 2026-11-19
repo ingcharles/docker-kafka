@@ -4,23 +4,35 @@
 # externa `facturacion_net` (nombre fijo), con el hostname `DB_HOST` (`facturacion-db` por defecto; en pruebas,
 # `facturacion-test-db`) — levanta este stack primero.
 #
-# Usa los mismos archivos de ambiente que los servicios, así las contraseñas no se duplican:
-#   docker compose --env-file ../facturacion-electronica-ec/env/<ambiente>.env \
-#                  --env-file ../facturacion-electronica-ec/env/<ambiente>.secretos.env up -d --build
-# (en pruebas agrega `-p facturacion-pruebas` para que tenga su propio volumen de datos)
+# Se levanta con ./compose.sh <ambiente> up -d --build, que usa los mismos archivos de ambiente que los servicios
+# (env/<ambiente>.env y env/<ambiente>.secretos.env, así las contraseñas no se duplican) y traduce las banderas a perfiles:
+#   PGBOUNCER_HABILITADO=true       perfil pgbouncer   — pooler de conexiones delante de Postgres
+#   REPLICACION_HABILITADA=true     perfil replica     — réplica de solo lectura (streaming) del primario
+#   RESPALDO_ALMACEN_LOCAL_HABILITADO=true  perfil almacen-s3 — almacén S3 propio (solo desarrollo/pruebas) para los respaldos
+# El respaldo continuo (RESPALDO_HABILITADO=true) no necesita perfil: lo hace el propio contenedor de Postgres.
+# Guía completa: README.md.
+x-db-imagen: &db-imagen
+  build:
+    context: .
+  image: ${DB_IMAGEN:-facturacion-postgres:16}
+
+x-db-entorno: &db-entorno
+  POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+  POSTGRES_DB: ${POSTGRES_DB:-facturacion}
+
 services:
   facturacion-db:
-    build:
-      context: .
+    <<: *db-imagen
     container_name: ${DB_HOST:-facturacion-db}
     restart: unless-stopped
+    stop_grace_period: 60s
+    init: true
     # Varios servicios con pool reactivo de hasta 20 conexiones cada uno en
     # modo prod pueden superar el max_connections=100 por defecto de Postgres.
-    command: postgres -c max_connections=200
+    command: postgres -c max_connections=${DB_MAX_CONEXIONES:-200}
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      POSTGRES_DB: ${POSTGRES_DB:-facturacion}
+      <<: *db-entorno
       INVENTARIO_DB_PASSWORD: ${INVENTARIO_DB_PASSWORD:?INVENTARIO_DB_PASSWORD is required}
       FIRMA_DB_PASSWORD: ${FIRMA_DB_PASSWORD:?FIRMA_DB_PASSWORD is required}
       COMPROBANTES_DB_PASSWORD: ${COMPROBANTES_DB_PASSWORD:?COMPROBANTES_DB_PASSWORD is required}
@@ -28,8 +40,37 @@ services:
       NOTIFICACION_DB_PASSWORD: ${NOTIFICACION_DB_PASSWORD:?NOTIFICACION_DB_PASSWORD is required}
       ORQUESTACION_DB_PASSWORD: ${ORQUESTACION_DB_PASSWORD:?ORQUESTACION_DB_PASSWORD is required}
       IDENTIDAD_DB_PASSWORD: ${IDENTIDAD_DB_PASSWORD:?IDENTIDAD_DB_PASSWORD is required}
+      # Plazos que se fijan por rol (los mismos que mandan los servicios al conectar).
+      DB_STATEMENT_TIMEOUT: ${DB_STATEMENT_TIMEOUT:-30s}
+      DB_LOCK_TIMEOUT: ${DB_LOCK_TIMEOUT:-10s}
+      DB_IDLE_EN_TRANSACCION_TIMEOUT: ${DB_IDLE_EN_TRANSACCION_TIMEOUT:-60s}
+      # Replicación (primario).
+      REPLICACION_HABILITADA: ${REPLICACION_HABILITADA:-false}
+      REPLICACION_DB_PASSWORD: ${REPLICACION_DB_PASSWORD:-}
+      REPLICACION_MAX_WAL_RETENIDO: ${REPLICACION_MAX_WAL_RETENIDO:-10GB}
+      # Respaldo continuo con pgBackRest (ver README.md, sección Respaldos).
+      RESPALDO_HABILITADO: ${RESPALDO_HABILITADO:-false}
+      RESPALDO_REPO: ${RESPALDO_REPO:-posix}
+      RESPALDO_CIFRADO_CLAVE: ${RESPALDO_CIFRADO_CLAVE:-}
+      RESPALDO_RETENCION_COMPLETOS: ${RESPALDO_RETENCION_COMPLETOS:-4}
+      RESPALDO_RETENCION_DIFERENCIALES: ${RESPALDO_RETENCION_DIFERENCIALES:-7}
+      RESPALDO_CRON_COMPLETO: ${RESPALDO_CRON_COMPLETO:-0 2 * * 0}
+      RESPALDO_CRON_DIFERENCIAL: ${RESPALDO_CRON_DIFERENCIAL:-0 2 * * 1-6}
+      RESPALDO_ZONA_HORARIA: ${RESPALDO_ZONA_HORARIA:-America/Guayaquil}
+      RESPALDO_ARCHIVE_TIMEOUT: ${RESPALDO_ARCHIVE_TIMEOUT:-60}
+      RESPALDO_PROCESOS: ${RESPALDO_PROCESOS:-2}
+      RESPALDO_S3_ENDPOINT: ${RESPALDO_S3_ENDPOINT:-${DB_HOST:-facturacion-db}-almacen:9000}
+      RESPALDO_S3_BUCKET: ${RESPALDO_S3_BUCKET:-respaldos-facturacion}
+      RESPALDO_S3_REGION: ${RESPALDO_S3_REGION:-us-east-1}
+      RESPALDO_S3_RUTA: ${RESPALDO_S3_RUTA:-/pgbackrest}
+      RESPALDO_S3_ESTILO_URI: ${RESPALDO_S3_ESTILO_URI:-path}
+      RESPALDO_S3_VERIFICAR_TLS: ${RESPALDO_S3_VERIFICAR_TLS:-y}
+      RESPALDO_S3_ACCESS_KEY: ${RESPALDO_S3_ACCESS_KEY:-}
+      RESPALDO_S3_SECRET_KEY: ${RESPALDO_S3_SECRET_KEY:-}
     volumes:
       - facturacion_pg_data:/var/lib/postgresql/data
+      # Repositorio de respaldos cuando RESPALDO_REPO=posix: un volumen aparte del de los datos (en producción, otro disco).
+      - facturacion_pg_respaldo:/var/lib/pgbackrest
     ports:
       - "${POSTGRES_PORT:-5434}:5432"
     healthcheck:
@@ -38,11 +79,151 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    logging: &logs
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - facturacion_net
+
+  # Réplica de solo lectura (streaming). No hay conmutación automática: si el primario cae, se promueve a mano
+  # (README.md, "Réplica"). Los servicios no leen de ella; sirve de copia caliente y para consultas pesadas.
+  facturacion-db-replica:
+    <<: *db-imagen
+    profiles: ["replica"]
+    container_name: ${DB_HOST:-facturacion-db}-replica
+    restart: unless-stopped
+    stop_grace_period: 60s
+    init: true
+    # Debe tener al menos el max_connections del primario.
+    command: postgres -c max_connections=${DB_MAX_CONEXIONES:-200}
+    environment:
+      <<: *db-entorno
+      REPLICA_DE: ${DB_HOST:-facturacion-db}
+      REPLICACION_DB_PASSWORD: ${REPLICACION_DB_PASSWORD:-}
+    volumes:
+      - facturacion_pg_replica_data:/var/lib/postgresql/data
+    ports:
+      - "${REPLICA_PORT:-5437}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    logging: *logs
+    depends_on:
+      facturacion-db:
+        condition: service_healthy
+    networks:
+      - facturacion_net
+
+  # Pooler de conexiones (PgBouncer, modo transaction): los 7 servicios abren hasta 140 conexiones y Postgres
+  # solo mantiene PGBOUNCER_MAX_CONEXIONES_BD. Los servicios apuntan a él con DB_POOL_HOST/DB_POOL_PORT
+  # (los fija ../facturacion-electronica-ec/scripts/compose.sh cuando PGBOUNCER_HABILITADO=true).
+  pgbouncer:
+    profiles: ["pgbouncer"]
+    build:
+      context: ./pgbouncer
+    image: ${PGBOUNCER_IMAGEN:-facturacion-pgbouncer:1.25}
+    container_name: ${DB_HOST:-facturacion-db}-pgbouncer
+    restart: unless-stopped
+    init: true
+    environment:
+      DB_HOST: ${DB_HOST:-facturacion-db}
+      POSTGRES_DB: ${POSTGRES_DB:-facturacion}
+      INVENTARIO_DB_PASSWORD: ${INVENTARIO_DB_PASSWORD:?INVENTARIO_DB_PASSWORD is required}
+      FIRMA_DB_PASSWORD: ${FIRMA_DB_PASSWORD:?FIRMA_DB_PASSWORD is required}
+      COMPROBANTES_DB_PASSWORD: ${COMPROBANTES_DB_PASSWORD:?COMPROBANTES_DB_PASSWORD is required}
+      SRI_DB_PASSWORD: ${SRI_DB_PASSWORD:?SRI_DB_PASSWORD is required}
+      NOTIFICACION_DB_PASSWORD: ${NOTIFICACION_DB_PASSWORD:?NOTIFICACION_DB_PASSWORD is required}
+      ORQUESTACION_DB_PASSWORD: ${ORQUESTACION_DB_PASSWORD:?ORQUESTACION_DB_PASSWORD is required}
+      IDENTIDAD_DB_PASSWORD: ${IDENTIDAD_DB_PASSWORD:?IDENTIDAD_DB_PASSWORD is required}
+      PGBOUNCER_MAX_CLIENTES: ${PGBOUNCER_MAX_CLIENTES:-1000}
+      PGBOUNCER_POOL_POR_ROL: ${PGBOUNCER_POOL_POR_ROL:-10}
+      PGBOUNCER_POOL_RESERVA: ${PGBOUNCER_POOL_RESERVA:-3}
+      PGBOUNCER_MAX_CONEXIONES_BD: ${PGBOUNCER_MAX_CONEXIONES_BD:-100}
+      PGBOUNCER_SENTENCIAS_PREPARADAS: ${PGBOUNCER_SENTENCIAS_PREPARADAS:-200}
+      PGBOUNCER_ESPERA_MAXIMA: ${PGBOUNCER_ESPERA_MAXIMA:-30}
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${PGBOUNCER_MEMORIA:-128m}
+    logging: *logs
+    depends_on:
+      facturacion-db:
+        condition: service_healthy
+    networks:
+      - facturacion_net
+
+  # Almacén S3 propio para los respaldos, SOLO para desarrollo y pruebas (en producción: S3 de tu proveedor u otro
+  # servidor/disco). pgBackRest habla con S3 solo por HTTPS, por eso genera su propio certificado autofirmado
+  # (RESPALDO_S3_VERIFICAR_TLS=n). MinIO ya no publica imágenes, por eso se usa SeaweedFS.
+  almacen-s3-certificados:
+    <<: *db-imagen
+    profiles: ["almacen-s3"]
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        test -f /certs/public.crt ||
+        openssl req -x509 -newkey rsa:2048 -nodes -keyout /certs/private.key -out /certs/public.crt -days 3650
+        -subj "/CN=almacen" -addext "subjectAltName=DNS:${DB_HOST:-facturacion-db}-almacen,DNS:localhost" &&
+        chmod 644 /certs/public.crt /certs/private.key
+    volumes:
+      - almacen_s3_certificados:/certs
+    networks:
+      - facturacion_net
+
+  almacen-s3:
+    profiles: ["almacen-s3"]
+    image: chrislusf/seaweedfs:${SEAWEEDFS_VERSION:-latest}
+    container_name: ${DB_HOST:-facturacion-db}-almacen
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        cat > /tmp/s3.json <<JSON
+        {"identities":[{"name":"respaldo","credentials":[{"accessKey":"$$RESPALDO_S3_ACCESS_KEY","secretKey":"$$RESPALDO_S3_SECRET_KEY"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+        JSON
+        exec weed server -dir=/data -ip.bind=0.0.0.0 -master.volumeSizeLimitMB=256 -volume.max=0 -s3 -s3.port=9000 \
+          -s3.config=/tmp/s3.json -s3.cert.file=/certs/public.crt -s3.key.file=/certs/private.key
+    environment:
+      RESPALDO_S3_ACCESS_KEY: ${RESPALDO_S3_ACCESS_KEY:-}
+      RESPALDO_S3_SECRET_KEY: ${RESPALDO_S3_SECRET_KEY:-}
+    volumes:
+      - almacen_s3_datos:/data
+      - almacen_s3_certificados:/certs:ro
+    depends_on:
+      almacen-s3-certificados:
+        condition: service_completed_successfully
+    networks:
+      - facturacion_net
+
+  almacen-s3-bucket:
+    profiles: ["almacen-s3"]
+    image: chrislusf/seaweedfs:${SEAWEEDFS_VERSION:-latest}
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        for i in $$(seq 1 30); do
+          echo "s3.bucket.create -name ${RESPALDO_S3_BUCKET:-respaldos-facturacion}" | weed shell -master=${DB_HOST:-facturacion-db}-almacen:9333 && exit 0
+          sleep 3
+        done
+        exit 1
+    depends_on:
+      - almacen-s3
     networks:
       - facturacion_net
 
   # Crea las tablas: aplica las migraciones Flyway de cada microservicio.
-  # Uso: docker compose --profile migrar run --rm migraciones
+  # Uso: ./compose.sh <ambiente> --profile migrar run --rm migraciones
   migraciones:
     profiles: ["migrar"]
     image: flyway/flyway:11-alpine
@@ -75,3 +256,7 @@ networks:
 
 volumes:
   facturacion_pg_data:
+  facturacion_pg_respaldo:
+  facturacion_pg_replica_data:
+  almacen_s3_datos:
+  almacen_s3_certificados:

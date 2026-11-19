@@ -8,7 +8,14 @@ import com.facturacion.commons.error.ErrorCatalogo;
  */
 public enum NotificacionError implements ErrorCatalogo {
 
-    NOTIFICACION_NO_ENCONTRADA("NOT-404-001", 404, "notificacion.no_encontrada");
+    PLANTILLA_TIPO_INVALIDO("NOT-400-001", 400, "plantilla.tipo_invalido"),
+    PLANTILLA_VARIABLE_DESCONOCIDA("NOT-400-002", 400, "plantilla.variable_desconocida"),
+    PLANTILLA_VARIABLE_EN_ETIQUETA("NOT-400-003", 400, "plantilla.variable_en_etiqueta"),
+    PLANTILLA_ASUNTO_MULTILINEA("NOT-400-004", 400, "plantilla.asunto_multilinea"),
+    PLANTILLA_LOGO_EN_ASUNTO("NOT-400-005", 400, "plantilla.logo_en_asunto"),
+    PLANTILLA_SIN_CONTENIDO("NOT-400-006", 400, "plantilla.sin_contenido"),
+    NOTIFICACION_NO_ENCONTRADA("NOT-404-001", 404, "notificacion.no_encontrada"),
+    PLANTILLA_NO_ENCONTRADA("NOT-404-002", 404, "plantilla.no_encontrada");
 
     private final String codigo;
     private final int estadoHttp;

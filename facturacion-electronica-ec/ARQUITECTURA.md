@@ -175,6 +175,18 @@ sequenceDiagram
 4. **El correo es la única rama verdaderamente "best effort"**: un comprobante `AUTORIZADO` ya es legalmente válido tenga o no tenga correo, y tenga o no éxito el envío — ver sección 5.
 5. **Tiempo real medido de punta a punta** (CREADO→AUTORIZADO, con el certificado real del usuario, contra el SRI real): ~19 segundos en el peor caso observado.
 
+### 3.1 Idempotencia de la emisión (`Idempotency-Key`)
+
+Los `POST` de emisión aceptan la cabecera opcional `Idempotency-Key` (8 a 128 caracteres: letras, números y `. _ : -`). Un cliente que reintenta tras un timeout o un corte de red con la misma clave y el mismo cuerpo recibe el comprobante ya creado (`201` con la cabecera `Idempotency-Replayed: true`, en su estado actual) en vez de uno nuevo, que gastaría otro secuencial. La clave se reserva al inicio de la transacción de la emisión (`INSERT ... ON CONFLICT DO NOTHING` sobre `idempotencia_emision`, única por RUC y clave) y se asocia al comprobante en esa misma transacción:
+
+- Mismo cuerpo (huella SHA-256 del tipo y del JSON): se devuelve el comprobante original.
+- Cuerpo distinto con la misma clave: `422` (`COMP-422-851`).
+- Dos solicitudes simultáneas con la misma clave: la segunda espera a que la primera confirme y recibe su comprobante; si la primera se deshace, la segunda emite.
+- Si la emisión falla, la transacción se deshace con la reserva y el reintento con la misma clave vuelve a intentar.
+- Las claves se purgan pasado `COMPROBANTES_IDEMPOTENCIA_RETENCION` (7 días); desde entonces la misma clave emitiría uno nuevo.
+
+Sin cabecera se emite como siempre, salvo que `COMPROBANTES_IDEMPOTENCIA_OBLIGATORIA=true` (entonces `400`). El código vive en `EmisionIdempotente`; el gateway (WSO2) no debe reescribir ni quitar la cabecera.
+
 ## 4. Máquina de estados de la saga
 
 Los estados `STOCK_PENDIENTE`, `STOCK_RESERVADO` y `STOCK_NO_DISPONIBLE` solo existen con el descuento de inventario habilitado (sección 13); sin él la saga arranca en `CREADO`. Un estado es *terminal* (`SagaState.esTerminal()`) cuando el watchdog ya no lo toca; `NOTIFICACION_FALLIDA` y `EXPIRADA` lo son para el watchdog pero aún tienen salidas (reenvío del correo, respuesta tardía), y por eso aparecen con flechas de salida en el diagrama.
@@ -466,7 +478,7 @@ La tabla `configuracion_empresa` (clave/valor genérico, sección 7) guarda ajus
 
 - **`comprobantes-service`** — `ride.color` (hex RGB, ej. `#1A73E8`): color del número del documento en el RIDE (rojo si no está o es inválido). `ride.logo` (base64 de un PNG/JPEG): lo publica `firma-electronica-service` al subir el logo de la empresa (sección 13.2), no se edita a mano. `ActualizacionComprobanteService.autorizar` consulta ambos justo antes de generar el RIDE en `MARCAR_AUTORIZADO`.
 
-- **`notificacion-service`** — `notificacion.asunto` (asunto del correo) y `notificacion.remitente_nombre` (nombre visible del remitente, ej. "Facturación Acme" — nunca cambia la dirección real autenticada ante el SMTP, `quarkus.mailer.from`): `NotificacionService.enviarCorreo` las lee en una sesión corta antes de llamar a `CorreoService.enviarComprobante`.
+- **`notificacion-service`** — `notificacion.asunto` (asunto del correo) y `notificacion.remitente_nombre`, `ride.logo` (el logo, que usa en el encabezado del correo) (nombre visible del remitente, ej. "Facturación Acme" — nunca cambia la dirección real autenticada ante el SMTP, `quarkus.mailer.from`): `NotificacionService.enviarCorreo` las lee en una sesión corta antes de llamar a `CorreoService.enviarComprobante`.
 - **`sri-conector-service`** — `sri.recepcion.url`, `sri.autorizacion.url` (sobreescriben la URL fija por ambiente) y `sri.autorizacion.poll.max-intentos` (sobreescribe el default global): `SriConectorService` las consulta en `procesarComando`/`consultarAutorizacion`. `EnviarComprobanteCommand` y `EnvioSri` llevan `empresaRuc`. El máximo de intentos varía por empresa, así que el paso a `ERROR_CONSULTA` se decide fila por fila en `SriConectorService.aplicarResultadoAutorizacion`, no en el SQL del poller (`AutorizacionPoller`). Solo se respeta una URL `https` cuyo host esté en `sri.url.hosts-permitidos` (por defecto `*.sri.gob.ec`); si no, se usa la oficial.
 
 - **`comprobantes-service`** — `sri.proveedor.ruc`: RUC del proveedor de sistemas informáticos o servicios de facturación electrónica, requisito del **Anexo 26** de la Ficha Técnica de Comprobantes Electrónicos v2.34 (Resolución SRI No. NAC-DGERCGC26-00000027, 27/07/2026 — plazo de 60 días calendario desde su publicación en Registro Oficial). Deliberadamente white-label: cada empresa (o cada cliente de un revendedor del propio sistema) configura su propio RUC de proveedor, no un valor único fijo de la plataforma. `ComprobanteService.emitir` la consulta junto con la construcción del comprobante (antes de generar el XML, no en el momento del RIDE como `ride.color` — este dato sí tiene que ir en el XML firmado y autorizado ante el SRI) y la guarda inline en `Comprobante.proveedorRuc` (columna `empresa_proveedor_ruc`, mismo criterio "Empresa sin ID" que el resto de datos de empresa en esta tabla). `XmlComprobanteUtil.construirInfoAdicional` la auto-inyecta como `<campoAdicional nombre="RUC Proveedor">...</campoAdicional>` en los 6 tipos de comprobante (mismo mecanismo que ya usaba `granContribuyente`, Anexo 24); `RideGenerador` también imprime la línea "RUC Proveedor" en el RIDE si está configurada. Si la empresa no la configuró, `proveedorRuc` queda `null` y no se agrega nada — retrocompatible.
@@ -619,10 +631,13 @@ Controles que el XSD no hace y que se aplican antes de generar el XML (todos dev
 | RUC (`04`) = 13 dígitos; cédula (`05`) = 10 dígitos (máscaras de la Tabla 5). No se valida el dígito verificador: el algoritmo no está en la ficha | `comprobantes` |
 | `valorRetenido` = `baseImponible × porcentajeRetener / 100` (tolerancia de 1 centavo) | `comprobantes` |
 | `docSustentoFecha` debe ser una fecha real (no 31/02) | `comprobantes` |
+| Nota de crédito y nota de débito: `docModificadoNumero` con el formato `001-001-000000001` y `docModificadoFecha` no futura. Si el documento (factura o liquidación de compra) lo emitió este sistema para la empresa: debe estar autorizado y la fecha debe ser la de su emisión (`COMP-400-861` a `864`). Solo la nota de crédito, además, sumada a las notas de crédito ya emitidas sobre él (en camino o autorizadas), no puede superar su valor (`COMP-400-865`) | `comprobantes` |
 
 **Monto máximo a consumidor final.** Una factura con identificación `07` por encima del monto máximo se rechaza con `COMP-400-306` (ficha técnica 8.10: más de 50 USD exige los datos del adquirente). El monto es configurable (`comprobantes.consumidor-final.monto-maximo`, variable `CONSUMIDOR_FINAL_MONTO_MAXIMO`, 50.00 por defecto) porque el historial de la ficha dice que se ha actualizado y no da el valor vigente. Lo que se pudo confirmar (fuentes de prensa y un estudio jurídico, no el texto del Registro Oficial): desde el 10/11/2022 (Decreto Ejecutivo 586, que reformó el artículo 19 numeral 1 del Reglamento de Comprobantes de Venta) el tope general bajó de 200 a 50 USD. Una sola fuente secundaria dice que para RIMPE Negocio Popular el tope es 200 USD; no está confirmado y esos contribuyentes no están obligados a facturar electrónicamente, así que el sistema aplica un único tope. Tampoco queda claro si exactamente 50,00 puede ir a consumidor final (la implementación lo permite: rechaza solo lo que supere el tope). **Confirmar ambos puntos con el texto oficial del Reglamento.**
 
-**Sin implementar**: validación del dígito verificador de RUC/cédula (a propósito, ver sección 11) y que una nota de crédito no exceda el comprobante que modifica (requiere consultar otro comprobante).
+**Notas de crédito y de débito contra el documento que modifican.** Las dos pasan por `DocumentoModificadoValidador` y `BuscadorDocumentoModificado`; el tope de valor es solo de la de crédito (`NotaCreditoValidador`), porque la de débito agrega cargos. Si el documento no está en este sistema (emitido en papel, por otro sistema o antes de este), no se puede comprobar: solo se validan el formato y la fecha, y el SRI hace el resto. La comprobación bloquea la fila del documento hasta el final de la transacción, para que dos notas de crédito simultáneas sobre el mismo documento no se pasen del valor.
+
+**Sin implementar**: validación del dígito verificador de RUC/cédula (a propósito, ver sección 11).
 
 ### 7.8 Errores de negocio con código y textos en `mensajes.properties`
 
@@ -760,7 +775,7 @@ Cómo se resolvió cada integración externa:
 | notificacion-service | 8095 | `/notificaciones/api/v1` |
 | facturacion-orchestrator-service | 8096 | `/sagas/api/v1` |
 | identidad-service | 8097 | `/identidad/api/v1` |
-| Postgres (`facturacion-db`) | 5434 | — |
+| Postgres (`facturacion-db`) | 5436 (desarrollo), 5435 (pruebas) | — |
 | Kafka broker (host) | 9091 (`kafka/.env` → `KAFKA_HOST_PORT`) | — |
 | Kafka UI | 8080 | — |
 
@@ -772,11 +787,11 @@ Cómo se resolvió cada integración externa:
 | TLS, WAF, lista de IP, tamaño máximo de cuerpo | WSO2 / balanceador | TLS 1.2+; cuerpo máximo acorde al logo (200 KB), la imagen del ítem y el `.p12`; los servicios no se publican, solo el gateway |
 | `/q/health`, `/q/metrics`, swagger | Red interna | Fuera del gateway público; Swagger y OpenAPI ya están apagados en producción |
 | Secretos (clave de cifrado de los `.p12`, llaves JWT, base, SMTP) | Gestor de secretos (Vault o KMS) | Se inyectan como variables de entorno desde `env/<ambiente>.secretos.env`; nunca en archivos versionados; rotación documentada |
-| Alta disponibilidad | Plataforma | Postgres con réplica y failover; Kafka: `../kafka/docker-compose.ha.yml` (KRaft, sin elección de líder desactualizado): 2 nodos con replicación 2 en pruebas (`../kafka/env/pruebas.env`) y 3 nodos con replicación 3 y min ISR 2 en producción (`../kafka/env/produccion.env`); 2 o más réplicas de cada servicio (outbox con `SKIP LOCKED` e inbox ya lo toleran) |
-| Salud y reinicio | Compose / orquestador | `healthcheck` sobre `/q/health/ready`, límites de CPU y memoria, `restart: unless-stopped` |
+| Alta disponibilidad | Plataforma | Postgres con réplica de solo lectura (stack `../postgres`, 10.4; la conmutación automática la da Patroni o un Postgres administrado); Kafka: `../kafka/docker-compose.ha.yml` (KRaft, sin elección de líder desactualizado): 2 nodos con replicación 2 en pruebas (`../kafka/env/pruebas.env`) y 3 nodos con replicación 3 y min ISR 2 en producción (`../kafka/env/produccion.env`); 2 o más réplicas de cada servicio (outbox con `SKIP LOCKED` e inbox ya lo toleran) |
+| Salud y reinicio | Compose / orquestador | `healthcheck` sobre `/q/health/ready`, límites de CPU, memoria y procesos, sistema de archivos de solo lectura, sin capacidades de Linux, `restart: unless-stopped` (10.5) |
 | Observabilidad | Opcional, con bandera | Prometheus + Alertmanager + Grafana + Loki sobre `/q/metrics` y los logs; alertas de servicios, Kafka, Postgres y negocio: ver 10.3 |
-| Respaldos y retención (7 años de XML y RIDE) | Plataforma | Respaldo diario de Postgres con restauración ensayada; archivado de los XML autorizados |
-| Hora | Servidor | NTP sincronizado: la fecha de emisión y la clave de acceso dependen de la hora (los servicios calculan "hoy" en hora de Ecuador) |
+| Respaldos y retención (7 años de XML y RIDE) | Stack `../postgres` (bandera) / plataforma | Respaldo continuo de Postgres con pgBackRest a S3 y restauración a un instante, ensayada con `postgres/scripts/probar-restauracion.sh` (10.4); el archivado de 7 años de los XML autorizados queda pendiente |
+| Hora | Servidor | NTP sincronizado (chrony o systemd-timesyncd): la fecha de emisión y la clave de acceso dependen de la hora (los servicios calculan "hoy" en hora de Ecuador) y el SRI rechaza comprobantes con fecha futura. La alerta `RelojDesfasado` (perfil `host`) avisa si el reloj del servidor se desvía más de 1 s |
 
 Dentro del servicio, lo que protege su disponibilidad: bcrypt en ejecutor acotado (`identidad.password.hilos`, `identidad.password.cola`), llamadas al SRI y firma fuera del event loop con `TrabajoBloqueante`, saga con watchdog, DLQ y reintentos.
 
@@ -803,7 +818,17 @@ Los timeouts de base de datos se envían a Postgres como parámetros de cada con
 
 Con `OBSERVABILIDAD_HABILITADA=true` en `env/<ambiente>.env` (la lee `scripts/compose.sh` y activa el perfil `observabilidad` de Compose) se levantan Prometheus, Alertmanager, Grafana, Loki, Alloy y los exportadores de Postgres y Kafka; con la bandera apagada esos contenedores no existen y los servicios funcionan igual. `OBSERVABILIDAD_HOST_HABILITADA` agrega node-exporter y cAdvisor en un servidor Linux. Los servicios solo exponen sus métricas Micrometer (`<root-path>/q/metrics`, sin api-key y sin publicarse fuera de la red de Docker); `LOG_FORMATO_JSON` hace que escriban una línea JSON por log.
 
-Las métricas de negocio (sagas por estado, outbox sin publicar, certificados por vencer) salen de consultas de solo conteo con un rol de Postgres que únicamente puede leer esas columnas. Las alertas (16 reglas: servicio caído, errores 5xx, DLQ con mensajes, sagas `EXPIRADA`, outbox atascado, certificado por vencer, reloj desfasado...) están en `observabilidad/prometheus/reglas/alertas.yml`; Alertmanager las muestra y, configurado un receptor, las envía por correo o Teams. Guía de uso, tableros y tabla de alertas: `observabilidad/README.md`. Las variables: `documentacion/VARIABLES_DE_ENTORNO.md`.
+Las métricas de negocio (sagas por estado, outbox sin publicar, certificados por vencer) salen de consultas de solo conteo con un rol de Postgres que únicamente puede leer esas columnas. Las alertas (17 reglas: servicio caído, errores 5xx, DLQ con mensajes, sagas `EXPIRADA`, outbox atascado, certificado por vencer, reloj desfasado...) están en `observabilidad/prometheus/reglas/alertas.yml`; Alertmanager las muestra y, con `ALERTAS_CORREO_HABILITADO=true` (destinatarios, remitente y servidor SMTP en `env/<ambiente>.env`, clave en el archivo de secretos), las envía por correo: su configuración se genera al arrancar (`observabilidad/alertmanager/entrypoint.sh`). Guía de uso, tableros y tabla de alertas: `observabilidad/README.md`. Las variables: `documentacion/VARIABLES_DE_ENTORNO.md`.
+
+### 10.4 Postgres: pooler, réplica y respaldo (stack `../postgres`, con banderas)
+
+- **PgBouncer** (`PGBOUNCER_HABILITADO`): modo `transaction` entre los servicios y Postgres. Los 7 servicios abren hasta 140 conexiones; Postgres mantiene como máximo `PGBOUNCER_MAX_CONEXIONES_BD` (100). Los servicios usan la URL del pooler (reactiva); Flyway va directo. Los plazos de sesión (`statement_timeout`, `lock_timeout`, `idle_in_transaction_session_timeout`) se fijan además por rol en Postgres, porque PgBouncer descarta los parámetros de arranque de la conexión.
+- **Réplica** (`REPLICACION_HABILITADA`): hot standby por streaming con slot, de solo lectura, sin conmutación automática; sirve de copia caliente y de punto de partida si el primario se pierde. Los servicios no leen de ella.
+- **Respaldo continuo** (`RESPALDO_HABILITADO`): pgBackRest archiva el WAL (restauración a cualquier instante, pérdida máxima `RESPALDO_ARCHIVE_TIMEOUT` = 60 s), un completo semanal y un diferencial diario, cifrado, comprimido y por bloques, hacia S3 (un almacén propio solo en desarrollo y pruebas). Es independiente de la aplicación: no cambia el código ni lo que hacen los servicios. La métrica `facturacion_archivado_fallos` dispara `ArchivadoWalFallando`. Operación, restauración y ensayo: `postgres/README.md`.
+
+### 10.5 Contenedores de los servicios
+
+Los 7 servicios comparten `x-contenedor` y `x-jvm` en `docker-compose.yml`: límites de memoria (`CONTENEDOR_MEMORIA`), CPU y procesos; sistema de archivos de solo lectura con `/tmp` aparte (PDFBox guarda su caché de fuentes allí), `cap_drop: ALL`, `no-new-privileges`, `init`, rotación de logs y `HEALTHCHECK` en el Dockerfile. La JVM usa un porcentaje de la memoria del contenedor (`JVM_MAX_RAM_PORCENTAJE`, no un `-Xmx` fijo) y termina ante un `OutOfMemoryError` para que `restart` la levante limpia. Valores: `documentacion/VARIABLES_DE_ENTORNO.md`, sección 9.
 
 ## 11. Fuera de alcance, a propósito
 
@@ -816,7 +841,6 @@ Las métricas de negocio (sagas por estado, outbox sin publicar, certificados po
 ### Pendientes conocidos
 
 - **El login no se limita en el servicio** (fuerza bruta): el límite por cliente, IP y cuenta se configura en WSO2 (10.1). El servicio solo protege su propio pool: bcrypt corre en un ejecutor acotado y, saturado, responde `429` (`IDE-429-001`). `POST /usuarios` responde `409` a un correo repetido.
-- **La nota de crédito no valida contra el documento que modifica** (que exista, sea de la misma empresa y no exceda su valor): confía en el número y la fecha que manda el cliente.
 - **No se valida el dígito verificador de cédula/RUC** a propósito: el SRI es la autoridad y tiene excepciones. La longitud y el tipo sí se validan.
 - **Los consumidores de Kafka** no validan el sobre del mensaje de forma uniforme: firma y sri-conector rechazan un comando sin `eventId`/`comprobanteId` (va a la DLQ), el resto depende de que venga bien formado. Los DLQ no tienen consumidor ni alerta (ver 6.5).
 - **Logs con código en todos los niveles**: `LogCodificado` y el catálogo de `CATALOGO_ERRORES.md` (sección "Logs"); el primer dígito del código es el nivel. Quedan fuera los logs de las librerías (SmallRye, Quarkus, Hibernate), p. ej. los mensajes de DLQ.
@@ -901,6 +925,40 @@ El `xmldsig-core-schema.xsd` empaquetado no lleva el DOCTYPE del original: ese D
 `POST /comprobantes/{id}/reenviar-correo` (api-key de escritura de la empresa, `202`) vuelve a publicar `ComprobanteAutorizado` con un `eventId` nuevo, con el RIDE y el XML ya guardados; no toca el estado del comprobante ni llama a otro servicio. `notificacion-service` lo procesa como un envío más: crea la notificación o, si ya existe (una por comprobante), actualiza su estado, motivo y fecha, y publica `NotificacionEnviada` o `NotificacionFallida`. Si el envío sale bien, el orquestador pasa la saga de `NOTIFICACION_FALLIDA` a `NOTIFICADO` (borra el motivo) y el comprobante de `AUTORIZADO` a `NOTIFICADO`. Responde `409` si el comprobante no está autorizado, no tiene RIDE o no tiene correo del receptor (`COMP-409-901` y `COMP-409-902`). El resultado se consulta en `GET /notificaciones/comprobante/{id}`.
 
 **En masa.** `POST /sagas/reenviar-notificaciones?limite=100` (orquestador, api-key de escritura, `202` con `{"solicitados": n}`) toma las sagas de la empresa en `NOTIFICACION_FALLIDA` (hasta `limite`, máx. 500), las devuelve a `AUTORIZADO` (así una segunda llamada no las reenvía otra vez) y publica a cada una el comando `REENVIAR_NOTIFICACION`; `comprobantes-service` lo atiende como el reenvío individual (vuelve a publicar `ComprobanteAutorizado`, o lo ignora si el comprobante ya no se puede reenviar). El resultado vuelve por el camino normal: `NOTIFICADO` si sale bien, o de nuevo `NOTIFICACION_FALLIDA` con el motivo nuevo. Si hay más de `limite`, se repite la llamada. Una saga que quedó en `AUTORIZADO` por un reenvío cuyo resultado nunca llegó (notificacion-service caído) se reenvía con `POST /comprobantes/{id}/reenviar-correo`.
+
+### 13.5.1 Plantillas del correo
+
+El asunto y el cuerpo del correo (HTML y, como alternativa para clientes sin HTML, texto plano: `multipart/alternative`, más el RIDE en PDF y el XML autorizado como adjuntos) salen de dos orígenes, en este orden:
+
+1. **La plantilla propia de la empresa**, guardada en `notificacion.plantilla_correo` (una por empresa y tipo de comprobante: `FACTURA`, `NOTA_CREDITO`, `NOTA_DEBITO`, `GUIA_REMISION`, `RETENCION`, `LIQUIDACION_COMPRA`; `GENERICO` aplica a cualquier tipo sin plantilla propia). Se administra con la API `/plantillas-correo` (abajo). Si la plantilla no se puede aplicar, el correo no se pierde: se registra `NOT-302` y sale con la plantilla por defecto.
+2. **La plantilla por defecto**, versionada en `notificacion-service/src/main/resources/templates/correo` (Qute): `asunto.txt`, `documento.html` (doctype, cabecera y cuerpo que envuelve a todo HTML), `logo.html`, `base.html` / `base.txt` (diseño común) y una pareja `<tipo>.html` / `<tipo>.txt` por tipo (`comprobante` es la genérica para un tipo que el servicio no conozca). Cada tipo solo define su texto de introducción. Si la empresa tiene el ajuste `notificacion.asunto`, ese reemplaza al asunto por defecto; una plantilla propia activa lo reemplaza a su vez.
+
+**Variables.** Una lista cerrada, escrita `{{nombre}}`: `tipoComprobante`, `numero`, `fechaEmision`, `total`, `claveAcceso`, `rucEmisor`, `nombreEmisor`, `nombreReceptor` y `logo` (`GET /plantillas-correo/variables` las lista con su descripción). El número, la fecha y el RUC salen de la clave de acceso; el total, el nombre comercial y la razón social del emisor y la razón social del receptor vienen en el evento `ComprobanteAutorizado`. `nombreEmisor` es el ajuste `notificacion.remitente_nombre` o, si no existe, el nombre comercial o la razón social. `nombreReceptor` es "cliente" si no hay nombre. Un valor ausente es vacío.
+
+**Logo.** `{{logo}}` pone la imagen de la empresa (el ajuste `ride.logo`, el mismo del RIDE, que `notificacion-service` ya recibe por `facturacion.empresa.configuracion.eventos.v1`) y, **si la empresa no tiene logo, su nombre en negrita**; sin logo ni nombre, nada. La imagen viaja **incrustada en el correo** (`cid:logo@facturacion`, adjunta como imagen en línea) y no como enlace externo ni `data:` (Gmail y Outlook los bloquean); solo se incrusta si el HTML la usa. Un logo que no sea PNG o JPEG válido se ignora (`NOT-303`) y el correo sale sin logo.
+
+**Seguridad del HTML.**
+- Al guardar, el HTML pasa por OWASP Java HTML Sanitizer con una lista de lo permitido: texto, tablas, listas, enlaces e imágenes, y `style` en línea con CSS de la lista del sanitizador. Se quitan `script`, `style`, `iframe`, `form`, `input`, `object`, `svg`, `meta`, `link`, `html`/`head`/`body`, los atributos de evento (`onclick`...) y toda dirección que no sea `https`, `mailto` o `cid`. Los enlaces llevan `rel="nofollow noopener noreferrer"`. Se guarda el HTML ya limpio y el `PUT` lo devuelve tal como quedó; si no queda contenido se rechaza (`NOT-400-006`).
+- Las variables son un reemplazo de texto (`SustitutoVariables`), no un lenguaje de plantillas: no se evalúan expresiones ni se llama a nada. En el HTML cada valor se escapa; solo `{{logo}}` produce HTML. Una variable solo puede ir en el texto, no dentro de una etiqueta (`<a href="{{x}}">` se rechaza, `NOT-400-003`), y una que no exista se rechaza con la lista de las permitidas (`NOT-400-002`).
+- El asunto va en una sola línea (`NOT-400-004`) y no admite `{{logo}}` (`NOT-400-005`); además se le quitan los saltos de línea al enviar.
+- El texto plano, si se da, es independiente; si no, se deriva del HTML (`HtmlATexto`).
+
+**API** (`/notificaciones/api/v1/plantillas-correo`, api-key de la empresa; escribir exige rol `ADMIN` y nunca se indica otro RUC):
+
+| Método y ruta | Qué hace |
+|---|---|
+| `GET /` | Las plantillas de la empresa |
+| `GET /variables` | Las variables permitidas |
+| `GET /por-defecto/{tipo}` | La plantilla por defecto con las variables escritas, para partir de ella |
+| `POST /vista-previa` | Arma el correo con la plantilla recibida, datos de ejemplo y el logo real (en la vista previa el logo va como `data:` para que un navegador lo muestre); no guarda nada y aplica las mismas reglas que al guardar |
+| `GET /{tipo}` | La plantilla guardada (`404` / `NOT-404-002` si no hay) |
+| `PUT /{tipo}` | Crea (`201`) o reemplaza (`200`); cada reemplazo sube la versión y deja la anterior en el historial. `activa: false` la deja guardada sin uso |
+| `DELETE /{tipo}` | Elimina (`204`); el correo vuelve a la plantilla por defecto |
+| `GET /{tipo}/historial` | Versiones anteriores, la más nueva primero (`REEMPLAZADA` o `ELIMINADA`) |
+
+**Rendimiento y caché.** Cada correo lee la plantilla activa de su empresa y tipo (después la genérica de la empresa). Esa lectura se guarda en memoria (`quarkus-cache`, 60 s y 2000 entradas por defecto: `PLANTILLA_CORREO_CACHE_TTL`, `PLANTILLA_CORREO_CACHE_MAXIMO`); guardar o eliminar vacía la caché de esa instancia cuando la transacción ya terminó, y con varias instancias las demás ven el cambio al vencer el plazo. El envío ya es asíncrono (por Kafka), así que armar el correo no afecta la respuesta de emisión; reemplazar variables cuesta microsegundos frente al SMTP y el PDF. Si leer la plantilla falla, el correo sale con la plantilla por defecto.
+
+**Un tipo nuevo** se agrega con un valor en `TipoComprobanteCorreo` y sus dos archivos; `PlantillaCorreoTest` recorre todos los tipos (también comprueba que la plantilla por defecto exportada es una plantilla válida y se ve igual que la de archivo).
 
 ### 13.6 Vencimiento del certificado de firma
 

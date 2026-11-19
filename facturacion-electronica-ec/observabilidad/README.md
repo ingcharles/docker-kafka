@@ -35,7 +35,7 @@ Los puertos solo se publican en `127.0.0.1` (`OBSERVABILIDAD_BIND`). En producci
 | Pieza | Para qué |
 |---|---|
 | Prometheus | Lee las métricas de los servicios (`<root-path>/q/metrics`) y exportadores cada 15 s; evalúa `prometheus/reglas/alertas.yml` |
-| Alertmanager | Agrupa y envía las alertas. Por defecto solo las muestra; para correo o Teams descomenta un receptor en `alertmanager/alertmanager.yml` (los secretos van en archivos, no en el YAML) |
+| Alertmanager | Agrupa las alertas y las muestra; con `ALERTAS_CORREO_HABILITADO=true` también las envía por correo (sección siguiente). Su configuración se genera al arrancar (`alertmanager/entrypoint.sh`) |
 | Grafana | Tableros provisionados (`grafana/dashboards/*.json`), de solo lectura; para cambiarlos edita el JSON |
 | Loki + Alloy | Alloy lee los logs de los contenedores por el socket de Docker y los manda a Loki (14 días). Con `LOG_FORMATO_JSON=true` el nivel queda como etiqueta |
 | postgres-exporter | Estadísticas de Postgres y las métricas de negocio de `postgres-exporter/queries.yaml` (sagas por estado, outbox pendiente, certificados por vencer) |
@@ -61,7 +61,27 @@ Los puertos solo se publican en `127.0.0.1` (`OBSERVABILIDAD_BIND`). En producci
 | NotificacionesFallidasSostenidas | aviso | más de 10 sagas con correo fallido durante 30 min |
 | OutboxAtascado | crítica | más de 100 eventos sin publicar durante 5 min |
 | CertificadoPorVencer | aviso | un certificado activo vence en menos de 30 días |
+| ArchivadoWalFallando | crítica | Postgres no logra archivar el WAL en el repositorio de respaldo (S3 o volumen) |
 | RelojDesfasado / DiscoLleno | crítica | reloj del servidor desfasado > 1 s / menos del 10 % de disco (perfil `host`) |
+
+## Alertas por correo
+
+Apagadas por defecto: las alertas solo se ven en Alertmanager y Grafana. Para recibirlas por correo, en `env/<ambiente>.env`:
+
+```
+ALERTAS_CORREO_HABILITADO=true
+ALERTAS_CORREO_DESTINATARIOS=operaciones@tu-dominio.example,guardia@tu-dominio.example
+ALERTAS_CORREO_REMITENTE=alertas@tu-dominio.example
+ALERTAS_SMTP_HOST=smtp.gmail.com:587
+ALERTAS_SMTP_USUARIO=alertas@tu-dominio.example
+```
+
+y en `env/<ambiente>.secretos.env`: `ALERTAS_SMTP_PASSWORD=` (con Gmail, una "contraseña de aplicación": verificación en dos pasos activa y una clave generada para esta cuenta; la contraseña normal no funciona). Luego `./scripts/compose.sh <ambiente> up -d`.
+
+- Las críticas se reenvían cada hora hasta que se resuelvan; las de aviso, cada 12 h. Cuando una alerta se resuelve llega un correo de "RESOLVED".
+- Usa una cuenta distinta de la de `notificacion-service` (la de los comprobantes): si el SMTP falla, la alerta de correos fallidos debe poder llegar por otra vía.
+- Para probar sin un SMTP real: un servidor de pruebas como Mailpit (`docker run -p 8025:8025 -p 1025:1025 axllent/mailpit`) con `ALERTAS_SMTP_HOST=host.docker.internal:1025` y `ALERTAS_SMTP_REQUIERE_TLS=false`.
+- Microsoft Teams, Slack o PagerDuty se agregan como un receptor más en `alertmanager/entrypoint.sh`.
 
 ## Seguridad
 

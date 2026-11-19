@@ -46,6 +46,15 @@ public enum EstadoComprobante {
     }
 
     /**
+     * Si un comprobante en este estado cuenta como emitido a efectos de lo que ya se aplicó sobre un documento (las notas de
+     * crédito suman contra el valor del documento): los que van en camino o se autorizaron cuentan; los que fallaron o se
+     * rechazaron no.
+     */
+    public boolean cuentaComoEmitido() {
+        return this == BORRADOR || this == FIRMADO || this == AUTORIZADO || this == NOTIFICADO;
+    }
+
+    /**
      * Si {@code destino} está ADELANTE en el ciclo de vida pero no es el siguiente paso válido (p. ej. llega
      * {@code AUTORIZADO} con el comprobante todavía en {@code BORRADOR}): un comando anterior (el de firmado) no se
      * aplicó. A diferencia de un comando repetido o atrasado —que se ignora sin más— este no puede descartarse en

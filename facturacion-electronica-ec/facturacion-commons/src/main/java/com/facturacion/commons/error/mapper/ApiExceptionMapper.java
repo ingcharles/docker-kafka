@@ -1,5 +1,7 @@
 package com.facturacion.commons.error.mapper;
 
+import java.util.Map;
+
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
@@ -27,6 +29,12 @@ public class ApiExceptionMapper implements ExceptionMapper<ApiException> {
 
     private static final Logger LOG = Logger.getLogger(ApiExceptionMapper.class);
 
+    private static final int HTTP_ENTIDAD_NO_PROCESABLE = 422;
+
+    /** Estados HTTP que JAX-RS no trae en {@link Response.Status}, con su frase estándar. */
+    private static final Map<Integer, String> FRASES_NO_ESTANDAR = Map.of(
+        HTTP_ENTIDAD_NO_PROCESABLE, "Unprocessable Entity");
+
     @Override
     public Response toResponse(ApiException exception) {
         if (esFalloInterno(exception)) {
@@ -43,15 +51,23 @@ public class ApiExceptionMapper implements ExceptionMapper<ApiException> {
 
     /** Cuerpo de la respuesta, separado de {@link Response} para poder probarlo sin runtime JAX-RS. */
     static ApiErrorResponse construirCuerpo(ApiException exception) {
-        Response.Status estado = Response.Status.fromStatusCode(exception.getError().estadoHttp());
-        if (estado == null) {
-            estado = Response.Status.INTERNAL_SERVER_ERROR;
+        int codigoHttp = exception.getError().estadoHttp();
+        String frase = obtenerFrase(codigoHttp);
+        if (frase == null) {
+            codigoHttp = Response.Status.INTERNAL_SERVER_ERROR.getStatusCode();
+            frase = Response.Status.INTERNAL_SERVER_ERROR.getReasonPhrase();
         }
         if (esFalloInterno(exception)) {
-            return new ApiErrorResponse(estado.getStatusCode(), estado.getReasonPhrase(),
+            return new ApiErrorResponse(codigoHttp, frase,
                 Mensajes.obtenerTexto(ErrorComun.ERROR_INTERNO), null, exception.getError().codigo());
         }
-        return new ApiErrorResponse(estado.getStatusCode(), estado.getReasonPhrase(), exception.getMessage(),
+        return new ApiErrorResponse(codigoHttp, frase, exception.getMessage(),
             exception.getDetalles().isEmpty() ? null : exception.getDetalles(), exception.getError().codigo());
+    }
+
+    /** La frase estándar del estado, o {@code null} si no es un estado conocido. */
+    private static String obtenerFrase(int codigoHttp) {
+        Response.Status conocido = Response.Status.fromStatusCode(codigoHttp);
+        return conocido != null ? conocido.getReasonPhrase() : FRASES_NO_ESTANDAR.get(codigoHttp);
     }
 }

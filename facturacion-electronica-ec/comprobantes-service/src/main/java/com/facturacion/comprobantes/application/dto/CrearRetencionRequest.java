@@ -41,11 +41,9 @@ public class CrearRetencionRequest {
     private String parteRelacionada;
 
     @NotEmpty
-    @Valid
-    private List<DocumentoSustentoRequest> documentosSustento;
+    private List<@Valid DocumentoSustentoRequest> documentosSustento;
 
-    @Valid
-    private List<CampoAdicionalRequest> campoAdicional = List.of();
+    private List<@Valid CampoAdicionalRequest> campoAdicional = List.of();
 
     public EmpresaRequest getEmpresa() {
         return empresa;

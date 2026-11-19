@@ -46,19 +46,15 @@ public class CrearNotaDebitoRequest {
     private String moneda = "DOLAR";
 
     @NotEmpty
-    @Valid
-    private List<MotivoNotaDebitoRequest> motivos;
+    private List<@Valid MotivoNotaDebitoRequest> motivos;
 
     /** Impuestos calculados sobre la suma de {@code motivos} — puede ir vacío si el cobro no genera impuesto. */
-    @Valid
-    private List<ImpuestoRequest> impuestos = List.of();
+    private List<@Valid ImpuestoRequest> impuestos = List.of();
 
     /** Opcional — si no se manda, se asume una sola forma de pago "01" por el valor total. */
-    @Valid
-    private List<PagoRequest> pagos;
+    private List<@Valid PagoRequest> pagos;
 
-    @Valid
-    private List<CampoAdicionalRequest> campoAdicional = List.of();
+    private List<@Valid CampoAdicionalRequest> campoAdicional = List.of();
 
     public EmpresaRequest getEmpresa() {
         return empresa;

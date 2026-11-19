@@ -39,3 +39,14 @@ facturacion_certificados:
     - por_vencer:
         usage: "GAUGE"
         description: "Certificados de firma activos que vencen en menos de 30 días"
+
+# Archivado del WAL hacia el repositorio de respaldo (pgBackRest). Con el respaldo apagado no hay fallos (0).
+facturacion_archivado:
+  query: "SELECT failed_count::float AS fallos, archived_count::float AS archivados FROM pg_stat_archiver"
+  metrics:
+    - fallos:
+        usage: "COUNTER"
+        description: "Intentos fallidos de archivar un segmento de WAL (el repositorio de respaldo no responde)"
+    - archivados:
+        usage: "COUNTER"
+        description: "Segmentos de WAL archivados con éxito"

@@ -1,0 +1,4 @@
+{#include correo/base.txt}
+{#intro}Se emitió a su nombre una nota de débito electrónica, ya autorizada por el SRI. Agrega cargos (por ejemplo, intereses de mora) a un documento emitido antes.
+{/intro}
+{/include}

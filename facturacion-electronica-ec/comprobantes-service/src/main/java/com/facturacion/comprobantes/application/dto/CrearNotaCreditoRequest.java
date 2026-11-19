@@ -50,11 +50,9 @@ public class CrearNotaCreditoRequest {
     private String moneda = "DOLAR";
 
     @NotEmpty
-    @Valid
-    private List<DetalleComprobanteRequest> detalles;
+    private List<@Valid DetalleComprobanteRequest> detalles;
 
-    @Valid
-    private List<CampoAdicionalRequest> campoAdicional = List.of();
+    private List<@Valid CampoAdicionalRequest> campoAdicional = List.of();
 
     public EmpresaRequest getEmpresa() {
         return empresa;

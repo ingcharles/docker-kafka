@@ -17,6 +17,7 @@
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus</quarkus.platform.group-id>
         <quarkus.platform.version>3.40.1</quarkus.platform.version>
+        <owasp-html-sanitizer.version>20240325.1</owasp-html-sanitizer.version>
         <surefire-plugin.version>3.5.4</surefire-plugin.version>
         <skipITs>true</skipITs>
     </properties>
@@ -89,6 +90,25 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-mailer</artifactId>
+        </dependency>
+
+        <!-- Plantillas del cuerpo y el asunto del correo (src/main/resources/templates/correo). -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-qute</artifactId>
+        </dependency>
+
+        <!-- Caché en memoria de la plantilla propia de cada empresa (se lee en cada correo). -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-cache</artifactId>
+        </dependency>
+
+        <!-- Limpia el HTML que sube una empresa (scripts, formularios, estilos y URL peligrosos) antes de guardarlo. -->
+        <dependency>
+            <groupId>com.googlecode.owasp-java-html-sanitizer</groupId>
+            <artifactId>owasp-java-html-sanitizer</artifactId>
+            <version>${owasp-html-sanitizer.version}</version>
         </dependency>
 
         <dependency>

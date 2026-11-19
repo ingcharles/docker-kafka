@@ -9,6 +9,9 @@ import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.notificacion.domain.model.vo.ContenidoCorreo;
+import com.facturacion.notificacion.domain.model.vo.LogoEmpresa;
+import com.facturacion.notificacion.domain.port.ArmadorContenidoCorreo;
 import com.facturacion.notificacion.domain.port.CorreoSalida;
 
 /**
@@ -20,6 +23,9 @@ import com.facturacion.notificacion.domain.port.CorreoSalida;
  * encaja perfecto, no hay motivo para reinventarlo). El SRI exige que el
  * receptor pueda quedarse con el XML autorizado, no solo con la
  * representación impresa — mandar únicamente el PDF no cumple con eso.
+ * El asunto y el cuerpo (HTML con alternativa en texto plano) los arma {@link ArmadorContenidoCorreo}; si el HTML usa el
+ * logo de la empresa, la imagen viaja incrustada en el mismo correo (no como adjunto ni como enlace externo, que muchos
+ * clientes bloquean).
  * El envío en sí pasa antes por {@link MailRateLimiter} para no mandar
  * muchos correos de golpe (ver su javadoc).
  */
@@ -27,9 +33,13 @@ import com.facturacion.notificacion.domain.port.CorreoSalida;
 public class CorreoService implements CorreoSalida {
 
     private static final java.nio.charset.Charset UTF8 = java.nio.charset.StandardCharsets.UTF_8;
+    private static final String NOMBRE_LOGO_INCRUSTADO = "logo";
+    private static final String REFERENCIA_AL_LOGO = "cid:" + LogoEmpresa.CID;
+    private static final String IDENTIFICADOR_DEL_LOGO = "<" + LogoEmpresa.CID + ">";
 
     private final ReactiveMailer mailer;
     private final MailRateLimiter rateLimiter;
+    private final ArmadorContenidoCorreo armador;
 
     @ConfigProperty(name = "quarkus.mailer.from")
     String remitenteDefecto;
@@ -38,27 +48,24 @@ public class CorreoService implements CorreoSalida {
     java.time.Duration timeoutEnvio;
 
     @Inject
-    public CorreoService(ReactiveMailer mailer, MailRateLimiter rateLimiter) {
+    public CorreoService(ReactiveMailer mailer, MailRateLimiter rateLimiter, ArmadorContenidoCorreo armador) {
         this.mailer = mailer;
         this.rateLimiter = rateLimiter;
+        this.armador = armador;
     }
 
-    /**
-     * @param asunto           override opcional (clave {@code notificacion.asunto} de
-     *                         {@code configuracion_empresa}) — {@code null} usa el asunto por defecto.
-     * @param remitenteNombre  override opcional (clave {@code notificacion.remitente_nombre}) — solo
-     *                         cambia el nombre mostrado, nunca la dirección real de envío
-     *                         ({@code quarkus.mailer.from}, la única autenticada ante el SMTP).
-     */
-    public Uni<Void> enviarComprobante(String destinatario, String claveAcceso, String tipoComprobante,
-            byte[] ridePdf, String xmlAutorizado, String asunto, String remitenteNombre) {
-        String asuntoFinal = asunto != null && !asunto.isBlank() ? asunto
-            : "Comprobante electrónico autorizado — " + tipoComprobante;
-        Mail correo = Mail.withText(destinatario, asuntoFinal,
-                "Adjunto encontrará el comprobante electrónico autorizado por el SRI (RIDE en PDF y XML autorizado).\n\n"
-                    + "Clave de acceso: " + claveAcceso + "\n")
-            .addAttachment(claveAcceso + ".pdf", ridePdf, "application/pdf")
-            .addAttachment(claveAcceso + ".xml", xmlAutorizado.getBytes(UTF8), "application/xml");
+    @Override
+    public Uni<Void> enviarComprobante(CorreoSalida.Comprobante comprobante) {
+        ContenidoCorreo contenido = armador.armar(comprobante);
+        Mail correo = Mail.withHtml(comprobante.destinatario(), contenido.asunto(), contenido.html())
+            .setText(contenido.texto())
+            .addAttachment(comprobante.claveAcceso() + ".pdf", comprobante.ridePdf(), "application/pdf")
+            .addAttachment(comprobante.claveAcceso() + ".xml", comprobante.xmlAutorizado().getBytes(UTF8), "application/xml");
+        LogoEmpresa logo = comprobante.ajustes().logo();
+        if (logo != null && contenido.html().contains(REFERENCIA_AL_LOGO)) {
+            correo.addInlineAttachment(NOMBRE_LOGO_INCRUSTADO, logo.datos(), logo.tipoContenido(), IDENTIFICADOR_DEL_LOGO);
+        }
+        String remitenteNombre = comprobante.ajustes().remitenteNombre();
         if (remitenteNombre != null && !remitenteNombre.isBlank()) {
             correo.setFrom(remitenteNombre + " <" + remitenteDefecto + ">");
         }

@@ -1014,3 +1014,50 @@ GET http://localhost:8096/sagas/api/v1/{comprobanteId}              # pasos NOTA
 ```
 Resultado esperado: la saga termina en `NOTIFICADO` en cuanto un envío sale bien. Con `reintentosNotificacion = 3` y la saga todavía en
 `NOTIFICACION_FALLIDA`, el job la dejó: corrige la causa (p. ej. la contraseña SMTP) y reenvíala por REST, que no tiene tope. Ver ARQUITECTURA.md 4.2.
+
+## 11. Plantillas de correo (notificacion-service)
+
+Base: `http://localhost:8095/notificaciones/api/v1/plantillas-correo` con la api-key de la empresa. Leer sirve con cualquier api-key de la
+empresa; guardar y eliminar piden rol `ADMIN`. Sin plantilla propia el correo sale con la plantilla por defecto. Detalle y reglas: ARQUITECTURA.md 13.5.1.
+
+### 11.1 Empezar desde la plantilla por defecto
+```
+GET .../variables                 # las variables permitidas, escritas {{numero}}, {{total}}, {{logo}}...
+GET .../por-defecto/FACTURA       # asunto, cuerpoHtml (sin html/head/body) y cuerpoTexto con las variables sin reemplazar
+```
+`{tipo}` es `FACTURA`, `NOTA_CREDITO`, `NOTA_DEBITO`, `GUIA_REMISION`, `RETENCION`, `LIQUIDACION_COMPRA` o `GENERICO` (cualquier tipo sin plantilla propia).
+
+### 11.2 Probar sin guardar y guardar
+```
+POST .../vista-previa
+PUT  .../FACTURA
+```
+```json
+{
+  "tipoComprobante": "FACTURA",
+  "asunto": "Su {{tipoComprobante}} {{numero}} - {{nombreEmisor}}",
+  "cuerpoHtml": "<div>{{logo}}</div><h2>Gracias por su compra, {{nombreReceptor}}</h2><p>Su {{tipoComprobante}} {{numero}} por <b>USD {{total}}</b> está autorizada.</p>",
+  "cuerpoTexto": "Gracias por su compra, {{nombreReceptor}}. {{tipoComprobante}} {{numero}} por USD {{total}}."
+}
+```
+(`vista-previa` lleva `tipoComprobante` en el cuerpo; `PUT` lo lleva en la ruta y acepta además `"activa": false`.) La vista previa devuelve
+`asunto`, `html`, `texto` y `tieneLogo`, con datos de ejemplo y el logo real. `PUT` responde `201` si crea y `200` si reemplaza, con el HTML ya limpiado.
+
+Lo que se rechaza con `400`: una variable que no existe (`NOT-400-002`), una variable dentro de una etiqueta como `<a href="{{claveAcceso}}">` (`NOT-400-003`), un asunto de varias
+líneas (`NOT-400-004`), `{{logo}}` en el asunto (`NOT-400-005`) y un HTML que se queda vacío al quitar lo peligroso (`NOT-400-006`). Scripts, formularios, marcos,
+`onclick` y direcciones que no sean `https`, `mailto` o `cid` se quitan sin error: compara el `cuerpoHtml` que devuelve el `PUT` con el que enviaste.
+
+### 11.3 Ver el efecto
+Reenvía el correo de un comprobante ya autorizado (`POST http://localhost:8093/comprobantes/api/v1/comprobantes/{id}/reenviar-correo`, `202`) y mira el correo
+(en desarrollo, con un servidor de correo de pruebas como Mailpit). El cambio se ve de inmediato en la instancia que lo guardó; con varias instancias, en hasta 60 s.
+
+**Logo:** sube uno con `POST http://localhost:8091/empresas/api/v1/{empresaId}/logo` (sección 3.6). Con logo, `{{logo}}` es la imagen incrustada en el correo; sin logo, el nombre
+de la empresa en negrita.
+
+### 11.4 Consultar, historial y eliminar
+```
+GET    .../                       # las plantillas de la empresa
+GET    .../FACTURA                # la guardada (404 NOT-404-002 si no tiene)
+GET    .../FACTURA/historial      # versiones anteriores, la más nueva primero (REEMPLAZADA / ELIMINADA)
+DELETE .../FACTURA                # 204: el correo vuelve a la plantilla por defecto
+```
