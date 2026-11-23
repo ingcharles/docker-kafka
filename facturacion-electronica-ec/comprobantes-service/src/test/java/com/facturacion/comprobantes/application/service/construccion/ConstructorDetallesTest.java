@@ -62,7 +62,7 @@ class ConstructorDetallesTest {
     }
 
     @Test
-    void laUnidadDelItemSaleComoMedidaPrimero() {
+    void testDeberiaLaUnidadDelItemSaleComoMedidaPrimero() {
         UUID id = UUID.randomUUID();
 
         DetalleComprobante detalle = constructor.construir(
@@ -73,7 +73,7 @@ class ConstructorDetallesTest {
     }
 
     @Test
-    void unaMedidaMandadaPorElLlamadorNoSeDuplica() {
+    void testDeberiaUnaMedidaMandadaPorElLlamadorNoSeDuplica() {
         UUID id = UUID.randomUUID();
 
         DetalleComprobante detalle = constructor.construir(
@@ -83,7 +83,7 @@ class ConstructorDetallesTest {
     }
 
     @Test
-    void conTresDetallesDelLlamadorNoSeAgregaLaMedidaPorqueElXsdAdmiteTres() {
+    void testDeberiaConTresDetallesDelLlamadorNoSeAgregaLaMedidaPorqueElXsdAdmiteTres() {
         UUID id = UUID.randomUUID();
 
         DetalleComprobante detalle = constructor.construir(
@@ -104,7 +104,7 @@ class ConstructorDetallesTest {
     }
 
     @Test
-    void elIvaDeUnaLineaConIceSeCalculaSobreBasePorMasIce() {
+    void testDeberiaElIvaDeUnaLineaConIceSeCalculaSobreBasePorMasIce() {
         // Caso F09 rechazado por el SRI: 2 x 10,00 con ICE 75% e IVA 15% -> ICE 15,00; base IVA 35,00; IVA 5,25.
         List<Impuesto> impuestos = ConstructorDetalles.calcularImpuestos(new BigDecimal("20.00"), new BigDecimal("2"),
             List.of(tarifa("3", "3031", "75"), tarifa("2", "4", "15")));
@@ -118,7 +118,7 @@ class ConstructorDetallesTest {
     }
 
     @Test
-    void elIvaIgualSumaElIceAunqueElIvaVengaPrimeroEnLaLista() {
+    void testDeberiaElIvaIgualSumaElIceAunqueElIvaVengaPrimeroEnLaLista() {
         List<Impuesto> impuestos = ConstructorDetalles.calcularImpuestos(new BigDecimal("50.00"), BigDecimal.ONE,
             List.of(tarifa("2", "4", "15"), tarifa("3", "3660", "35")));
 
@@ -128,7 +128,7 @@ class ConstructorDetallesTest {
     }
 
     @Test
-    void elIrbpnrEsTarifaEspecificaPorUnidadYNoEntraEnLaBaseDelIva() {
+    void testDeberiaElIrbpnrEsTarifaEspecificaPorUnidadYNoEntraEnLaBaseDelIva() {
         // Ejemplo de la ficha: IRBPNR 5001, tarifa 0.02, base = unidades, valor = unidades x tarifa.
         List<Impuesto> impuestos = ConstructorDetalles.calcularImpuestos(new BigDecimal("12.00"), new BigDecimal("12"),
             List.of(tarifa("5", "5001", "0.02", TipoTarifa.ESPECIFICA, null), tarifa("2", "4", "15")));
@@ -140,7 +140,7 @@ class ConstructorDetallesTest {
     }
 
     @Test
-    void elIceEspecificoUsaLasUnidadesYEntraEnLaBaseDelIva() {
+    void testDeberiaElIceEspecificoUsaLasUnidadesYEntraEnLaBaseDelIva() {
         // Cigarrillos 3011: USD 0,16 por unidad; 10 cajetillas a 5,00 -> ICE 1,60; IVA 15% sobre 50,00 + 1,60.
         List<Impuesto> impuestos = ConstructorDetalles.calcularImpuestos(new BigDecimal("50.00"), new BigDecimal("10"),
             List.of(tarifa("3", "3011", "0.16", TipoTarifa.ESPECIFICA, null), tarifa("2", "4", "15")));
@@ -152,7 +152,7 @@ class ConstructorDetallesTest {
     }
 
     @Test
-    void laBaseIndicadaPorElEmisorReemplazaALaDeLaLinea() {
+    void testDeberiaLaBaseIndicadaPorElEmisorReemplazaALaDeLaLinea() {
         // Base por PVP (art. 76 LRTI): el emisor indica la base imponible del ICE ya determinada.
         List<Impuesto> porcentual = ConstructorDetalles.calcularImpuestos(new BigDecimal("100.00"), BigDecimal.ONE,
             List.of(tarifa("3", "3610", "20", TipoTarifa.PORCENTAJE, "60.00"), tarifa("2", "4", "15")));
@@ -167,7 +167,7 @@ class ConstructorDetallesTest {
     }
 
     @Test
-    void sinIceElIvaSeCalculaSobreLaBaseDeLaLinea() {
+    void testDeberiaSinIceElIvaSeCalculaSobreLaBaseDeLaLinea() {
         List<Impuesto> impuestos = ConstructorDetalles.calcularImpuestos(new BigDecimal("20.00"), new BigDecimal("2"),
             List.of(tarifa("2", "4", "15")));
 
@@ -198,7 +198,7 @@ class ConstructorDetallesTest {
     }
 
     @Test
-    void elItemSoloGuardaCodigosYLaTarifaSaleDelCatalogo() {
+    void testDeberiaElItemSoloGuardaCodigosYLaTarifaSaleDelCatalogo() {
         UUID id = UUID.randomUUID();
         DetalleComprobanteRequest request = linea(id, null);
         request.setImpuestos(null);
@@ -218,7 +218,7 @@ class ConstructorDetallesTest {
     }
 
     @Test
-    void sinIceNiIrbpnrElItemSoloLlevaIva() {
+    void testDeberiaSinIceNiIrbpnrElItemSoloLlevaIva() {
         UUID id = UUID.randomUUID();
         DetalleComprobanteRequest request = linea(id, null);
         request.setImpuestos(null);
@@ -230,7 +230,7 @@ class ConstructorDetallesTest {
     }
 
     @Test
-    void unRequestPuedePedirLaModalidadEspecificaDeUnCodigoConDos() {
+    void testDeberiaUnRequestPuedePedirLaModalidadEspecificaDeUnCodigoConDos() {
         ImpuestoRequest ice = new ImpuestoRequest();
         ice.setCodigo("3");
         ice.setCodigoPorcentaje("3031");
@@ -246,7 +246,7 @@ class ConstructorDetallesTest {
     }
 
     @Test
-    void laBaseImponibleNoSePuedeIndicarParaElIva() {
+    void testDeberiaLaBaseImponibleNoSePuedeIndicarParaElIva() {
         ImpuestoRequest iva = new ImpuestoRequest();
         iva.setCodigo("2");
         iva.setCodigoPorcentaje("4");
@@ -261,7 +261,7 @@ class ConstructorDetallesTest {
     }
 
     @Test
-    void unCodigoIceQueNoEstaEnElCatalogoSeRechaza() {
+    void testDeberiaUnCodigoIceQueNoEstaEnElCatalogoSeRechaza() {
         ImpuestoRequest ice = new ImpuestoRequest();
         ice.setCodigo("3");
         ice.setCodigoPorcentaje("9999");
@@ -275,7 +275,7 @@ class ConstructorDetallesTest {
     }
 
     @Test
-    void sinItemOSinUnidadSoloQuedanLosDelLlamador() {
+    void testDeberiaSinItemOSinUnidadSoloQuedanLosDelLlamador() {
         UUID id = UUID.randomUUID();
 
         assertTrue(constructor.construir(linea(null, null), Map.of(), catalogos).getDetallesAdicionales().isEmpty());

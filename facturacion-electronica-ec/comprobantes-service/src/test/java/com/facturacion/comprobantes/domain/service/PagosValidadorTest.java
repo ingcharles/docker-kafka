@@ -44,25 +44,25 @@ class PagosValidadorTest {
     }
 
     @Test
-    void aceptaUnPagoQueCuadraConElTotal() {
+    void testDeberiaAceptaUnPagoQueCuadraConElTotal() {
         assertDoesNotThrow(() -> validar(List.of(pago(SIN_SISTEMA_FINANCIERO, "115.00")), TOTAL, true));
     }
 
     @Test
-    void aceptaVariosPagosQueSumanElTotal() {
+    void testDeberiaAceptaVariosPagosQueSumanElTotal() {
         assertDoesNotThrow(() -> validar(
             List.of(pago(SIN_SISTEMA_FINANCIERO, "15.00"), pago(TARJETA_CREDITO, "100.00")), TOTAL, true));
     }
 
     @Test
-    void aceptaTodosLosCodigosDelCatalogo() {
+    void testDeberiaAceptaTodosLosCodigosDelCatalogo() {
         for (String codigo : FORMAS) {
             assertDoesNotThrow(() -> validar(List.of(pago(codigo, "115.00")), TOTAL, true), "código " + codigo);
         }
     }
 
     @Test
-    void rechazaCodigosFueraDelCatalogoAunqueElXsdLosAcepte() {
+    void testDeberiaRechazaCodigosFueraDelCatalogoAunqueElXsdLosAcepte() {
         // El XSD del SRI acepta 02..14; la Tabla 24 no los tiene.
         for (String codigo : List.of("02", "09", "14", "22", "00", "99", "1")) {
             rechaza(() -> validar(List.of(pago(codigo, "115.00")), TOTAL, true), CodigoError.PAGO_FORMA_NO_VIGENTE);
@@ -70,20 +70,20 @@ class PagosValidadorTest {
     }
 
     @Test
-    void rechazaUnaFormaDePagoQueElCatalogoYaNoTieneVigente() {
+    void testDeberiaRechazaUnaFormaDePagoQueElCatalogoYaNoTieneVigente() {
         Set<String> sinTarjetaDeCredito = Set.of("01", "15", "16", "17", "18", "20", "21");
         rechaza(() -> PagosValidador.validar(List.of(pago(TARJETA_CREDITO, "115.00")), TOTAL, true,
             sinTarjetaDeCredito), CodigoError.PAGO_FORMA_NO_VIGENTE);
     }
 
     @Test
-    void rechazaCuandoLaSumaNoCuadra() {
+    void testDeberiaRechazaCuandoLaSumaNoCuadra() {
         rechaza(() -> validar(List.of(pago(SIN_SISTEMA_FINANCIERO, "100.00")), TOTAL, true),
             CodigoError.PAGOS_NO_CUADRAN);
     }
 
     @Test
-    void comparaLaSumaADosDecimalesComoSeImprimeEnElXml() {
+    void testDeberiaComparaLaSumaADosDecimalesComoSeImprimeEnElXml() {
         // 3 x 38.333 se imprime 3 x 38.33 = 114.99, pero el importeTotal impreso es 115.00: no cuadra.
         rechaza(() -> validar(List.of(pago(SIN_SISTEMA_FINANCIERO, "38.333"), pago(SIN_SISTEMA_FINANCIERO, "38.333"),
             pago(SIN_SISTEMA_FINANCIERO, "38.333")), TOTAL, true), CodigoError.PAGOS_NO_CUADRAN);
@@ -93,7 +93,7 @@ class PagosValidadorTest {
     }
 
     @Test
-    void plazoYUnidadTiempoVanJuntos() {
+    void testDeberiaPlazoYUnidadTiempoVanJuntos() {
         assertDoesNotThrow(() -> validar(List.of(credito(TARJETA_CREDITO, "115.00", "30", "dias")), TOTAL, true));
         rechaza(() -> validar(List.of(credito(TARJETA_CREDITO, "115.00", "30", null)), TOTAL, true),
             CodigoError.PAGO_PLAZO_SIN_UNIDAD);
@@ -104,7 +104,7 @@ class PagosValidadorTest {
     }
 
     @Test
-    void plazoDebeSerNumericoNoNegativoConHastaDosDecimales() {
+    void testDeberiaPlazoDebeSerNumericoNoNegativoConHastaDosDecimales() {
         rechaza(() -> validar(List.of(credito(TARJETA_CREDITO, "115.00", "abc", "dias")), TOTAL, true),
             CodigoError.PAGO_PLAZO_NO_NUMERICO);
         rechaza(() -> validar(List.of(credito(TARJETA_CREDITO, "115.00", "30 dias", "dias")), TOTAL, true),
@@ -118,20 +118,20 @@ class PagosValidadorTest {
     }
 
     @Test
-    void unidadTiempoMaximoDiezCaracteres() {
+    void testDeberiaUnidadTiempoMaximoDiezCaracteres() {
         rechaza(() -> validar(List.of(credito(TARJETA_CREDITO, "115.00", "30", "undiaymuchomas")), TOTAL, true),
             CodigoError.PAGO_UNIDAD_TIEMPO_LARGA);
     }
 
     @Test
-    void retencionNoAdmitePlazoNiUnidadTiempo() {
+    void testDeberiaRetencionNoAdmitePlazoNiUnidadTiempo() {
         assertDoesNotThrow(() -> validar(List.of(pago(SIN_SISTEMA_FINANCIERO, "115.00")), TOTAL, false));
         rechaza(() -> validar(List.of(credito(SIN_SISTEMA_FINANCIERO, "115.00", "30", "dias")), TOTAL, false),
             CodigoError.PAGO_RETENCION_SIN_PLAZO);
     }
 
     @Test
-    void facturaNegociableExigePlazoUnidadYDireccionDelComprador() {
+    void testDeberiaFacturaNegociableExigePlazoUnidadYDireccionDelComprador() {
         List<Pago> completo = List.of(credito(ENDOSO, "115.00", "30", "dias"));
         assertDoesNotThrow(() -> PagosValidador.validarFacturaNegociable(completo, "Salinas y Santiago"));
 
@@ -142,7 +142,7 @@ class PagosValidadorTest {
     }
 
     @Test
-    void facturaSinEndosoNoNecesitaDireccion() {
+    void testDeberiaFacturaSinEndosoNoNecesitaDireccion() {
         assertDoesNotThrow(() -> PagosValidador.validarFacturaNegociable(
             List.of(pago(SIN_SISTEMA_FINANCIERO, "115.00")), null));
     }

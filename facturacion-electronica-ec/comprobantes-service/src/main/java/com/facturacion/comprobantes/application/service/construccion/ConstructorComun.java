@@ -9,6 +9,8 @@ import java.util.stream.Collectors;
 
 import jakarta.enterprise.context.ApplicationScoped;
 
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
 import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.commons.time.FechasSri;
 import com.facturacion.comprobantes.application.dto.CampoAdicionalRequest;
@@ -24,6 +26,7 @@ import com.facturacion.comprobantes.domain.model.vo.CampoAdicional;
 import com.facturacion.comprobantes.domain.model.vo.CatalogosSriAFecha;
 import com.facturacion.comprobantes.domain.model.vo.Pago;
 import com.facturacion.comprobantes.domain.service.ClaveAccesoGenerador;
+import com.facturacion.comprobantes.domain.service.CorreosValidador;
 import com.facturacion.comprobantes.domain.service.PagosValidador;
 import com.facturacion.comprobantes.shared.error.CodigoError;
 
@@ -33,6 +36,14 @@ import com.facturacion.comprobantes.shared.error.CodigoError;
  */
 @ApplicationScoped
 public class ConstructorComun {
+
+    @ConfigProperty(name = "comprobantes.correo.maximo-destinatarios", defaultValue = CorreosValidador.MAXIMO_POR_DEFECTO)
+    int maximoCorreos = Integer.parseInt(CorreosValidador.MAXIMO_POR_DEFECTO);
+
+    /** Valida el correo del receptor (uno o varios separados por coma) y lo devuelve normalizado; {@code null} si no hay. */
+    public String armarCorreos(String correos, String campo) {
+        return CorreosValidador.validarYNormalizar(correos, campo, maximoCorreos);
+    }
 
     /** Encabezado común a los 6 tipos (clave de acceso, snapshot de la empresa inline, estado inicial). */
     public Comprobante armarEncabezado(EmpresaRequest empresa, TipoComprobante tipo, long secuencial,

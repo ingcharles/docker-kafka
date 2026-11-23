@@ -19,7 +19,7 @@ class LogoEmpresaTest {
     }
 
     @Test
-    void unPngSeReconocePorSusPrimerosBytes() {
+    void testDeberiaUnPngSeReconocePorSusPrimerosBytes() {
         LogoEmpresa logo = LogoEmpresa.desdeBase64(base64(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A)).orElseThrow();
 
         assertEquals("image/png", logo.tipoContenido());
@@ -27,24 +27,24 @@ class LogoEmpresaTest {
     }
 
     @Test
-    void unJpegSeReconocePorSusPrimerosBytes() {
+    void testDeberiaUnJpegSeReconocePorSusPrimerosBytes() {
         assertEquals("image/jpeg", LogoEmpresa.desdeBase64(base64(0xFF, 0xD8, 0xFF, 0xE0)).orElseThrow().tipoContenido());
     }
 
     @Test
-    void sinValorNoHayLogo() {
+    void testDeberiaSinValorNoHayLogo() {
         assertTrue(LogoEmpresa.desdeBase64(null).isEmpty());
         assertTrue(LogoEmpresa.desdeBase64("").isEmpty());
         assertTrue(LogoEmpresa.desdeBase64("   ").isEmpty());
     }
 
     @Test
-    void unBase64QueNoLoEsSeRechaza() {
+    void testDeberiaUnBase64QueNoLoEsSeRechaza() {
         assertThrows(IllegalArgumentException.class, () -> LogoEmpresa.desdeBase64("esto no es base64 !!"));
     }
 
     @Test
-    void unArchivoQueNoEsPngNiJpegSeRechaza() {
+    void testDeberiaUnArchivoQueNoEsPngNiJpegSeRechaza() {
         assertThrows(IllegalArgumentException.class, () -> LogoEmpresa.desdeBase64(base64(0x47, 0x49, 0x46, 0x38)));
         assertThrows(IllegalArgumentException.class, () -> LogoEmpresa.desdeBase64(base64(0x3C, 0x73, 0x76, 0x67)));
         assertThrows(IllegalArgumentException.class, () -> LogoEmpresa.desdeBase64(base64(0x89)));

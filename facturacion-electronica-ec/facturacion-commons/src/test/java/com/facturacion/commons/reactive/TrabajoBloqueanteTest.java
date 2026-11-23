@@ -25,12 +25,12 @@ class TrabajoBloqueanteTest {
     private static final Duration ESPERA = Duration.ofSeconds(5);
 
     @Test
-    void sinContextoDeVertxDevuelveElResultadoDelTrabajo() {
+    void testDeberiaSinContextoDeVertxDevuelveElResultadoDelTrabajo() {
         assertEquals("listo", TrabajoBloqueante.ejecutar(() -> "listo").await().atMost(ESPERA));
     }
 
     @Test
-    void conContextoElTrabajoCorreEnOtroHiloYElResultadoVuelveAlContextoDelLlamador() throws Exception {
+    void testDeberiaConContextoElTrabajoCorreEnOtroHiloYElResultadoVuelveAlContextoDelLlamador() throws Exception {
         Vertx vertx = Vertx.vertx();
         try {
             CompletableFuture<Object[]> resultado = new CompletableFuture<>();
@@ -52,7 +52,7 @@ class TrabajoBloqueanteTest {
     }
 
     @Test
-    void conUnEjecutorPropioLlenoFallaEnVezDeEncolarSinLimite() throws Exception {
+    void testDeberiaConUnEjecutorPropioLlenoFallaEnVezDeEncolarSinLimite() throws Exception {
         ThreadPoolExecutor ejecutor = new ThreadPoolExecutor(1, 1, 0, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1));
         CountDownLatch liberar = new CountDownLatch(1);
         try {

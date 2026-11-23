@@ -15,20 +15,20 @@ import org.junit.jupiter.api.Test;
 class EstadoComprobanteTest {
 
     @Test
-    void elCicloDeVidaAvanzaPorElCaminoFeliz() {
+    void testDeberiaElCicloDeVidaAvanzaPorElCaminoFeliz() {
         assertTrue(BORRADOR.puedePasarA(FIRMADO));
         assertTrue(FIRMADO.puedePasarA(AUTORIZADO));
         assertTrue(AUTORIZADO.puedePasarA(NOTIFICADO));
     }
 
     @Test
-    void tambienAvanzaHaciaLosFinalesDeError() {
+    void testDeberiaTambienAvanzaHaciaLosFinalesDeError() {
         assertTrue(BORRADOR.puedePasarA(FIRMA_FALLIDA));
         assertTrue(FIRMADO.puedePasarA(NO_AUTORIZADO));
     }
 
     @Test
-    void nuncaRetrocedeNiSeRepite() {
+    void testDeberiaNuncaRetrocedeNiSeRepite() {
         assertFalse(AUTORIZADO.puedePasarA(FIRMADO));
         assertFalse(AUTORIZADO.puedePasarA(AUTORIZADO));
         assertFalse(NOTIFICADO.puedePasarA(AUTORIZADO));
@@ -37,7 +37,7 @@ class EstadoComprobanteTest {
     }
 
     @Test
-    void unComandoQueSaltaPasosSeDistingueDeUnoRepetidoOAtrasado() {
+    void testDeberiaUnComandoQueSaltaPasosSeDistingueDeUnoRepetidoOAtrasado() {
         // Fuera de orden (el firmado no se aplicó): debe fallar visible, no descartarse.
         assertTrue(BORRADOR.esSaltoDePasos(AUTORIZADO));
         assertTrue(BORRADOR.esSaltoDePasos(NO_AUTORIZADO));
@@ -53,7 +53,7 @@ class EstadoComprobanteTest {
     }
 
     @Test
-    void noSeSaltaPasosNiSalePorUnEstadoFinal() {
+    void testDeberiaNoSeSaltaPasosNiSalePorUnEstadoFinal() {
         assertFalse(BORRADOR.puedePasarA(AUTORIZADO));
         assertFalse(BORRADOR.puedePasarA(NOTIFICADO));
         for (EstadoComprobante destino : EstadoComprobante.values()) {

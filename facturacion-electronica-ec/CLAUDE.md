@@ -53,5 +53,5 @@ contraseñas; usa ids (`comprobanteId`, `claveAcceso`).
 
 **Logs.** Todo log del código propio (`DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`) lleva código y se registra con `LogCodificado`, nunca con `LOG.xxx(...)` suelto: `[FIR-401] texto (comprobanteId=…)`. El código es `<PREFIJO>-<NNN>` y el primer dígito es el nivel (1 DEBUG, 2 INFO, 3 WARN, 4 ERROR, 5 FATAL). Declara el código en el `CodigoLog` del servicio, su texto en `mensajes.properties` y la fila en `CATALOGO_ERRORES.md`. Todo consumidor de Kafka (`@Incoming`) lleva `@LogFallosMensajeria`. El contexto lleva solo ids.
 
-**Pruebas.** Toda lógica nueva lleva prueba unitaria. Para repositorios usa dobles en memoria o `Proxy` (no hace falta una
+**Pruebas.** El nombre de todo método de prueba empieza con `testDeberia` (`testDeberiaRechazarUnCorreoSinArroba`). Toda lógica nueva lleva prueba unitaria. Para repositorios usa dobles en memoria o `Proxy` (no hace falta una
 base de datos); mapea con `Uni…await()`.

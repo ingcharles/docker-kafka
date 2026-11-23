@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 class CodigosSriEnumsTest {
 
     @Test
-    void elImpuestoReconoceSuCodigoYTolerasNulo() {
+    void testDeberiaElImpuestoReconoceSuCodigoYTolerasNulo() {
         assertTrue(ImpuestoSri.IVA.esCodigo("2"));
         assertTrue(ImpuestoSri.ICE.esCodigo("3"));
         assertTrue(ImpuestoSri.IRBPNR.esCodigo("5"));
@@ -19,14 +19,14 @@ class CodigosSriEnumsTest {
     }
 
     @Test
-    void losCodigosDeClasificacionDelIvaSonNoObjetoYExento() {
+    void testDeberiaLosCodigosDeClasificacionDelIvaSonNoObjetoYExento() {
         assertTrue(CodigoIva.NO_OBJETO.esCodigo("6"));
         assertTrue(CodigoIva.EXENTO.esCodigo("7"));
         assertFalse(CodigoIva.EXENTO.esCodigo("4"));
     }
 
     @Test
-    void elTipoDeComprobanteSeBuscaPorCodigoYTieneSuNombreImpreso() {
+    void testDeberiaElTipoDeComprobanteSeBuscaPorCodigoYTieneSuNombreImpreso() {
         assertEquals(TipoComprobante.NOTA_CREDITO, TipoComprobante.buscarPorCodigo("04").orElseThrow());
         assertEquals("LIQUIDACIÓN DE COMPRA", TipoComprobante.LIQUIDACION_COMPRA.nombre());
         assertTrue(TipoComprobante.buscarPorCodigo("99").isEmpty());
@@ -36,12 +36,12 @@ class CodigosSriEnumsTest {
     }
 
     @Test
-    void elTipoDeEmisionNormalEsElUno() {
+    void testDeberiaElTipoDeEmisionNormalEsElUno() {
         assertEquals("1", TipoEmision.NORMAL.codigo());
     }
 
     @Test
-    void elFormatoDeTicketSeBuscaSinImportarMayusculas() {
+    void testDeberiaElFormatoDeTicketSeBuscaSinImportarMayusculas() {
         assertEquals(FormatoTicket.ESCPOS, FormatoTicket.buscarPorNombre("EscPos").orElseThrow());
         assertTrue(FormatoTicket.buscarPorNombre("pdf").isEmpty());
     }

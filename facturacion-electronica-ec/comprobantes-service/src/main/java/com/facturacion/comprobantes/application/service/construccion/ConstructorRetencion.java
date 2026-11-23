@@ -120,7 +120,7 @@ public class ConstructorRetencion implements ConstructorComprobante<CrearRetenci
         comprobante.setCompradorTipoIdentificacion(request.getSujetoRetenidoTipoIdentificacion());
         comprobante.setCompradorIdentificacion(request.getSujetoRetenidoIdentificacion());
         comprobante.setCompradorRazonSocial(request.getSujetoRetenidoRazonSocial());
-        comprobante.setCompradorCorreo(request.getSujetoRetenidoCorreo());
+        comprobante.setCompradorCorreo(comun.armarCorreos(request.getSujetoRetenidoCorreo(), "sujetoRetenidoCorreo"));
         comprobante.setMoneda("DOLAR");
         comprobante.setDetalles(detalles);
         comprobante.setDocumentosSustento(documentosSustento);

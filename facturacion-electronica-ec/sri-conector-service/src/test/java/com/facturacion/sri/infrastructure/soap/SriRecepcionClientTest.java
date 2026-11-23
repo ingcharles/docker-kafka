@@ -21,33 +21,33 @@ class SriRecepcionClientTest {
     }
 
     @Test
-    void unaRespuestaRecibidaEsRecibida() throws Exception {
+    void testDeberiaUnaRespuestaRecibidaEsRecibida() throws Exception {
         RecepcionResultado r = SriRecepcionClient.parsear(respuesta("RECIBIDA", null, null));
         assertTrue(r.esRecibida());
         assertFalse(r.claveYaRegistrada());
     }
 
     @Test
-    void unaDevueltaPorEstructuraEsUnRechazo() throws Exception {
+    void testDeberiaUnaDevueltaPorEstructuraEsUnRechazo() throws Exception {
         RecepcionResultado r = SriRecepcionClient.parsear(respuesta("DEVUELTA", "35", "ARCHIVO NO CUMPLE ESTRUCTURA XML"));
         assertFalse(r.esRecibida());
         assertEquals("ARCHIVO NO CUMPLE ESTRUCTURA XML", r.mensajes());
     }
 
     @Test
-    void unaClaveYaRegistradaNoEsUnRechazoSinoQueElSriYaLaTiene() throws Exception {
+    void testDeberiaUnaClaveYaRegistradaNoEsUnRechazoSinoQueElSriYaLaTiene() throws Exception {
         RecepcionResultado r = SriRecepcionClient.parsear(respuesta("DEVUELTA", "43", "CLAVE ACCESO REGISTRADA"));
         assertTrue(r.esRecibida());
         assertTrue(r.claveYaRegistrada());
     }
 
     @Test
-    void unComprobanteEnProcesamientoTampocoEsUnRechazo() throws Exception {
+    void testDeberiaUnComprobanteEnProcesamientoTampocoEsUnRechazo() throws Exception {
         assertTrue(SriRecepcionClient.parsear(respuesta("DEVUELTA", "70", "CLAVE ACCESO EN PROCESAMIENTO")).esRecibida());
     }
 
     @Test
-    void unSecuencialYaRegistradoSiEsUnRechazo() throws Exception {
+    void testDeberiaUnSecuencialYaRegistradoSiEsUnRechazo() throws Exception {
         // identificador 45: el secuencial se repitió con otra clave de acceso — hay que corregir el comprobante
         assertFalse(SriRecepcionClient.parsear(respuesta("DEVUELTA", "45", "ERROR SECUENCIAL REGISTRADO")).esRecibida());
     }

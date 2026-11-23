@@ -17,7 +17,7 @@ import com.facturacion.commons.error.Mensajes;
 class MensajesTest {
 
     @Test
-    void cadaCodigoTieneSuMensaje() {
+    void testDeberiaCadaCodigoTieneSuMensaje() {
         for (CodigoError codigo : CodigoError.values()) {
             assertTrue(Mensajes.existe(codigo.claveMensaje()), codigo + " no tiene clave en mensajes.properties");
             assertFalse(Mensajes.obtenerTexto(codigo).isBlank(), codigo + " tiene mensaje vacío");
@@ -25,7 +25,7 @@ class MensajesTest {
     }
 
     @Test
-    void cadaCodigoDeLogTieneSuMensaje() {
+    void testDeberiaCadaCodigoDeLogTieneSuMensaje() {
         for (CodigoLog codigo : CodigoLog.values()) {
             assertTrue(Mensajes.existe(codigo.claveMensaje()), codigo + " no tiene clave en mensajes.properties");
             assertFalse(Mensajes.obtenerTexto(codigo, 1, 2, 3, 4).isBlank(), codigo + " tiene mensaje vacío");
@@ -33,7 +33,7 @@ class MensajesTest {
     }
 
     @Test
-    void mensajesNoUsadosNoSeAcumulan() {
+    void testDeberiaMensajesNoUsadosNoSeAcumulan() {
         Set<String> usadas = Arrays.stream(CodigoError.values()).map(CodigoError::claveMensaje)
             .collect(Collectors.toSet());
         Arrays.stream(CodigoLog.values()).forEach(log -> usadas.add(log.claveMensaje()));
@@ -43,7 +43,7 @@ class MensajesTest {
     }
 
     @Test
-    void codigosYClavesSonUnicos() {
+    void testDeberiaCodigosYClavesSonUnicos() {
         assertEquals(CodigoError.values().length,
             Arrays.stream(CodigoError.values()).map(CodigoError::codigo).distinct().count(), "códigos repetidos");
         assertEquals(CodigoError.values().length,
@@ -52,7 +52,7 @@ class MensajesTest {
     }
 
     @Test
-    void losParametrosReemplazanLosMarcadores() {
+    void testDeberiaLosParametrosReemplazanLosMarcadores() {
         assertEquals("El impuesto '9' no existe en la Tabla 16 del SRI. Códigos válidos: [2, 3].",
             Mensajes.obtenerTexto(CodigoError.IMPUESTO_NO_EXISTE, "9", java.util.List.of("2", "3")));
     }

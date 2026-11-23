@@ -19,13 +19,13 @@ class LogCodificadoTest {
     };
 
     @Test
-    void llevaElCodigoElTextoDelCatalogoYElContexto() {
+    void testDeberiaLlevaElCodigoElTextoDelCatalogoYElContexto() {
         assertEquals("[GEN-401] Falló la validación (comprobanteId=abc)",
             LogCodificado.formatear(EVENTO, "comprobanteId=abc"));
     }
 
     @Test
-    void sinContextoNoDejaParentesisVacios() {
+    void testDeberiaSinContextoNoDejaParentesisVacios() {
         assertEquals("[GEN-401] Falló la validación", LogCodificado.formatear(EVENTO, null));
         assertEquals("[GEN-401] Falló la validación", LogCodificado.formatear(EVENTO, " "));
     }

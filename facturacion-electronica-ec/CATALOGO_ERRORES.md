@@ -64,6 +64,10 @@ Toda respuesta de error de los microservicios tiene el mismo cuerpo (`ApiErrorRe
 | `COMP-400-304` | 400 | {0}: {1} solo es válido con el tipo de identificación {2} ({3}). |
 | `COMP-400-305` | 400 | {0}: {1} debe tener exactamente {2} dígitos (se recibió '{3}'). |
 | `COMP-400-306` | 400 | {0}: una factura a consumidor final no puede superar {1} USD (el total es {2}); identifique al adquirente (ficha técnica, 8.10). |
+| `COMP-400-307` | 400 | {0}: '{1}' no es un correo válido; si son varios, sepárelos con coma, sin piezas vacías. |
+| `COMP-400-308` | 400 | {0}: se admiten hasta {1} correos y se recibieron {2}. |
+| `COMP-400-309` | 400 | {0}: hay correos repetidos en la lista. |
+| `COMP-400-310` | 400 | {0}: la lista de correos no puede pasar de {1} caracteres. |
 | `COMP-400-401` | 400 | El impuesto a retener '{0}' no existe en la Tabla 19 del SRI. Códigos válidos: {1}. |
 | `COMP-400-402` | 400 | El codigoRetencion '{0}' no existe para el impuesto a retener '{1}' (Tabla 20). Vigentes: {2}. |
 | `COMP-400-403` | 400 | El codigoRetencion '{0}' existe pero no está vigente a la fecha de emisión ({3}) para el impuesto a retener '{1}' (Tabla 20). Vigentes: {2}. |

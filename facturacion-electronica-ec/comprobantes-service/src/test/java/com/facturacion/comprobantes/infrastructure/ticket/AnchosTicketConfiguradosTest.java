@@ -28,7 +28,7 @@ class AnchosTicketConfiguradosTest {
     }
 
     @Test
-    void sirveLosAnchosConfiguradosYElQueSeUsaPorDefecto() {
+    void testDeberiaSirveLosAnchosConfiguradosYElQueSeUsaPorDefecto() {
         AnchosTicketConfigurados anchos = new AnchosTicketConfigurados(configuracion(Map.of(58, 32, 80, 48), 80));
 
         assertEquals(new AnchoTicket(80, 48), anchos.obtenerPorDefecto());
@@ -38,7 +38,7 @@ class AnchosTicketConfiguradosTest {
     }
 
     @Test
-    void unPapelNuevoEsSoloUnaLineaDeConfiguracion() {
+    void testDeberiaUnPapelNuevoEsSoloUnaLineaDeConfiguracion() {
         AnchosTicketConfigurados anchos = new AnchosTicketConfigurados(configuracion(Map.of(58, 32, 112, 64), 58));
 
         assertEquals(64, anchos.buscar(112).orElseThrow().columnas());
@@ -46,7 +46,7 @@ class AnchosTicketConfiguradosTest {
     }
 
     @Test
-    void unaConfiguracionIncoherenteFallaAlArrancar() {
+    void testDeberiaUnaConfiguracionIncoherenteFallaAlArrancar() {
         assertThrows(IllegalStateException.class, () -> new AnchosTicketConfigurados(configuracion(Map.of(), 80)));
         assertThrows(IllegalStateException.class,
             () -> new AnchosTicketConfigurados(configuracion(Map.of(80, 0), 80)));

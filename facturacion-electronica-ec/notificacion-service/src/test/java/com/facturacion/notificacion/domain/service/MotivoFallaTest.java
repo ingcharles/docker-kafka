@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 class MotivoFallaTest {
 
     @Test
-    void unaExcepcionSinMensajeNoDaMotivoVacio() {
+    void testDeberiaUnaExcepcionSinMensajeNoDaMotivoVacio() {
         // ClosedChannelException.getMessage() es null: antes eso se guardaba como "enviado sin error".
         String motivo = MotivoFalla.obtenerMotivo(new ClosedChannelException());
 
@@ -20,7 +20,7 @@ class MotivoFallaTest {
     }
 
     @Test
-    void incluyeElMensajeYLaCausaRaiz() {
+    void testDeberiaIncluyeElMensajeYLaCausaRaiz() {
         Exception falla = new RuntimeException("no se pudo enviar", new IllegalStateException("handshake cortado"));
 
         assertEquals("RuntimeException: no se pudo enviar (causa: IllegalStateException: handshake cortado)",
@@ -28,12 +28,12 @@ class MotivoFallaTest {
     }
 
     @Test
-    void sinFallaDevuelveUnTextoGenerico() {
+    void testDeberiaSinFallaDevuelveUnTextoGenerico() {
         assertFalse(MotivoFalla.obtenerMotivo(null).isBlank());
     }
 
     @Test
-    void recortaAlTamanoDeLaColumna() {
+    void testDeberiaRecortaAlTamanoDeLaColumna() {
         String motivo = MotivoFalla.obtenerMotivo(new RuntimeException("x".repeat(2000)));
 
         assertEquals(MotivoFalla.LONGITUD_MAXIMA, motivo.length());

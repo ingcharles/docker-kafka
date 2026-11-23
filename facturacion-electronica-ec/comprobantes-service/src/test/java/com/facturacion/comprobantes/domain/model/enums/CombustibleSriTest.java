@@ -23,7 +23,7 @@ class CombustibleSriTest {
     }
 
     @Test
-    void reconoceLosCincoCodigosDeLaTabla30() {
+    void testDeberiaReconoceLosCincoCodigosDeLaTabla30() {
         for (String codigo : List.of("0103", "0101", "0174", "0121", "0104")) {
             assertTrue(CombustibleSri.esCodigo(codigo), codigo);
         }
@@ -32,7 +32,7 @@ class CombustibleSriTest {
     }
 
     @Test
-    void ventaDeCombustibleSinPlacaSeRechazaConElCodigoDeLaLinea() {
+    void testDeberiaVentaDeCombustibleSinPlacaSeRechazaConElCodigoDeLaLinea() {
         for (String placa : new String[] {null, "", "  "}) {
             ErrorNegocioException e = assertThrows(ErrorNegocioException.class, () ->
                 CombustibleSri.exigirPlacaSiHayCombustible(List.of(linea("TABLET02"), linea("0103")), placa));
@@ -42,7 +42,7 @@ class CombustibleSriTest {
     }
 
     @Test
-    void conPlacaOSinCombustibleNoHayNadaQueExigir() {
+    void testDeberiaConPlacaOSinCombustibleNoHayNadaQueExigir() {
         assertDoesNotThrow(() -> CombustibleSri.exigirPlacaSiHayCombustible(List.of(linea("0103")), "ABC1234"));
         assertDoesNotThrow(() -> CombustibleSri.exigirPlacaSiHayCombustible(List.of(linea("TABLET02")), null));
     }

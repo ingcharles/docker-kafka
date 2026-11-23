@@ -16,7 +16,7 @@ import com.facturacion.commons.error.Mensajes;
 class CodigoLogTest {
 
     @Test
-    void cadaCodigoTieneSuMensaje() {
+    void testDeberiaCadaCodigoTieneSuMensaje() {
         for (CodigoLog codigo : CodigoLog.values()) {
             assertTrue(Mensajes.existe(codigo.claveMensaje()), codigo + " no tiene clave en mensajes.properties");
             assertFalse(Mensajes.obtenerTexto(codigo, 1, 2).isBlank(), codigo + " tiene mensaje vacío");
@@ -24,7 +24,7 @@ class CodigoLogTest {
     }
 
     @Test
-    void losCodigosSonUnicosYSiguenElFormatoDelCatalogo() {
+    void testDeberiaLosCodigosSonUnicosYSiguenElFormatoDelCatalogo() {
         Set<String> vistos = new HashSet<>();
         for (CodigoLog codigo : CodigoLog.values()) {
             assertTrue(codigo.codigo().matches("[A-Z]{2,4}-[1-5][0-9]{2}"), codigo.codigo());
@@ -33,7 +33,7 @@ class CodigoLogTest {
     }
 
     @Test
-    void mensajesNoUsadosNoSeAcumulan() {
+    void testDeberiaMensajesNoUsadosNoSeAcumulan() {
         Set<String> usadas = Arrays.stream(CodigoLog.values()).map(CodigoLog::claveMensaje).collect(Collectors.toSet());
         Arrays.stream(NotificacionError.values()).forEach(e -> usadas.add(e.claveMensaje()));
         Set<String> sobrantes = new HashSet<>(Mensajes.listarClaves());

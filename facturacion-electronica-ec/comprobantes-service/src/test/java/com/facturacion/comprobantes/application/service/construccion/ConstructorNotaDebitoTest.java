@@ -62,7 +62,7 @@ class ConstructorNotaDebitoTest {
     }
 
     @Test
-    void unNumeroDeDocumentoMalFormadoSeRechazaSinConsultarLaBase() {
+    void testDeberiaUnNumeroDeDocumentoMalFormadoSeRechazaSinConsultarLaBase() {
         ErrorNegocioException error = assertThrows(ErrorNegocioException.class,
             () -> constructor().construir(nota("1-1-1", FechasSri.formatearFecha(FechasSri.obtenerHoy())), 1L, catalogos));
 
@@ -71,7 +71,7 @@ class ConstructorNotaDebitoTest {
     }
 
     @Test
-    void unaFechaDeDocumentoFuturaSeRechazaSinConsultarLaBase() {
+    void testDeberiaUnaFechaDeDocumentoFuturaSeRechazaSinConsultarLaBase() {
         String manana = FechasSri.formatearFecha(FechasSri.obtenerHoy().plusDays(1));
 
         ErrorNegocioException error = assertThrows(ErrorNegocioException.class,
@@ -82,7 +82,7 @@ class ConstructorNotaDebitoTest {
     }
 
     @Test
-    void unaFacturaSeBuscaPorSuNumeroEnLaBase() {
+    void testDeberiaUnaFacturaSeBuscaPorSuNumeroEnLaBase() {
         BuscadorDocumentoModificado buscador = new BuscadorDocumentoModificado(repositorio(null));
 
         Comprobante encontrado = buscador.buscar(RUC, CODIGO_FACTURA,
@@ -93,7 +93,7 @@ class ConstructorNotaDebitoTest {
     }
 
     @Test
-    void unTipoQueEsteSistemaNoComprueba_noSeBusca() {
+    void testDeberiaUnTipoQueEsteSistemaNoComprueba_noSeBusca() {
         BuscadorDocumentoModificado buscador = new BuscadorDocumentoModificado(repositorio(new Comprobante()));
 
         Comprobante encontrado = buscador.buscar(RUC, CODIGO_NOTA_CREDITO,

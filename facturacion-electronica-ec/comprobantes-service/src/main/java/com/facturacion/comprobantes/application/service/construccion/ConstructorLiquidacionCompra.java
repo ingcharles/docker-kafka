@@ -54,7 +54,7 @@ public class ConstructorLiquidacionCompra implements ConstructorComprobante<Crea
                 comprobante.setCompradorIdentificacion(request.getProveedorIdentificacion());
                 comprobante.setCompradorRazonSocial(request.getProveedorRazonSocial());
                 comprobante.setCompradorDireccion(request.getProveedorDireccion());
-                comprobante.setCompradorCorreo(request.getProveedorCorreo());
+                comprobante.setCompradorCorreo(comun.armarCorreos(request.getProveedorCorreo(), "proveedorCorreo"));
                 comprobante.setMoneda(request.getMoneda());
                 comprobante.setDetalles(detalles);
                 comprobante.setPagos(comun.armarPagos(request.getPagos(), comprobante.getImporteTotal(), true, catalogos));

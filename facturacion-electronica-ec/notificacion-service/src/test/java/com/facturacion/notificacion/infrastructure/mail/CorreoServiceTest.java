@@ -72,7 +72,7 @@ class CorreoServiceTest {
     }
 
     @Test
-    void siElSmtpContestaElCorreoSale() {
+    void testDeberiaSiElSmtpContestaElCorreoSale() {
         Mail correo = enviarYObtener(CorreoSalida.Ajustes.ninguno());
 
         assertEquals(1, enviados.size());
@@ -81,7 +81,17 @@ class CorreoServiceTest {
     }
 
     @Test
-    void elCorreoLlevaHtmlConAlternativaEnTextoYElAsuntoDeLaPlantilla() {
+    void testDeberiaVariosDestinatariosSalenEnUnSoloMensaje() {
+        servicio(true).enviarComprobante(new CorreoSalida.Comprobante("uno@ejemplo.test,dos@ejemplo.test", CLAVE,
+            "FACTURA", "Ana Pérez", new BigDecimal("11.50"), new byte[] {1}, "<autorizacion/>",
+            CorreoSalida.Ajustes.ninguno())).await().atMost(Duration.ofSeconds(5));
+
+        assertEquals(1, enviados.size());
+        assertEquals(List.of("uno@ejemplo.test", "dos@ejemplo.test"), enviados.get(0).getTo());
+    }
+
+    @Test
+    void testDeberiaElCorreoLlevaHtmlConAlternativaEnTextoYElAsuntoDeLaPlantilla() {
         Mail correo = enviarYObtener(CorreoSalida.Ajustes.ninguno());
 
         assertEquals("Factura 001-001-000000101", correo.getSubject());
@@ -91,7 +101,7 @@ class CorreoServiceTest {
     }
 
     @Test
-    void elAsuntoYElRemitenteDeLaEmpresaTienenPrioridad() {
+    void testDeberiaElAsuntoYElRemitenteDeLaEmpresaTienenPrioridad() {
         Mail correo = enviarYObtener(new CorreoSalida.Ajustes("Su factura de Tienda", "Tienda Ejemplo", "Tienda Ejemplo",
             null, null));
 
@@ -101,7 +111,7 @@ class CorreoServiceTest {
     }
 
     @Test
-    void conLogoLaImagenViajaIncrustadaEnElCorreo() {
+    void testDeberiaConLogoLaImagenViajaIncrustadaEnElCorreo() {
         Mail correo = enviarYObtener(new CorreoSalida.Ajustes(null, null, "Tienda Ejemplo", LOGO, null));
 
         assertEquals(3, correo.getAttachments().size());
@@ -113,7 +123,7 @@ class CorreoServiceTest {
     }
 
     @Test
-    void sinLogoNoSeIncrustaNadaYElEncabezadoLlevaElNombre() {
+    void testDeberiaSinLogoNoSeIncrustaNadaYElEncabezadoLlevaElNombre() {
         Mail correo = enviarYObtener(new CorreoSalida.Ajustes(null, null, "Tienda Ejemplo", null, null));
 
         assertTrue(incrustados(correo).isEmpty());
@@ -121,7 +131,7 @@ class CorreoServiceTest {
     }
 
     @Test
-    void siLaPlantillaDeLaEmpresaNoUsaElLogoNoSeIncrustaAunqueLoTenga() {
+    void testDeberiaSiLaPlantillaDeLaEmpresaNoUsaElLogoNoSeIncrustaAunqueLoTenga() {
         PlantillaCorreoEmpresa propia = PlantillaCorreoEmpresa.crear("1722039953001", TipoComprobanteCorreo.FACTURA,
             "Asunto", "<p>Hola {{nombreReceptor}}</p>", null, true, Instant.now());
 
@@ -133,7 +143,7 @@ class CorreoServiceTest {
     }
 
     @Test
-    void siLaPlantillaDeLaEmpresaUsaElLogoSeIncrusta() {
+    void testDeberiaSiLaPlantillaDeLaEmpresaUsaElLogoSeIncrusta() {
         PlantillaCorreoEmpresa propia = PlantillaCorreoEmpresa.crear("1722039953001", TipoComprobanteCorreo.FACTURA,
             "Asunto", "<div>{{logo}}</div>", null, true, Instant.now());
 
@@ -143,7 +153,7 @@ class CorreoServiceTest {
     }
 
     @Test
-    void siElSmtpNoContestaElEnvioFallaAlVencerElPlazo() {
+    void testDeberiaSiElSmtpNoContestaElEnvioFallaAlVencerElPlazo() {
         CompletionException e = assertThrows(CompletionException.class, () -> enviar(servicio(false),
             CorreoSalida.Ajustes.ninguno()).subscribeAsCompletionStage().join());
 

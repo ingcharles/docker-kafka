@@ -11,7 +11,7 @@ import com.facturacion.commons.error.ApiErrorResponse;
 class GenericExceptionMapperTest {
 
     @Test
-    void elCuerpoDelServicioOcupadoTieneElMismoFormatoQueLosDemasErrores() {
+    void testDeberiaElCuerpoDelServicioOcupadoTieneElMismoFormatoQueLosDemasErrores() {
         ApiErrorResponse cuerpo = GenericExceptionMapper.construirCuerpoDeServicioOcupado();
 
         assertEquals(503, cuerpo.getStatus());

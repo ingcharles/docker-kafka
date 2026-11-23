@@ -62,7 +62,7 @@ public class ConstructorFactura implements ConstructorComprobante<CrearFacturaRe
                 comprobante.setCompradorIdentificacion(request.getCompradorIdentificacion());
                 comprobante.setCompradorRazonSocial(request.getCompradorRazonSocial());
                 comprobante.setCompradorDireccion(request.getCompradorDireccion());
-                comprobante.setCompradorCorreo(request.getCompradorCorreo());
+                comprobante.setCompradorCorreo(comun.armarCorreos(request.getCompradorCorreo(), "compradorCorreo"));
                 comprobante.setMoneda(request.getMoneda());
                 comprobante.setPlaca(request.getPlaca() == null || request.getPlaca().isBlank() ? null
                     : request.getPlaca().toUpperCase(java.util.Locale.ROOT));

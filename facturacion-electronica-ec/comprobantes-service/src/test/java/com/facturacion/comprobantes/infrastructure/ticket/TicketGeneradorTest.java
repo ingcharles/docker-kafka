@@ -78,7 +78,7 @@ class TicketGeneradorTest {
     }
 
     @Test
-    void llevaLosDatosMinimosParaElCliente() {
+    void testDeberiaLlevaLosDatosMinimosParaElCliente() {
         Comprobante c = factura(EstadoComprobante.AUTORIZADO, AmbienteSri.PRODUCCION);
         c.setNumeroAutorizacion(CLAVE);
         c.setFechaAutorizacion(Instant.parse("2026-11-18T14:31:00Z"));
@@ -99,7 +99,7 @@ class TicketGeneradorTest {
     }
 
     @Test
-    void losTotalesSonLosDelResumenConElIceFueraDelSubtotalIva() {
+    void testDeberiaLosTotalesSonLosDelResumenConElIceFueraDelSubtotalIva() {
         String ticket = texto(factura(EstadoComprobante.AUTORIZADO, AmbienteSri.PRODUCCION), ANCHO_80);
 
         assertTrue(ticket.contains("SUBTOTAL 15%"));
@@ -111,7 +111,7 @@ class TicketGeneradorTest {
     }
 
     @Test
-    void ningunaLineaPasaDelAnchoDelPapel() {
+    void testDeberiaNingunaLineaPasaDelAnchoDelPapel() {
         for (AnchoTicket ancho : List.of(ANCHO_58, ANCHO_80)) {
             String ticket = texto(factura(EstadoComprobante.AUTORIZADO, AmbienteSri.PRODUCCION), ancho);
             ticket.lines().forEach(l -> assertTrue(l.length() <= ancho.columnas(),
@@ -120,7 +120,7 @@ class TicketGeneradorTest {
     }
 
     @Test
-    void enPruebasAvisaQueNoTieneValidezTributaria() {
+    void testDeberiaEnPruebasAvisaQueNoTieneValidezTributaria() {
         String ticket = texto(factura(EstadoComprobante.AUTORIZADO, AmbienteSri.PRUEBAS), ANCHO_58);
 
         assertTrue(ticket.contains("AMBIENTE DE PRUEBAS"));
@@ -128,7 +128,7 @@ class TicketGeneradorTest {
     }
 
     @Test
-    void sinAutorizarMuestraLaClaveDeAccesoYElEstado() {
+    void testDeberiaSinAutorizarMuestraLaClaveDeAccesoYElEstado() {
         String enProceso = texto(factura(EstadoComprobante.FIRMADO, AmbienteSri.PRODUCCION), ANCHO_80);
         String rechazado = texto(factura(EstadoComprobante.NO_AUTORIZADO, AmbienteSri.PRODUCCION), ANCHO_80);
 
@@ -139,7 +139,7 @@ class TicketGeneradorTest {
     }
 
     @Test
-    void elConsumidorFinalNoImprimeIdentificacion() {
+    void testDeberiaElConsumidorFinalNoImprimeIdentificacion() {
         Comprobante c = factura(EstadoComprobante.AUTORIZADO, AmbienteSri.PRODUCCION);
         c.setCompradorTipoIdentificacion("07");
         c.setCompradorIdentificacion("9999999999999");
@@ -152,7 +152,7 @@ class TicketGeneradorTest {
     }
 
     @Test
-    void escposEmpiezaInicializandoYTerminaCortandoElPapelSoloEnAscii() {
+    void testDeberiaEscposEmpiezaInicializandoYTerminaCortandoElPapelSoloEnAscii() {
         Comprobante c = factura(EstadoComprobante.AUTORIZADO, AmbienteSri.PRODUCCION);
         c.setEmpresaRazonSocial("CAFETERÍA EL ÁNGEL Ñ");
 
@@ -170,7 +170,7 @@ class TicketGeneradorTest {
     }
 
     @Test
-    void laRazonSocialLargaSeParteEnVariasLineas() {
+    void testDeberiaLaRazonSocialLargaSeParteEnVariasLineas() {
         Comprobante c = factura(EstadoComprobante.AUTORIZADO, AmbienteSri.PRODUCCION);
         c.setEmpresaRazonSocial("SOCIEDAD ANONIMA DE COMERCIALIZACION Y DISTRIBUCION DE PRODUCTOS");
 
@@ -181,7 +181,7 @@ class TicketGeneradorTest {
     }
 
     @Test
-    void partirCortaLasPalabrasMasLargasQueElAncho() {
+    void testDeberiaPartirCortaLasPalabrasMasLargasQueElAncho() {
         assertEquals(List.of("ABCDEFGHIJ", "KLMNOP"), TicketGenerador.partir("ABCDEFGHIJKLMNOP", 10));
         assertEquals(List.of("uno dos", "tres"), TicketGenerador.partir("uno dos tres", 8));
     }

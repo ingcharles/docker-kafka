@@ -70,7 +70,7 @@ public class ConstructorNotaCredito implements ConstructorComprobante<CrearNotaC
                 comprobante.setCompradorIdentificacion(request.getCompradorIdentificacion());
                 comprobante.setCompradorRazonSocial(request.getCompradorRazonSocial());
                 comprobante.setCompradorDireccion(request.getCompradorDireccion());
-                comprobante.setCompradorCorreo(request.getCompradorCorreo());
+                comprobante.setCompradorCorreo(comun.armarCorreos(request.getCompradorCorreo(), "compradorCorreo"));
                 comprobante.setMoneda(request.getMoneda());
                 comprobante.setDetalles(detalles);
                 comprobante.setDocModificadoTipo(request.getDocModificadoTipo());

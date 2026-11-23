@@ -59,7 +59,7 @@ class ActualizacionComprobanteResultadoTest {
     }
 
     @Test
-    void unCambioValidoSeAplicaYSeGuarda() {
+    void testDeberiaUnCambioValidoSeAplicaYSeGuarda() {
         ActualizacionComprobanteService servicio = servicio(EstadoComprobante.BORRADOR);
 
         ResultadoComando resultado = esperar(servicio.aplicarComando(comando(MessagingConstants.COMANDO_MARCAR_FIRMADO)));
@@ -70,7 +70,7 @@ class ActualizacionComprobanteResultadoTest {
     }
 
     @Test
-    void unComandoRepetidoSeIgnoraYNoTocaNada() {
+    void testDeberiaUnComandoRepetidoSeIgnoraYNoTocaNada() {
         ActualizacionComprobanteService servicio = servicio(EstadoComprobante.FIRMADO);
 
         ResultadoComando resultado = esperar(servicio.aplicarComando(comando(MessagingConstants.COMANDO_MARCAR_FIRMADO)));
@@ -81,7 +81,7 @@ class ActualizacionComprobanteResultadoTest {
     }
 
     @Test
-    void unComandoQueSeSaltaPasosFallaEnVezDeCallarse() {
+    void testDeberiaUnComandoQueSeSaltaPasosFallaEnVezDeCallarse() {
         ActualizacionComprobanteService servicio = servicio(EstadoComprobante.BORRADOR);
 
         CompletionException e = assertThrows(CompletionException.class, () -> servicio
@@ -93,7 +93,7 @@ class ActualizacionComprobanteResultadoTest {
     }
 
     @Test
-    void sinStockElComprobanteQuedaEnEstadoTerminalConElMotivo() {
+    void testDeberiaSinStockElComprobanteQuedaEnEstadoTerminalConElMotivo() {
         ActualizacionComprobanteService servicio = servicio(EstadoComprobante.BORRADOR);
 
         ResultadoComando resultado = esperar(servicio.aplicarComando(

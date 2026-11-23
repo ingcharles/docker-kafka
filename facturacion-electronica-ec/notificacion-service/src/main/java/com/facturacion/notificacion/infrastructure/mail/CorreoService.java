@@ -9,6 +9,7 @@ import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.correo.ListaCorreos;
 import com.facturacion.notificacion.domain.model.vo.ContenidoCorreo;
 import com.facturacion.notificacion.domain.model.vo.LogoEmpresa;
 import com.facturacion.notificacion.domain.port.ArmadorContenidoCorreo;
@@ -57,7 +58,11 @@ public class CorreoService implements CorreoSalida {
     @Override
     public Uni<Void> enviarComprobante(CorreoSalida.Comprobante comprobante) {
         ContenidoCorreo contenido = armador.armar(comprobante);
-        Mail correo = Mail.withHtml(comprobante.destinatario(), contenido.asunto(), contenido.html())
+        // Un solo mensaje para todos los destinatarios: el correo del receptor puede ser una lista separada por coma.
+        Mail correo = new Mail()
+            .setTo(ListaCorreos.separar(comprobante.destinatario()))
+            .setSubject(contenido.asunto())
+            .setHtml(contenido.html())
             .setText(contenido.texto())
             .addAttachment(comprobante.claveAcceso() + ".pdf", comprobante.ridePdf(), "application/pdf")
             .addAttachment(comprobante.claveAcceso() + ".xml", comprobante.xmlAutorizado().getBytes(UTF8), "application/xml");

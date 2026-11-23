@@ -9,14 +9,14 @@ import org.junit.jupiter.api.Test;
 class PagedResponseTest {
 
     @Test
-    void calculaElTotalDePaginasRedondeandoHaciaArriba() {
+    void testDeberiaCalculaElTotalDePaginasRedondeandoHaciaArriba() {
         PagedResponse<String> r = PagedResponse.of(List.of("a"), 0, 20, 41);
         assertEquals(3, r.getTotalPages());
         assertEquals(41, r.getTotal());
     }
 
     @Test
-    void conLimiteCeroNoDivideEntreCero() {
+    void testDeberiaConLimiteCeroNoDivideEntreCero() {
         assertEquals(0, PagedResponse.of(List.of(), 0, 0, 10).getTotalPages());
     }
 }

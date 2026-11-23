@@ -98,7 +98,7 @@ class RideGeneradorTest {
     }
 
     @Test
-    void laFacturaTieneLosBloquesDelFormatoDelSri() throws IOException {
+    void testDeberiaLaFacturaTieneLosBloquesDelFormatoDelSri() throws IOException {
         Comprobante c = factura(List.of(
             detalle("5JNJ00K", "CARRITO BASICO HOT WHEELS C4982", "5", "1.99", "0.30", "9.65", "15", "4", "1.45"),
             detalle("X0E0447", "POWERADE FRUTOS TROPICALES 600ML", "1", "0.5704", "0.02", "0.55", "15", "4", "0.08")));
@@ -120,7 +120,7 @@ class RideGeneradorTest {
     }
 
     @Test
-    void elRideMuestraAgenteDeRetencionRimpeGranContribuyenteYLosDetallesAdicionalesDeLaLinea() throws IOException {
+    void testDeberiaElRideMuestraAgenteDeRetencionRimpeGranContribuyenteYLosDetallesAdicionalesDeLaLinea() throws IOException {
         DetalleComprobante linea = detalle("5JNJ00K", "CARRITO BASICO", "5", "1.99", "0.30", "9.65", "15", "4", "1.45");
         linea.setDetallesAdicionales(List.of(new CampoAdicional("Medida", "UN"),
             new CampoAdicional("Centro Logistico", "23")));
@@ -140,7 +140,7 @@ class RideGeneradorTest {
     }
 
     @Test
-    void sinAgenteNiRimpeElRideNoLosMuestra() throws IOException {
+    void testDeberiaSinAgenteNiRimpeElRideNoLosMuestra() throws IOException {
         String texto = extraerTexto(generador.generar(factura(List.of(
             detalle("A", "Linea", "1", "1.00", "0", "1.00", "15", "4", "0.15"))), null, null, catalogos()));
 
@@ -150,7 +150,7 @@ class RideGeneradorTest {
     }
 
     @Test
-    void losTotalesSeSeparanPorTarifaDeIva() throws IOException {
+    void testDeberiaLosTotalesSeSeparanPorTarifaDeIva() throws IOException {
         Comprobante c = factura(List.of(
             detalle("A", "Con IVA 15", "1", "10.00", "0", "10.00", "15", "4", "1.50"),
             detalle("B", "Con IVA 5", "1", "2.00", "0", "2.00", "5", "5", "0.10"),
@@ -165,7 +165,7 @@ class RideGeneradorTest {
     }
 
     @Test
-    void unDetalleLargoContinuaEnOtraPaginaRepitiendoElEncabezadoDeLaTabla() throws IOException {
+    void testDeberiaUnDetalleLargoContinuaEnOtraPaginaRepitiendoElEncabezadoDeLaTabla() throws IOException {
         List<DetalleComprobante> detalles = new ArrayList<>();
         for (int i = 0; i < 80; i++) {
             detalles.add(detalle("COD" + i, "Producto numero " + i + " con una descripcion bastante larga para que "
@@ -182,7 +182,7 @@ class RideGeneradorTest {
     }
 
     @Test
-    void elColorDelNumeroEsOpcionalYUnValorInvalidoNoRompeElPdf() {
+    void testDeberiaElColorDelNumeroEsOpcionalYUnValorInvalidoNoRompeElPdf() {
         Comprobante c = factura(List.of(detalle("A", "Producto", "1", "1.00", "0", "1.00", "15", "4", "0.15")));
         assertTrue(generador.generar(c, "#1A73E8", null, catalogos()).length > 0);
         assertTrue(generador.generar(c, "no-es-un-color", null, catalogos()).length > 0);
@@ -210,7 +210,7 @@ class RideGeneradorTest {
     }
 
     @Test
-    void conLogoLaImagenSeDibujaEnElRecuadroDelEmisorYElNombreComercialYaNoOcupaSuLugar() throws IOException {
+    void testDeberiaConLogoLaImagenSeDibujaEnElRecuadroDelEmisorYElNombreComercialYaNoOcupaSuLugar() throws IOException {
         Comprobante c = factura(List.of(detalle("A", "Producto", "1", "1.00", "0", "1.00", "15", "4", "0.15")));
         c.setEmpresaNombreComercial("MARCA COMERCIAL");
 
@@ -224,7 +224,7 @@ class RideGeneradorTest {
     }
 
     @Test
-    void unLogoQueNoEsUnaImagenNoRompeElRideYSaleSinLogo() throws IOException {
+    void testDeberiaUnLogoQueNoEsUnaImagenNoRompeElRideYSaleSinLogo() throws IOException {
         Comprobante c = factura(List.of(detalle("A", "Producto", "1", "1.00", "0", "1.00", "15", "4", "0.15")));
 
         byte[] pdf = generador.generar(c, null, "esto no es una imagen".getBytes(), catalogos());
@@ -234,7 +234,7 @@ class RideGeneradorTest {
     }
 
     @Test
-    void unComprobanteSinDetalleNoDibujaTablaNiTotales() throws IOException {
+    void testDeberiaUnComprobanteSinDetalleNoDibujaTablaNiTotales() throws IOException {
         String texto = extraerTexto(generador.generar(factura(List.of()), null, null, catalogos()));
         assertTrue(texto.contains("FACTURA"));
         assertFalse(texto.contains("VALOR TOTAL"));
@@ -287,14 +287,14 @@ class RideGeneradorTest {
     }
 
     @Test
-    void enUnaNotaDeCreditoLaUltimaFilaDelRecuadroDelCompradorQuedaDentroDelBorde() throws IOException {
+    void testDeberiaEnUnaNotaDeCreditoLaUltimaFilaDelRecuadroDelCompradorQuedaDentroDelBorde() throws IOException {
         // fecha, cédula/RUC, razón social, comprobante que se modifica, fecha a modificar y razón de la modificación
         verificarUltimaFilaDentroDelBorde(notaSobreFactura(TipoComprobante.NOTA_CREDITO, "AJUSTE DE PRECIO"), 6,
             "Razón de Modificación:");
     }
 
     @Test
-    void enUnaNotaDeDebitoLaUltimaFilaDelRecuadroDelCompradorQuedaDentroDelBorde() throws IOException {
+    void testDeberiaEnUnaNotaDeDebitoLaUltimaFilaDelRecuadroDelCompradorQuedaDentroDelBorde() throws IOException {
         // sin razón: fecha, cédula/RUC, razón social, comprobante que se modifica y fecha a modificar
         verificarUltimaFilaDentroDelBorde(notaSobreFactura(TipoComprobante.NOTA_DEBITO, null), 5,
             "Fecha Emisión (a modificar):");

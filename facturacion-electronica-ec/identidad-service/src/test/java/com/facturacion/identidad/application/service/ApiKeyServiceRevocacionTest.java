@@ -48,7 +48,7 @@ class ApiKeyServiceRevocacionTest {
     }
 
     @Test
-    void revocaUnaKeyVigenteYPublicaSuJtiConSuVencimiento() {
+    void testDeberiaRevocaUnaKeyVigenteYPublicaSuJtiConSuVencimiento() {
         Instant vence = Instant.now().plusSeconds(3600);
         ApiKey k = key(usuario, "1722039953001", vence, false);
 
@@ -61,7 +61,7 @@ class ApiKeyServiceRevocacionTest {
     }
 
     @Test
-    void revocarDosVecesReenviaElAvisoSinMarcarDeNuevo() {
+    void testDeberiaRevocarDosVecesReenviaElAvisoSinMarcarDeNuevo() {
         ApiKey k = key(usuario, "1722039953001", Instant.now().plusSeconds(3600), true);
 
         esperar(servicio.revocar(usuario, k.getId()));
@@ -71,7 +71,7 @@ class ApiKeyServiceRevocacionTest {
     }
 
     @Test
-    void unaKeyAjenaSeTrataComoInexistenteYNoSePublicaNada() {
+    void testDeberiaUnaKeyAjenaSeTrataComoInexistenteYNoSePublicaNada() {
         ApiKey ajena = key(UUID.randomUUID(), "1722039953001", Instant.now().plusSeconds(3600), false);
 
         assertThrows(NotFoundException.class, () -> esperar(servicio.revocar(usuario, ajena.getId())));
@@ -82,7 +82,7 @@ class ApiKeyServiceRevocacionTest {
     }
 
     @Test
-    void unaKeyYaVencidaSeMarcaPeroNoNecesitaAviso() {
+    void testDeberiaUnaKeyYaVencidaSeMarcaPeroNoNecesitaAviso() {
         ApiKey vencida = key(usuario, "1722039953001", Instant.now().minusSeconds(60), false);
 
         esperar(servicio.revocar(usuario, vencida.getId()));
@@ -92,7 +92,7 @@ class ApiKeyServiceRevocacionTest {
     }
 
     @Test
-    void quitarElAccesoRevocaTodasLasKeysVigentesDeEseRucYSoloDeEse() {
+    void testDeberiaQuitarElAccesoRevocaTodasLasKeysVigentesDeEseRucYSoloDeEse() {
         Instant vence = Instant.now().plusSeconds(3600);
         ApiKey a = key(usuario, "1722039953001", vence, false);
         ApiKey b = key(usuario, "1722039953001", vence, false);
@@ -109,7 +109,7 @@ class ApiKeyServiceRevocacionTest {
     }
 
     @Test
-    void siElAvisoNoSalePropagaElErrorParaQueSeRevierteLaTransaccion() {
+    void testDeberiaSiElAvisoNoSalePropagaElErrorParaQueSeRevierteLaTransaccion() {
         ApiKey k = key(usuario, "1722039953001", Instant.now().plusSeconds(3600), false);
         publicador.falla = true;
 

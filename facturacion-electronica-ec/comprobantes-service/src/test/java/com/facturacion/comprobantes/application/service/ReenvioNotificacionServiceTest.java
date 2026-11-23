@@ -23,7 +23,7 @@ class ReenvioNotificacionServiceTest {
     }
 
     @Test
-    void sePuedeReenviarUnComprobanteAutorizadoOYaNotificado() {
+    void testDeberiaSePuedeReenviarUnComprobanteAutorizadoOYaNotificado() {
         byte[] ride = {1};
         assertDoesNotThrow(() -> ReenvioNotificacionService.exigirReenviable(
             comprobante(EstadoComprobante.AUTORIZADO, ride, "<autorizacion/>", "a@b.com")));
@@ -32,7 +32,7 @@ class ReenvioNotificacionServiceTest {
     }
 
     @Test
-    void unComprobanteSinAutorizarNoSeReenvia() {
+    void testDeberiaUnComprobanteSinAutorizarNoSeReenvia() {
         ConflictoException e = assertThrows(ConflictoException.class, () -> ReenvioNotificacionService
             .exigirReenviable(comprobante(EstadoComprobante.FIRMADO, null, null, "a@b.com")));
 
@@ -40,7 +40,7 @@ class ReenvioNotificacionServiceTest {
     }
 
     @Test
-    void sinRideONoSeReenvia() {
+    void testDeberiaSinRideONoSeReenvia() {
         ConflictoException e = assertThrows(ConflictoException.class, () -> ReenvioNotificacionService
             .exigirReenviable(comprobante(EstadoComprobante.AUTORIZADO, null, "<autorizacion/>", "a@b.com")));
 
@@ -48,7 +48,7 @@ class ReenvioNotificacionServiceTest {
     }
 
     @Test
-    void sinCorreoDelReceptorNoHayAQuienReenviar() {
+    void testDeberiaSinCorreoDelReceptorNoHayAQuienReenviar() {
         byte[] ride = {1};
         for (String correo : new String[] {null, "  "}) {
             ConflictoException e = assertThrows(ConflictoException.class, () -> ReenvioNotificacionService

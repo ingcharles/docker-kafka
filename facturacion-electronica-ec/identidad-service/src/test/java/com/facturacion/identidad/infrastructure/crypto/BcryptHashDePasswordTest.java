@@ -24,7 +24,7 @@ class BcryptHashDePasswordTest {
     private final BcryptHashDePassword hasher = new BcryptHashDePassword(2, 10);
 
     @Test
-    void generaUnHashQueLuegoVerificaYRechazaOtraContrasena() {
+    void testDeberiaGeneraUnHashQueLuegoVerificaYRechazaOtraContrasena() {
         String hash = hasher.generar("secreta-123").await().atMost(ESPERA);
 
         assertNotEquals("secreta-123", hash);
@@ -33,13 +33,13 @@ class BcryptHashDePasswordTest {
     }
 
     @Test
-    void sinCuentaNuncaCoincideAunqueLaContrasenaSeaLaDescartable() {
+    void testDeberiaSinCuentaNuncaCoincideAunqueLaContrasenaSeaLaDescartable() {
         assertFalse(hasher.verificar("contraseña-descartable-sin-cuenta", null).await().atMost(ESPERA));
         assertFalse(hasher.verificar("lo-que-sea", null).await().atMost(ESPERA));
     }
 
     @Test
-    void conTodosLosHilosOcupadosYLaColaLlenaResponde429EnVezDeEncolarSinLimite() throws Exception {
+    void testDeberiaConTodosLosHilosOcupadosYLaColaLlenaResponde429EnVezDeEncolarSinLimite() throws Exception {
         BcryptHashDePassword pequeno = new BcryptHashDePassword(1, 1);
         List<CompletableFuture<String>> pedidos = new ArrayList<>();
         for (int i = 0; i < 6; i++) {

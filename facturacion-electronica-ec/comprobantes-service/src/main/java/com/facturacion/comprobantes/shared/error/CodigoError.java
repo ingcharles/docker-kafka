@@ -38,6 +38,12 @@ public enum CodigoError implements ErrorCatalogo {
     IDENTIFICACION_LONGITUD_INVALIDA("COMP-400-305", 400, "identificacion.longitud_invalida"),
     CONSUMIDOR_FINAL_EXCEDE_MONTO("COMP-400-306", 400, "identificacion.consumidor_final_excede_monto"),
 
+    // Correo del receptor (uno o varios separados por coma)
+    CORREO_INVALIDO("COMP-400-307", 400, "correo.invalido"),
+    CORREOS_EXCEDEN_MAXIMO("COMP-400-308", 400, "correo.exceden_maximo"),
+    CORREOS_REPETIDOS("COMP-400-309", 400, "correo.repetidos"),
+    CORREOS_MUY_LARGOS("COMP-400-310", 400, "correo.muy_largos"),
+
     // Retenciones (Tablas 19 y 20) y documento sustento
     IMPUESTO_RETENER_NO_EXISTE("COMP-400-401", 400, "retencion.impuesto_no_existe"),
     CODIGO_RETENCION_NO_EXISTE("COMP-400-402", 400, "retencion.codigo_no_existe"),

@@ -252,6 +252,7 @@ El reintento vuelve a publicar el **payload exacto** del último comando (mismo 
 **Estados que el watchdog no toca:** los terminales, y `AUTORIZADO` (espera la notificación pero su último comando ya se cumplió).
 
 **Otros puntos de la revisión de la saga**
+- **Varios destinatarios:** `compradorCorreo`, `proveedorCorreo` y `sujetoRetenidoCorreo` aceptan una lista separada por coma (`a@x.com,b@x.com`). Al crear el comprobante se valida (forma de cada correo, sin repetidos, máximo `comprobantes.correo.maximo-destinatarios` = 3, y que quepa en 300 caracteres) y se guarda normalizada; `notificacion-service` la parte con `ListaCorreos` y manda **un solo mensaje** con todos en `to`.
 - **Sagas sin correo:** `comprobantes-service` solo publica `ComprobanteAutorizado` si hay `compradorCorreo`. `ComprobanteCreado` lleva `notificacionEsperada` (`null` = `true`); si es `false`, la saga pasa de `AUTORIZADO` a **`AUTORIZADO_SIN_NOTIFICACION`** (terminal) en cuanto el SRI autoriza.
 
 - **Una saga que falla no frena a las demás:** cada saga se procesa en su propia transacción (`idsParaRecuperar` lee; `recuperarSaga` actúa sobre una). Un reintento fallido deja una nota `ORQ-402` y cuenta como intento: una saga con un dato corrupto termina en `EXPIRADA`.

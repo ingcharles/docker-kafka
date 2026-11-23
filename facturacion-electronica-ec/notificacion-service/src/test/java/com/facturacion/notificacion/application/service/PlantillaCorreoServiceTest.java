@@ -50,7 +50,7 @@ class PlantillaCorreoServiceTest {
     }
 
     @Test
-    void unTipoQueNoExisteSeRechazaConLosTiposValidos() {
+    void testDeberiaUnTipoQueNoExisteSeRechazaConLosTiposValidos() {
         for (String tipo : new String[] {"BOLETA", "factura", "", " FACTURA", "TODOS"}) {
             ApiException error = rechazo(tipo, "Asunto", "<p>Hola</p>", null);
 
@@ -60,14 +60,14 @@ class PlantillaCorreoServiceTest {
     }
 
     @Test
-    void siElHtmlSoloTieneLoPeligrosoSeRechazaPorQuedarVacio() {
+    void testDeberiaSiElHtmlSoloTieneLoPeligrosoSeRechazaPorQuedarVacio() {
         for (String html : new String[] {"<script>alert(1)</script>", "<style>p{}</style><iframe src=\"https://x\"></iframe>"}) {
             assertEquals(NotificacionError.PLANTILLA_SIN_CONTENIDO, rechazo("FACTURA", "Asunto", html, null).getError(), html);
         }
     }
 
     @Test
-    void lasReglasDeLasVariablesSeAplicanAntesDeGuardar() {
+    void testDeberiaLasReglasDeLasVariablesSeAplicanAntesDeGuardar() {
         assertEquals(NotificacionError.PLANTILLA_VARIABLE_DESCONOCIDA,
             rechazo("FACTURA", "{{nada}}", "<p>x</p>", null).getError());
         assertEquals(NotificacionError.PLANTILLA_VARIABLE_EN_ETIQUETA,
@@ -77,7 +77,7 @@ class PlantillaCorreoServiceTest {
     }
 
     @Test
-    void laVistaPreviaTambienRechazaLoQueNoSePodriaGuardar() {
+    void testDeberiaLaVistaPreviaTambienRechazaLoQueNoSePodriaGuardar() {
         VistaPreviaRequest invalida = new VistaPreviaRequest("FACTURA", "{{nada}}", "<p>x</p>", null);
 
         ApiException error = assertThrows(ApiException.class, () -> servicio.armarVistaPrevia(RUC, invalida));
@@ -88,7 +88,7 @@ class PlantillaCorreoServiceTest {
     }
 
     @Test
-    void laPlantillaPorDefectoSePideConElNombreExactoDelTipo() {
+    void testDeberiaLaPlantillaPorDefectoSePideConElNombreExactoDelTipo() {
         assertEquals("asunto NOTA_DEBITO", servicio.obtenerPorDefecto("NOTA_DEBITO").asunto());
         assertEquals("NOTA_DEBITO", servicio.obtenerPorDefecto("NOTA_DEBITO").tipoComprobante());
         assertEquals(NotificacionError.PLANTILLA_TIPO_INVALIDO,
@@ -96,7 +96,7 @@ class PlantillaCorreoServiceTest {
     }
 
     @Test
-    void lasVariablesSeListanTodasConSuMarcadorYDescripcion() {
+    void testDeberiaLasVariablesSeListanTodasConSuMarcadorYDescripcion() {
         List<VariablePlantillaResponse> variables = servicio.listarVariables();
 
         assertEquals(VariableCorreo.values().length, variables.size());

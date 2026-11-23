@@ -8,13 +8,13 @@ import org.junit.jupiter.api.Test;
 class UsuarioServiceTest {
 
     @Test
-    void elCorreoSeNormalizaSinEspaciosYEnMinusculas() {
+    void testDeberiaElCorreoSeNormalizaSinEspaciosYEnMinusculas() {
         assertEquals("ana@x.com", UsuarioService.normalizarEmail("  Ana@X.COM "));
         assertEquals("ana@x.com", UsuarioService.normalizarEmail("ana@x.com"));
     }
 
     @Test
-    void unCorreoNuloSigueNulo() {
+    void testDeberiaUnCorreoNuloSigueNulo() {
         assertNull(UsuarioService.normalizarEmail(null));
     }
 }

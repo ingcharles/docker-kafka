@@ -22,7 +22,7 @@ class ComprobanteCicloDeVidaTest {
     }
 
     @Test
-    void recorreElCicloFelizGuardandoLosDatosDeCadaPaso() {
+    void testDeberiaRecorreElCicloFelizGuardandoLosDatosDeCadaPaso() {
         Comprobante comprobante = borrador();
 
         comprobante.marcarFirmado("<firmado/>");
@@ -43,7 +43,7 @@ class ComprobanteCicloDeVidaTest {
     }
 
     @Test
-    void laFirmaFallidaYElRechazoGuardanElMotivo() {
+    void testDeberiaLaFirmaFallidaYElRechazoGuardanElMotivo() {
         Comprobante sinCertificado = borrador();
         sinCertificado.marcarFirmaFallida("La empresa no tiene certificado activo");
         assertEquals(EstadoComprobante.FIRMA_FALLIDA, sinCertificado.getEstado());
@@ -57,7 +57,7 @@ class ComprobanteCicloDeVidaTest {
     }
 
     @Test
-    void unaTransicionIlegalFallaSinTocarNada() {
+    void testDeberiaUnaTransicionIlegalFallaSinTocarNada() {
         Comprobante comprobante = borrador();
 
         assertThrows(IllegalStateException.class,
@@ -68,7 +68,7 @@ class ComprobanteCicloDeVidaTest {
     }
 
     @Test
-    void noSeRetrocedeNiSeAutorizaDosVeces() {
+    void testDeberiaNoSeRetrocedeNiSeAutorizaDosVeces() {
         Comprobante comprobante = borrador();
         comprobante.marcarFirmado("<firmado/>");
         comprobante.marcarAutorizado("<a/>", "1", Instant.now());
@@ -79,12 +79,12 @@ class ComprobanteCicloDeVidaTest {
     }
 
     @Test
-    void elRideSoloSeAdjuntaAUnComprobanteAutorizado() {
+    void testDeberiaElRideSoloSeAdjuntaAUnComprobanteAutorizado() {
         assertThrows(IllegalStateException.class, () -> borrador().adjuntarRide(new byte[] {1}));
     }
 
     @Test
-    void consultaSiUnDestinoSaltaPasosDelCiclo() {
+    void testDeberiaConsultaSiUnDestinoSaltaPasosDelCiclo() {
         Comprobante comprobante = borrador();
         assertEquals(true, comprobante.esSaltoDePasos(EstadoComprobante.AUTORIZADO));
         assertEquals(false, comprobante.esSaltoDePasos(EstadoComprobante.FIRMADO));

@@ -20,7 +20,7 @@ import com.facturacion.commons.exception.TokenInvalidoException;
 class ApiExceptionMapperTest {
 
     @Test
-    void notFoundConTextoLiteralSale404ConCodigoGenerico() {
+    void testDeberiaNotFoundConTextoLiteralSale404ConCodigoGenerico() {
         ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(new NotFoundException(ErrorComun.RECURSO_NO_ENCONTRADO, "Comprobante no encontrado: 7"));
         assertEquals(404, cuerpo.getStatus());
         assertEquals("Not Found", cuerpo.getError());
@@ -30,7 +30,7 @@ class ApiExceptionMapperTest {
     }
 
     @Test
-    void cadaExcepcionGenericaTraeSuEstado() {
+    void testDeberiaCadaExcepcionGenericaTraeSuEstado() {
         assertEquals(401, ApiExceptionMapper.construirCuerpo(new TokenInvalidoException(ErrorComun.TOKEN_INVALIDO, "x")).getStatus());
         assertEquals(403, ApiExceptionMapper.construirCuerpo(new SinPermisoException(ErrorComun.SIN_PERMISO, "x")).getStatus());
         assertEquals(409, ApiExceptionMapper.construirCuerpo(new ConflictoException(ErrorComun.CONFLICTO, "x")).getStatus());
@@ -57,7 +57,7 @@ class ApiExceptionMapperTest {
     }
 
     @Test
-    void unEstadoNoEstandarComoElCuatrocientosVeintidosSeConserva() {
+    void testDeberiaUnEstadoNoEstandarComoElCuatrocientosVeintidosSeConserva() {
         ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(
             new ErrorNegocioException(ErrorDePrueba.ENTIDAD_NO_PROCESABLE));
 
@@ -67,7 +67,7 @@ class ApiExceptionMapperTest {
     }
 
     @Test
-    void errorNegocioUsaLaEntradaDelCatalogoYSusDetalles() {
+    void testDeberiaErrorNegocioUsaLaEntradaDelCatalogoYSusDetalles() {
         ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(
             ErrorNegocioException.crearConDetalles(ErrorComun.SOLICITUD_INVALIDA, List.of("a", "b"), "varios problemas"));
         assertEquals(400, cuerpo.getStatus());
@@ -77,7 +77,7 @@ class ApiExceptionMapperTest {
     }
 
     @Test
-    void unFalloInternoNoExponeSuDetalleYConservaSuCodigo() {
+    void testDeberiaUnFalloInternoNoExponeSuDetalleYConservaSuCodigo() {
         ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(
             new ErrorInternoException(new RuntimeException("detalle interno"), ErrorComun.PAYLOAD_NO_SERIALIZABLE));
 

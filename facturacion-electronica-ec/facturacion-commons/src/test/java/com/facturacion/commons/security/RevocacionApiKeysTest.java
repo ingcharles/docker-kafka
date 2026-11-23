@@ -14,7 +14,7 @@ class RevocacionApiKeysTest {
     private final RevocacionApiKeys revocaciones = new RevocacionApiKeys();
 
     @Test
-    void recuerdaLaRevocacionHastaQueVenceElToken() {
+    void testDeberiaRecuerdaLaRevocacionHastaQueVenceElToken() {
         revocaciones.revocar("a", Instant.now().plusSeconds(60));
         assertTrue(revocaciones.estaRevocada("a"));
         assertFalse(revocaciones.estaRevocada("b"));
@@ -22,14 +22,14 @@ class RevocacionApiKeysTest {
     }
 
     @Test
-    void noGuardaTokensQueYaVencieron() {
+    void testDeberiaNoGuardaTokensQueYaVencieron() {
         revocaciones.revocar("vieja", Instant.now().minusSeconds(5));
         assertFalse(revocaciones.estaRevocada("vieja"));
         assertEquals(0, revocaciones.contarRevocadas());
     }
 
     @Test
-    void alRevocarOtraSeLimpianLasVencidas() throws InterruptedException {
+    void testDeberiaAlRevocarOtraSeLimpianLasVencidas() throws InterruptedException {
         revocaciones.revocar("corta", Instant.now().plusMillis(50));
         Thread.sleep(80);
         revocaciones.revocar("nueva", Instant.now().plusSeconds(60));
@@ -37,7 +37,7 @@ class RevocacionApiKeysTest {
     }
 
     @Test
-    void elMensajeDeRevocacionIdaYVuelta() {
+    void testDeberiaElMensajeDeRevocacionIdaYVuelta() {
         Instant vence = Instant.ofEpochSecond(1_900_000_000L);
         MensajeRevocacion original = new MensajeRevocacion("c0ffee-1234", vence);
         assertEquals("c0ffee-1234|1900000000", original.serializar());
@@ -45,7 +45,7 @@ class RevocacionApiKeysTest {
     }
 
     @Test
-    void unMensajeMalFormadoSeRechaza() {
+    void testDeberiaUnMensajeMalFormadoSeRechaza() {
         assertThrows(IllegalArgumentException.class, () -> MensajeRevocacion.parsear(null));
         assertThrows(IllegalArgumentException.class, () -> MensajeRevocacion.parsear("sin-separador"));
         assertThrows(IllegalArgumentException.class, () -> MensajeRevocacion.parsear("|123"));

@@ -21,7 +21,7 @@ class CatalogoAdminServiceSqlTest {
     }
 
     @Test
-    void decimalesYFechasSeDeclaranComoTextoAntesDeConvertirse() {
+    void testDeberiaDecimalesYFechasSeDeclaranComoTextoAntesDeConvertirse() {
         String sql = sql(Catalogo.TARIFA_IMPUESTO);
         assertTrue(sql.contains("$4::text::numeric"), sql); // tarifa
         assertTrue(sql.contains("$6::text::date"), sql);    // vigente_desde
@@ -29,7 +29,7 @@ class CatalogoAdminServiceSqlTest {
     }
 
     @Test
-    void ningunParametroSeDeclaraDirectamenteNumericoNiFecha() {
+    void testDeberiaNingunParametroSeDeclaraDirectamenteNumericoNiFecha() {
         for (Catalogo catalogo : Catalogo.values()) {
             String sql = sql(catalogo);
             assertFalse(sql.matches("(?s).*\\$\\d+::(numeric|date).*"), catalogo + ": " + sql);
@@ -37,7 +37,7 @@ class CatalogoAdminServiceSqlTest {
     }
 
     @Test
-    void elUpsertUsaLaClaveCompletaDelCatalogo() {
+    void testDeberiaElUpsertUsaLaClaveCompletaDelCatalogo() {
         String sql = sql(Catalogo.RETENCION);
         assertTrue(sql.contains("on conflict (impuesto_codigo, codigo, vigente_desde) do update set"), sql);
         assertTrue(sql.startsWith("insert into retencion ("), sql);
@@ -45,7 +45,7 @@ class CatalogoAdminServiceSqlTest {
     }
 
     @Test
-    void unaColumnaClaveNoSeActualizaEnElDoUpdate() {
+    void testDeberiaUnaColumnaClaveNoSeActualizaEnElDoUpdate() {
         String sql = sql(Catalogo.FORMA_PAGO);
         String actualizacion = sql.substring(sql.indexOf("do update set"), sql.indexOf("returning"));
         assertFalse(actualizacion.contains("codigo = EXCLUDED.codigo"), actualizacion);

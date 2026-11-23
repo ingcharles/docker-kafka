@@ -20,7 +20,7 @@ import com.facturacion.firma.shared.exception.RucDuplicadoException;
 class FirmaErrorTest {
 
     @Test
-    void cadaCodigoTieneSuMensajeYNoSobranClaves() {
+    void testDeberiaCadaCodigoTieneSuMensajeYNoSobranClaves() {
         for (FirmaError error : FirmaError.values()) {
             assertTrue(Mensajes.existe(error.claveMensaje()), error + " no tiene clave en mensajes.properties");
             assertFalse(Mensajes.obtenerTexto(error, "x").isBlank(), error + " tiene mensaje vacío");
@@ -32,7 +32,7 @@ class FirmaErrorTest {
     }
 
     @Test
-    void codigosUnicosConFormatoYEstadoCoherente() {
+    void testDeberiaCodigosUnicosConFormatoYEstadoCoherente() {
         Set<String> vistos = new HashSet<>();
         for (FirmaError error : FirmaError.values()) {
             assertTrue(error.codigo().matches("^FIR-" + error.estadoHttp() + "-\\d{3}$"), error.codigo());
@@ -41,7 +41,7 @@ class FirmaErrorTest {
     }
 
     @Test
-    void lasExcepcionesConservanSuTextoYSuEstado() {
+    void testDeberiaLasExcepcionesConservanSuTextoYSuEstado() {
         RucDuplicadoException ruc = new RucDuplicadoException("1722039953001");
         assertEquals("Ya existe una empresa registrada con el RUC 1722039953001", ruc.getMessage());
         assertEquals(409, ruc.getError().estadoHttp());

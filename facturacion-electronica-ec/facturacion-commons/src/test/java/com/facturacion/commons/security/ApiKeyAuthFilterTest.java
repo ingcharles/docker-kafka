@@ -34,14 +34,14 @@ class ApiKeyAuthFilterTest {
     }
 
     @Test
-    void habilitadoExigeLaApiKey() throws Exception {
+    void testDeberiaHabilitadoExigeLaApiKey() throws Exception {
         ApiKeyAuthFilter filtro = new ApiKeyAuthFilter(verificador(), new TokenPrincipal(), true);
 
         assertThrows(TokenInvalidoException.class, () -> filtro.filter(sinCabecera()));
     }
 
     @Test
-    void apagadoDejaPasarLasPeticionesSinApiKeyComoElRegistroYElLogin() throws Exception {
+    void testDeberiaApagadoDejaPasarLasPeticionesSinApiKeyComoElRegistroYElLogin() throws Exception {
         ApiKeyAuthFilter filtro = new ApiKeyAuthFilter(verificador(), new TokenPrincipal(), false);
 
         assertDoesNotThrow(() -> filtro.filter(sinCabecera()));

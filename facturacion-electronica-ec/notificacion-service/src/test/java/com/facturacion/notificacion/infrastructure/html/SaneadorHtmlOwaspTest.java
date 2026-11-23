@@ -16,7 +16,7 @@ class SaneadorHtmlOwaspTest {
     }
 
     @Test
-    void conservaTextoTablasListasYEstilosEnLinea() {
+    void testDeberiaConservaTextoTablasListasYEstilosEnLinea() {
         String limpio = sanear("<table width=\"100%\" cellpadding=\"0\" style=\"background-color:#f3f4f6;padding:12px\">"
             + "<tr><td align=\"center\" style=\"color:#1f2937;font-size:15px\"><b>Hola</b> <i>mundo</i></td></tr></table>"
             + "<ul><li>uno</li></ul><h1>T</h1><hr><p style=\"margin:0\">x</p>");
@@ -28,7 +28,7 @@ class SaneadorHtmlOwaspTest {
     }
 
     @Test
-    void conservaLasVariablesEnElTexto() {
+    void testDeberiaConservaLasVariablesEnElTexto() {
         String limpio = sanear("<p>Hola {{nombreReceptor}}, su factura {{numero}}</p><div>{{logo}}</div>");
 
         assertTrue(limpio.contains("{{nombreReceptor}}"), limpio);
@@ -37,21 +37,21 @@ class SaneadorHtmlOwaspTest {
     }
 
     @Test
-    void unTextoParecidoALaMarcaInternaNoSeConfundeConUnaVariable() {
+    void testDeberiaUnTextoParecidoALaMarcaInternaNoSeConfundeConUnaVariable() {
         String limpio = sanear("<p>ZZVAR0ZZ y ZZVAR7ZZ {{numero}} ZZVAR1ZZ</p>");
 
         assertEquals("<p>ZZVAR0ZZ y ZZVAR7ZZ {{numero}} ZZVAR1ZZ</p>", limpio);
     }
 
     @Test
-    void lasVariablesConEspaciosOSinNombreValidoTambienSeConservanParaQueElValidadorLasRechace() {
+    void testDeberiaLasVariablesConEspaciosOSinNombreValidoTambienSeConservanParaQueElValidadorLasRechace() {
         String limpio = sanear("<p>{{ numero }} {{inventada}}</p>");
 
         assertTrue(limpio.contains("{{ numero }}") && limpio.contains("{{inventada}}"), limpio);
     }
 
     @Test
-    void quitaScriptsConSuContenido() {
+    void testDeberiaQuitaScriptsConSuContenido() {
         String limpio = sanear("<p>a</p><script>alert(1)</script><SCRIPT SRC=\"https://x/y.js\"></SCRIPT><p>b</p>");
 
         assertFalse(limpio.toLowerCase().contains("script"));
@@ -60,7 +60,7 @@ class SaneadorHtmlOwaspTest {
     }
 
     @Test
-    void quitaLosManejadoresDeEventos() {
+    void testDeberiaQuitaLosManejadoresDeEventos() {
         String limpio = sanear("<p onclick=\"x()\" onmouseover=\"y()\">a</p><img src=\"https://x/a.png\" onerror=\"z()\">");
 
         assertFalse(limpio.contains("onclick"));
@@ -70,7 +70,7 @@ class SaneadorHtmlOwaspTest {
     }
 
     @Test
-    void quitaFormulariosMarcosObjetosYHojasDeEstilo() {
+    void testDeberiaQuitaFormulariosMarcosObjetosYHojasDeEstilo() {
         String limpio = sanear("<form action=\"https://x\"><input name=\"p\"><button>ok</button></form>"
             + "<iframe src=\"https://x\"></iframe><object data=\"x\"></object><embed src=\"x\">"
             + "<style>body{background:url(https://x/t.gif)}</style><link rel=\"stylesheet\" href=\"https://x/a.css\">"
@@ -84,7 +84,7 @@ class SaneadorHtmlOwaspTest {
     }
 
     @Test
-    void quitaLasDireccionesQueNoSonHttpsMailtoNiCid() {
+    void testDeberiaQuitaLasDireccionesQueNoSonHttpsMailtoNiCid() {
         String limpio = sanear("<a href=\"javascript:alert(1)\">a</a><a href=\"data:text/html,x\">b</a>"
             + "<a href=\"http://x.test\">c</a><a href=\"vbscript:x\">d</a><a href=\"JaVaScRiPt:alert(1)\">e</a>"
             + "<img src=\"data:image/png;base64,AAAA\"><img src=\"http://x.test/a.png\"><img src=\"javascript:x\">");
@@ -96,7 +96,7 @@ class SaneadorHtmlOwaspTest {
     }
 
     @Test
-    void conservaEnlacesHttpsMailtoEImagenesHttpsYCid() {
+    void testDeberiaConservaEnlacesHttpsMailtoEImagenesHttpsYCid() {
         String limpio = sanear("<a href=\"https://ejemplo.test/ver\">ver</a> <a href=\"mailto:ayuda@ejemplo.test\">ayuda</a>"
             + "<img src=\"https://ejemplo.test/a.png\" alt=\"A\" width=\"120\"><img src=\"cid:logo@facturacion\" alt=\"Logo\">");
 
@@ -107,7 +107,7 @@ class SaneadorHtmlOwaspTest {
     }
 
     @Test
-    void losEnlacesNoPasanElReferenteNiAbrenLaVentanaDeOrigen() {
+    void testDeberiaLosEnlacesNoPasanElReferenteNiAbrenLaVentanaDeOrigen() {
         String limpio = sanear("<a href=\"https://ejemplo.test\" target=\"_blank\">x</a>");
 
         assertTrue(limpio.contains("noopener"), limpio);
@@ -116,7 +116,7 @@ class SaneadorHtmlOwaspTest {
     }
 
     @Test
-    void quitaEstilosPeligrososPeroDejaLosSeguros() {
+    void testDeberiaQuitaEstilosPeligrososPeroDejaLosSeguros() {
         String limpio = sanear("<p style=\"color:red;background:url(javascript:alert(1));position:fixed;"
             + "behavior:url(x.htc);expression(alert(1));width:expression(alert(1))\">a</p>"
             + "<div style=\"background-image:url(https://x.test/t.gif)\">b</div>");
@@ -130,7 +130,7 @@ class SaneadorHtmlOwaspTest {
     }
 
     @Test
-    void unDocumentoCompletoQuedaSoloConSuContenido() {
+    void testDeberiaUnDocumentoCompletoQuedaSoloConSuContenido() {
         String limpio = sanear("<!DOCTYPE html><html><head><title>t</title><meta charset=\"utf-8\"></head>"
             + "<body bgcolor=\"red\" onload=\"x()\"><p>Hola</p></body></html>");
 
@@ -142,7 +142,7 @@ class SaneadorHtmlOwaspTest {
     }
 
     @Test
-    void unHtmlMalFormadoSeCorrige() {
+    void testDeberiaUnHtmlMalFormadoSeCorrige() {
         String limpio = sanear("<p>uno<b>dos<p>tres");
 
         assertTrue(limpio.contains("uno") && limpio.contains("dos") && limpio.contains("tres"));
@@ -150,7 +150,7 @@ class SaneadorHtmlOwaspTest {
     }
 
     @Test
-    void soloScriptsDejaElCuerpoVacio() {
+    void testDeberiaSoloScriptsDejaElCuerpoVacio() {
         assertTrue(sanear("<script>alert(1)</script><style>p{}</style>").isBlank());
     }
 }

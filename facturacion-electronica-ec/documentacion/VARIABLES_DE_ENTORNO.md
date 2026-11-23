@@ -124,6 +124,7 @@ Productores de Kafka (todos menos identidad):
 | identidad | `REVOCACIONES_TIMEOUT_ACK` | `PT10S` | Espera del ack de Kafka al revocar una api-key. |
 | identidad | `KAFKA_REVOCACIONES_DELIVERY_TIMEOUT_MS` / `..._REQUEST_TIMEOUT_MS` | `8000` / `5000` | Plazos del productor de revocaciones. |
 | comprobantes | `CONSUMIDOR_FINAL_MONTO_MAXIMO` | `50.00` | Tope (USD) de una factura a consumidor final. |
+| comprobantes | `CORREO_MAXIMO_DESTINATARIOS` | `3` | Máximo de correos (separados por coma) en el campo del receptor. |
 | sri-conector | `SRI_TIMEOUT_CONEXION` / `SRI_TIMEOUT_RESPUESTA` | `PT10S` / `PT30S` | Plazos de conexión y respuesta del SRI. |
 | sri-conector | `SRI_URL_HOSTS_PERMITIDOS` | `*.sri.gob.ec` | Dominios a los que se puede llamar (un override por empresa fuera de la lista se ignora). |
 | notificacion | `CORREO_TIMEOUT` | `PT30S` | Plazo del envío por SMTP. |

@@ -49,13 +49,13 @@ class LogFallosMensajeriaInterceptorTest {
     }
 
     @Test
-    void elCanalSaleDeLaAnotacionIncoming() throws Exception {
+    void testDeberiaElCanalSaleDeLaAnotacionIncoming() throws Exception {
         assertEquals("canal-de-prueba", LogFallosMensajeriaInterceptor.obtenerCanal(metodo()));
         assertEquals("desconocido", LogFallosMensajeriaInterceptor.obtenerCanal(null));
     }
 
     @Test
-    void elContextoLlevaSoloLosIdsDelMensajeYNuncaSuContenido() {
+    void testDeberiaElContextoLlevaSoloLosIdsDelMensajeYNuncaSuContenido() {
         UUID evento = UUID.randomUUID();
         UUID comprobante = UUID.randomUUID();
 
@@ -66,14 +66,14 @@ class LogFallosMensajeriaInterceptorTest {
     }
 
     @Test
-    void unMensajeSinIdsOSinParametrosNoDaContexto() {
+    void testDeberiaUnMensajeSinIdsOSinParametrosNoDaContexto() {
         assertNull(LogFallosMensajeriaInterceptor.extraerIdsDelMensaje(new Object[] {"texto"}));
         assertNull(LogFallosMensajeriaInterceptor.extraerIdsDelMensaje(new Object[0]));
         assertNull(LogFallosMensajeriaInterceptor.extraerIdsDelMensaje(null));
     }
 
     @Test
-    void unaFallaAsincronaSeRegistraYSeVuelveALanzarIntacta() throws Exception {
+    void testDeberiaUnaFallaAsincronaSeRegistraYSeVuelveALanzarIntacta() throws Exception {
         IllegalStateException falla = new IllegalStateException("boom");
         Uni<Void> original = Uni.createFrom().failure(falla);
 
@@ -87,7 +87,7 @@ class LogFallosMensajeriaInterceptorTest {
     }
 
     @Test
-    void unaFallaSincronaSeVuelveALanzarIntacta() throws Exception {
+    void testDeberiaUnaFallaSincronaSeVuelveALanzarIntacta() throws Exception {
         IllegalArgumentException falla = new IllegalArgumentException("sin ids");
 
         IllegalArgumentException recibida = assertThrows(IllegalArgumentException.class,
@@ -97,7 +97,7 @@ class LogFallosMensajeriaInterceptorTest {
     }
 
     @Test
-    void sinFallaDevuelveElResultadoSinTocarlo() throws Exception {
+    void testDeberiaSinFallaDevuelveElResultadoSinTocarlo() throws Exception {
         Object resultado = new LogFallosMensajeriaInterceptor()
             .registrar(contexto(new Object[] {null}, "ok", null));
 

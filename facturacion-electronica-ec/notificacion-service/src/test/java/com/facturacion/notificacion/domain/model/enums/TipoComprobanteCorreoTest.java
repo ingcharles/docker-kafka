@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 class TipoComprobanteCorreoTest {
 
     @Test
-    void cadaNombreDelEventoResuelveSuTipo() {
+    void testDeberiaCadaNombreDelEventoResuelveSuTipo() {
         for (String nombre : new String[] {"FACTURA", "NOTA_CREDITO", "NOTA_DEBITO", "GUIA_REMISION", "RETENCION",
             "LIQUIDACION_COMPRA"}) {
             assertEquals(nombre, TipoComprobanteCorreo.obtenerPorNombre(nombre).name());
@@ -15,7 +15,7 @@ class TipoComprobanteCorreoTest {
     }
 
     @Test
-    void laBusquedaEstrictaSoloAceptaElNombreExacto() {
+    void testDeberiaLaBusquedaEstrictaSoloAceptaElNombreExacto() {
         assertEquals(TipoComprobanteCorreo.RETENCION, TipoComprobanteCorreo.buscarPorNombre("RETENCION").orElseThrow());
         assertEquals(TipoComprobanteCorreo.GENERICO, TipoComprobanteCorreo.buscarPorNombre("GENERICO").orElseThrow());
         for (String invalido : new String[] {null, "", "retencion", " RETENCION", "TODOS"}) {
@@ -24,7 +24,7 @@ class TipoComprobanteCorreoTest {
     }
 
     @Test
-    void unNombreDesconocidoONuloEsGenerico() {
+    void testDeberiaUnNombreDesconocidoONuloEsGenerico() {
         assertEquals(TipoComprobanteCorreo.GENERICO, TipoComprobanteCorreo.obtenerPorNombre(null));
         assertEquals(TipoComprobanteCorreo.GENERICO, TipoComprobanteCorreo.obtenerPorNombre("factura"));
         assertEquals(TipoComprobanteCorreo.GENERICO, TipoComprobanteCorreo.obtenerPorNombre("OTRO"));

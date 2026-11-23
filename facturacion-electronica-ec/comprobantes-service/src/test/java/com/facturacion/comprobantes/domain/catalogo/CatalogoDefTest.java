@@ -47,7 +47,7 @@ class CatalogoDefTest {
     }
 
     @Test
-    void todosLosCatalogosDelEnumTienenDefinicionConClave() {
+    void testDeberiaTodosLosCatalogosDelEnumTienenDefinicionConClave() {
         assertEquals(Catalogo.values().length, CatalogoDef.TODOS.size());
         assertEquals(CatalogoDef.TODOS.size(),
             new HashSet<>(CatalogoDef.TODOS.stream().map(CatalogoDef::nombre).toList()).size(), "nombres únicos");
@@ -55,13 +55,13 @@ class CatalogoDefTest {
     }
 
     @Test
-    void buscarPorNombreDeCable() {
+    void testDeberiaBuscarPorNombreDeCable() {
         assertEquals(Catalogo.FORMA_PAGO, CatalogoDef.buscar("forma_pago").orElseThrow().catalogo());
         assertTrue(CatalogoDef.buscar("no_existe").isEmpty());
     }
 
     @Test
-    void formaPagoAplicaDefaultsDeVigenciaYActivo() {
+    void testDeberiaFormaPagoAplicaDefaultsDeVigenciaYActivo() {
         Map<String, Object> v = def(Catalogo.FORMA_PAGO).validar(mapa("codigo", "22", "descripcion", "NUEVA"));
         assertEquals("22", v.get("codigo"));
         assertEquals("1900-01-01", v.get(CatalogoDef.COL_VIGENTE_DESDE));
@@ -70,7 +70,7 @@ class CatalogoDefTest {
     }
 
     @Test
-    void retencionNormalizaDecimalesYFechas() {
+    void testDeberiaRetencionNormalizaDecimalesYFechas() {
         Map<String, Object> v = def(Catalogo.RETENCION).validar(mapa(
             "impuesto_codigo", "6", "codigo", "4586", "vigente_desde", "2025-05-01",
             "descripcion", "ISD 2.5%", "porcentaje", 2.50));
@@ -79,21 +79,21 @@ class CatalogoDefTest {
     }
 
     @Test
-    void rechazaCuerpoNuloYCamposDesconocidos() {
+    void testDeberiaRechazaCuerpoNuloYCamposDesconocidos() {
         rechaza(() -> def(Catalogo.IMPUESTO).validar(null), CodigoError.CUERPO_OBLIGATORIO);
         rechaza(() -> def(Catalogo.IMPUESTO).validar(mapa("codigo", "9", "descripcion", "X", "otro", "1")),
             CodigoError.CAMPO_DESCONOCIDO);
     }
 
     @Test
-    void rechazaFaltantesYLongitudes() {
+    void testDeberiaRechazaFaltantesYLongitudes() {
         rechazaCampo(() -> def(Catalogo.IMPUESTO).validar(mapa("descripcion", "X")), "'codigo' es obligatorio");
         rechazaCampo(() -> def(Catalogo.IMPUESTO).validar(mapa("codigo", "123", "descripcion", "X")),
             "entre 1 y 2");
     }
 
     @Test
-    void agrupaVariosProblemasEnUnSoloErrorConDetalles() {
+    void testDeberiaAgrupaVariosProblemasEnUnSoloErrorConDetalles() {
         ErrorNegocioException error = rechaza(() -> def(Catalogo.TARIFA_IMPUESTO).validar(mapa(
             "tarifa", "abc", "vigente_desde", "01/02/2025")), CodigoError.CAMPOS_INVALIDOS);
         // faltan impuesto_codigo, codigo_porcentaje, descripcion; tarifa no numérica; fecha mal escrita
@@ -101,7 +101,7 @@ class CatalogoDefTest {
     }
 
     @Test
-    void rechazaTiposYRangosInvalidos() {
+    void testDeberiaRechazaTiposYRangosInvalidos() {
         rechazaCampo(() -> def(Catalogo.TARIFA_IMPUESTO).validar(mapa(
             "impuesto_codigo", "2", "codigo_porcentaje", "9", "descripcion", "X", "tarifa", "abc")),
             "'tarifa' debe ser numérico");
@@ -114,20 +114,20 @@ class CatalogoDefTest {
     }
 
     @Test
-    void rechazaVigenciaInvertida() {
+    void testDeberiaRechazaVigenciaInvertida() {
         rechazaCampo(() -> def(Catalogo.FORMA_PAGO).validar(mapa(
             "codigo", "22", "descripcion", "X", "vigente_desde", "2025-05-01", "vigente_hasta", "2025-04-30")),
             "anterior");
     }
 
     @Test
-    void soloLosCatalogosConVigenciaLaDeclaran() {
+    void testDeberiaSoloLosCatalogosConVigenciaLaDeclaran() {
         assertEquals(List.of(Catalogo.TARIFA_IMPUESTO, Catalogo.FORMA_PAGO, Catalogo.RETENCION),
             CatalogoDef.TODOS.stream().filter(CatalogoDef::tieneVigencia).map(CatalogoDef::catalogo).toList());
     }
 
     @Test
-    void laTarifaSeVersionaPorFechaYTipoSinTipoSeAsumePorcentaje() {
+    void testDeberiaLaTarifaSeVersionaPorFechaYTipoSinTipoSeAsumePorcentaje() {
         CatalogoDef def = def(Catalogo.TARIFA_IMPUESTO);
 
         Map<String, Object> valores = def.validar(mapa(
@@ -139,7 +139,7 @@ class CatalogoDefTest {
     }
 
     @Test
-    void elTipoDeTarifaSoloAdmiteLosValoresDelEnum() {
+    void testDeberiaElTipoDeTarifaSoloAdmiteLosValoresDelEnum() {
         CatalogoDef def = def(Catalogo.TARIFA_IMPUESTO);
 
         assertEquals("ESPECIFICA", def.validar(mapa("impuesto_codigo", "3", "codigo_porcentaje", "3011",

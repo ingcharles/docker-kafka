@@ -88,7 +88,7 @@ class CertificadoVencimientoTest {
     }
 
     @Test
-    void unCertificadoActivoPeroVencidoSeMarcaExpiradoYNoFirma() {
+    void testDeberiaUnCertificadoActivoPeroVencidoSeMarcaExpiradoYNoFirma() {
         conEmpresa();
         activo = certificado(EstadoCertificado.ACTIVO, Instant.now().minusSeconds(3600));
 
@@ -100,7 +100,7 @@ class CertificadoVencimientoTest {
     }
 
     @Test
-    void siYaEstabaMarcadoExpiradoElMotivoSigueDiciendoQueVencio() {
+    void testDeberiaSiYaEstabaMarcadoExpiradoElMotivoSigueDiciendoQueVencio() {
         conEmpresa();
         activo = null;
         ultimo = certificado(EstadoCertificado.EXPIRADO, Instant.now().minusSeconds(86400));
@@ -112,7 +112,7 @@ class CertificadoVencimientoTest {
     }
 
     @Test
-    void sinCertificadoAlguno() {
+    void testDeberiaSinCertificadoAlguno() {
         conEmpresa();
         activo = null;
         ultimo = null;
@@ -121,7 +121,7 @@ class CertificadoVencimientoTest {
     }
 
     @Test
-    void unCertificadoRevocadoNoSeDiceVencido() {
+    void testDeberiaUnCertificadoRevocadoNoSeDiceVencido() {
         conEmpresa();
         activo = null;
         ultimo = certificado(EstadoCertificado.REVOCADO, Instant.now().plusSeconds(86400));
@@ -130,21 +130,21 @@ class CertificadoVencimientoTest {
     }
 
     @Test
-    void unaEmpresaQueNoExiste() {
+    void testDeberiaUnaEmpresaQueNoExiste() {
         empresa = null;
 
         assertEquals("No hay ninguna empresa registrada con ruc " + RUC, fallo());
     }
 
     @Test
-    void elDominioSabeSiEstaVencido() {
+    void testDeberiaElDominioSabeSiEstaVencido() {
         Instant ahora = Instant.now();
         assertTrue(certificado(EstadoCertificado.ACTIVO, ahora.minusSeconds(1)).estaVencidoEn(ahora));
         assertFalse(certificado(EstadoCertificado.ACTIVO, ahora.plusSeconds(60)).estaVencidoEn(ahora));
     }
 
     @Test
-    void alSubirSoloSeAceptaUnCertificadoVigente() {
+    void testDeberiaAlSubirSoloSeAceptaUnCertificadoVigente() {
         Instant ahora = Instant.now();
 
         CertificadoService.exigirVigente(ahora.minusSeconds(86400), ahora.plusSeconds(86400), ahora);

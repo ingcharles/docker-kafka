@@ -60,7 +60,7 @@ class GeneradorXmlFacturaTest {
     }
 
     @Test
-    void elAgenteDeRetencionYElRegimenRimpeVanAlFinalDeInfoTributariaEnEseOrden() {
+    void testDeberiaElAgenteDeRetencionYElRegimenRimpeVanAlFinalDeInfoTributariaEnEseOrden() {
         Comprobante c = factura();
         c.setEmpresaAgenteRetencion("3257");
         c.setEmpresaRegimenRimpe(RegimenRimpe.RIMPE);
@@ -76,7 +76,7 @@ class GeneradorXmlFacturaTest {
     }
 
     @Test
-    void negocioPopularUsaSuPropiaLeyendaYTambienValidaContraElXsd() {
+    void testDeberiaNegocioPopularUsaSuPropiaLeyendaYTambienValidaContraElXsd() {
         Comprobante c = factura();
         c.setEmpresaRegimenRimpe(RegimenRimpe.NEGOCIO_POPULAR);
 
@@ -87,7 +87,7 @@ class GeneradorXmlFacturaTest {
     }
 
     @Test
-    void laPlacaVaEntreMonedaYPagosYValidaContraElXsd() {
+    void testDeberiaLaPlacaVaEntreMonedaYPagosYValidaContraElXsd() {
         Comprobante c = factura();
         c.setPlaca("PCM4567");
 
@@ -100,7 +100,7 @@ class GeneradorXmlFacturaTest {
     }
 
     @Test
-    void elPrecioSinSubsidioVaEntrePrecioUnitarioYDescuentoYValidaContraElXsd() {
+    void testDeberiaElPrecioSinSubsidioVaEntrePrecioUnitarioYDescuentoYValidaContraElXsd() {
         Comprobante c = factura();
         c.getDetalles().get(0).setPrecioSinSubsidio(new BigDecimal("2.50"));
 
@@ -113,19 +113,19 @@ class GeneradorXmlFacturaTest {
     }
 
     @Test
-    void sinPrecioSinSubsidioNoSeEscribeLaEtiqueta() {
+    void testDeberiaSinPrecioSinSubsidioNoSeEscribeLaEtiqueta() {
         assertFalse(generador.generar(factura()).contains("precioSinSubsidio"));
     }
 
     @Test
-    void sinPlacaNoSeEscribeLaEtiqueta() {
+    void testDeberiaSinPlacaNoSeEscribeLaEtiqueta() {
         String xml = generador.generar(factura());
 
         assertFalse(xml.contains("<placa>"));
     }
 
     @Test
-    void sinAgenteNiRimpeNoSeEscribeNinguna() {
+    void testDeberiaSinAgenteNiRimpeNoSeEscribeNinguna() {
         String xml = generador.generar(factura());
 
         assertFalse(xml.contains("agenteRetencion"));
@@ -134,7 +134,7 @@ class GeneradorXmlFacturaTest {
     }
 
     @Test
-    void granContribuyenteEsUnCampoAdicionalConLaLeyendaComoNombreYLaResolucionComoValor() {
+    void testDeberiaGranContribuyenteEsUnCampoAdicionalConLaLeyendaComoNombreYLaResolucionComoValor() {
         Comprobante c = factura();
         c.setEmpresaEsGranContribuyente(true);
         c.setEmpresaNumeroResolucionGranContribuyente("NAC-GCFOIOC21-00000868-E");
@@ -151,7 +151,7 @@ class GeneradorXmlFacturaTest {
     }
 
     @Test
-    void losDetallesAdicionalesDeLaLineaVanEntreElPrecioTotalYLosImpuestos() {
+    void testDeberiaLosDetallesAdicionalesDeLaLineaVanEntreElPrecioTotalYLosImpuestos() {
         Comprobante c = factura();
         c.getDetalles().get(0).setDetallesAdicionales(
             List.of(new CampoAdicional("Medida", "UN"), new CampoAdicional("Centro Logistico", "23")));
