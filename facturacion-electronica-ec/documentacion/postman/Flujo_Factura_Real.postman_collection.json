@@ -204,7 +204,7 @@
               "mode": "raw",
               "raw": "{\n  \"empresa\": {\n    \"ruc\": \"{{ruc}}\",\n    \"razonSocial\": \"{{razon_social}}\",\n    \"direccionMatriz\": \"LLANO CHICO\",\n    \"ambiente\": \"PRUEBAS\",\n    \"establecimiento\": \"001\",\n    \"puntoEmision\": \"001\"\n  },\n  \"compradorTipoIdentificacion\": \"05\",\n  \"compradorIdentificacion\": \"1710034065\",\n  \"compradorRazonSocial\": \"Consumidor de Prueba\",\n  \"compradorDireccion\": \"Quito\",\n  \"compradorCorreo\": \"{{email_comprador}}\",\n  \"moneda\": \"DOLAR\",\n  \"detalles\": [\n    {\n      \"itemId\": \"{{item_id}}\",\n      \"codigoPrincipal\": \"TABLET02\",\n      \"descripcion\": \"Tablet 10 pulgadas\",\n      \"cantidad\": 1,\n      \"precioUnitario\": 300.00\n    }\n  ]\n}"
             },
-            "description": "Queda en BORRADOR y la saga arranca sola."
+            "description": "Queda en BORRADOR y la saga arranca sola. compradorCorreo acepta hasta 3 correos separados por coma (a@x.com,b@x.com): el comprobante sale en un solo mensaje para todos. Un correo mal escrito, repetido o de más devuelve 400 (COMP-400-307 a 310)."
           },
           "event": [
             {
@@ -298,6 +298,87 @@
             "method": "GET",
             "header": [],
             "url": { "raw": "{{inventario_url}}/items/{{item_id}}", "host": ["{{inventario_url}}"], "path": ["items", "{{item_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Plantillas de correo (opcional; guardar y borrar piden api-key ADMIN)",
+      "item": [
+        {
+          "name": "7.1 Variables que se pueden usar",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{notificaciones_url}}/plantillas-correo/variables", "host": ["{{notificaciones_url}}"], "path": ["plantillas-correo", "variables"] }
+          }
+        },
+        {
+          "name": "7.2 Plantilla por defecto de FACTURA (punto de partida)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{notificaciones_url}}/plantillas-correo/por-defecto/FACTURA", "host": ["{{notificaciones_url}}"], "path": ["plantillas-correo", "por-defecto", "FACTURA"] }
+          }
+        },
+        {
+          "name": "7.3 Vista previa (no guarda)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{notificaciones_url}}/plantillas-correo/vista-previa", "host": ["{{notificaciones_url}}"], "path": ["plantillas-correo", "vista-previa"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipoComprobante\": \"FACTURA\",\n  \"asunto\": \"Su factura {{numero}}\",\n  \"cuerpoHtml\": \"<p>Hola {{nombreReceptor}}, adjuntamos su comprobante.</p><div>{{logo}}</div>\"\n}"
+            },
+            "description": "Arma el correo con datos de ejemplo y las mismas reglas que al guardar."
+          }
+        },
+        {
+          "name": "7.4 Guardar la plantilla de FACTURA (201 la primera vez, 200 al reemplazar)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{notificaciones_url}}/plantillas-correo/FACTURA", "host": ["{{notificaciones_url}}"], "path": ["plantillas-correo", "FACTURA"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"asunto\": \"Su factura {{numero}}\",\n  \"cuerpoHtml\": \"<p>Hola {{nombreReceptor}}, adjuntamos su comprobante.</p><div>{{logo}}</div>\",\n  \"activa\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 o 200', () => pm.expect([200, 201]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7.5 Ver la plantilla guardada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{notificaciones_url}}/plantillas-correo/FACTURA", "host": ["{{notificaciones_url}}"], "path": ["plantillas-correo", "FACTURA"] }
+          }
+        },
+        {
+          "name": "7.6 Historial de versiones anteriores",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{notificaciones_url}}/plantillas-correo/FACTURA/historial", "host": ["{{notificaciones_url}}"], "path": ["plantillas-correo", "FACTURA", "historial"] }
+          }
+        },
+        {
+          "name": "7.7 Borrar la plantilla (el correo vuelve a la plantilla por defecto)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{notificaciones_url}}/plantillas-correo/FACTURA", "host": ["{{notificaciones_url}}"], "path": ["plantillas-correo", "FACTURA"] }
           }
         }
       ]

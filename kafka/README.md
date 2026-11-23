@@ -1,6 +1,6 @@
 # Stack de Kafka
 
-Apache Kafka de un solo nodo en modo KRaft (sin Zookeeper), más un job que crea los tópicos automáticamente y una interfaz web. Tres servicios:
+Apache Kafka de un solo nodo (`docker-compose.yml`) o con réplicas (`docker-compose.ha.yml`: 2 nodos en desarrollo, 3 en pruebas y 4 en producción) en modo KRaft (sin Zookeeper), más un job que crea los tópicos automáticamente y una interfaz web. Tres servicios:
 
 - **broker** — `apache/kafka`, nodo combinado de broker+controller.
 - **topic-init** — contenedor de un solo uso que espera a que el broker esté listo y crea los tópicos listados en `KAFKA_TOPICS`, y luego termina.
@@ -51,24 +51,27 @@ docker compose exec broker /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9092 --topic example-topic --from-beginning
 ```
 
-## Con réplicas: pruebas (2 nodos) y producción (3 nodos)
+## Con réplicas: desarrollo (2 nodos), pruebas (3 nodos) y producción (4 nodos)
 
-`docker-compose.ha.yml` levanta nodos KRaft (cada uno broker y controlador), con elección de líder solo entre réplicas sincronizadas y la creación automática de tópicos apagada. El `docker-compose.yml` de un solo nodo es para desarrollo.
+`docker-compose.ha.yml` levanta nodos KRaft (los nodos 1 a 3, broker y controlador a la vez; el 4 de producción, solo broker: un quórum de 4 controladores no tolera más caídas que uno de 3), con elección de líder solo entre réplicas sincronizadas y la creación automática de tópicos apagada. El `docker-compose.yml` de un solo nodo queda para quien solo necesite un broker.
 
-| | Pruebas | Producción |
-|---|---|---|
-| Nodos | 2 | 3 (perfil `tres-nodos`) |
-| `replication.factor` / `min.insync.replicas` | 2 / 2 | 3 / 2 |
-| Un nodo caído | las escrituras se detienen (con 2 controladores no hay mayoría) y vuelven solas a los ~12 s de volver el nodo; lo confirmado no se pierde | se sigue produciendo y consumiendo sin perder mensajes |
-| Dos nodos caídos | — | las escrituras se rechazan (`NOT_ENOUGH_REPLICAS`) a propósito; al volver, las réplicas se sincronizan solas |
+| | Desarrollo | Pruebas | Producción |
+|---|---|---|---|
+| Nodos | 2 | 3 (perfil `tres-nodos`) | 4 (perfiles `tres-nodos` y `cuatro-nodos`) |
+| Controladores | 2 (nodos 1 y 2) | 3 (nodos 1 a 3) | 3 (nodos 1 a 3; el 4 es solo broker) |
+| `replication.factor` / `min.insync.replicas` | 2 / 2 | 3 / 2 | 3 / 2 |
+| Un nodo caído | las escrituras se detienen (con 2 controladores no hay mayoría) y vuelven solas a los ~12 s de volver el nodo; lo confirmado no se pierde | se sigue produciendo y consumiendo sin perder mensajes | igual que pruebas, sea cual sea el nodo |
+| Dos nodos caídos | — | las escrituras se rechazan a propósito (`NOT_ENOUGH_REPLICAS` o sin mayoría de controladores); al volver, las réplicas se sincronizan solas | igual que pruebas |
 
 ```sh
+# desarrollo
+docker compose --env-file env/desarrollo.env -f docker-compose.ha.yml up -d --build
 # pruebas
 docker compose --env-file env/pruebas.env -f docker-compose.ha.yml up -d --build
 # producción
 docker compose --env-file env/produccion.env -f docker-compose.ha.yml up -d --build
 ```
 
-Las variables de cada ambiente están en `env/pruebas.env` y `env/produccion.env` (el `KAFKA_CLUSTER_ID` se genera una vez por clúster); la lista completa, en `facturacion-electronica-ec/documentacion/VARIABLES_DE_ENTORNO.md`. Los servicios se conectan con `KAFKA_BOOTSTRAP_SERVERS` y los tópicos se crean con `KAFKA_REPLICATION_FACTOR` y `KAFKA_MIN_ISR` (`facturacion-electronica-ec/env/<ambiente>.env`).
+Las variables de cada ambiente están en `env/desarrollo.env`, `env/pruebas.env` y `env/produccion.env` (el `KAFKA_CLUSTER_ID` se genera una vez por clúster); la lista completa, en `facturacion-electronica-ec/documentacion/VARIABLES_DE_ENTORNO.md`. Los servicios se conectan con `KAFKA_BOOTSTRAP_SERVERS` y los tópicos se crean con `KAFKA_REPLICATION_FACTOR` y `KAFKA_MIN_ISR` (`facturacion-electronica-ec/env/<ambiente>.env`).
 
 Un clúster de un solo nodo existente no se convierte en uno de varios: los tópicos con replicación 1 hay que recrearlos (o reasignar sus réplicas con `kafka-reassign-partitions.sh`). Para probar otro clúster al lado del de desarrollo: otro `KAFKA_NETWORK`, otros puertos y `-p <nombre>`.

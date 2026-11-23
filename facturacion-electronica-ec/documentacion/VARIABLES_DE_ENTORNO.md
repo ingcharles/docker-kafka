@@ -33,7 +33,7 @@ Una variable de entorno es un valor que se le pasa a un programa desde afuera, s
 | `RESPALDO_ALMACEN_LOCAL_HABILITADO` | `true` (desarrollo y pruebas), `false` (producción) | Levanta un almacén S3 propio (SeaweedFS) para los respaldos; solo desarrollo y pruebas. |
 | `ALERTAS_CORREO_HABILITADO` | `false` | Alertmanager envía las alertas por correo (necesita la observabilidad activa y las `ALERTAS_*` de la sección 8). |
 | `COMPROBANTES_IDEMPOTENCIA_OBLIGATORIA` | `false` | Si es `true`, toda emisión debe traer la cabecera `Idempotency-Key` (sin ella, `400`). |
-| `COMPOSE_PROFILES` | vacío | Perfiles de Compose a activar (p. ej. `tres-nodos` en el Kafka de producción). Con `scripts/compose.sh` no hace falta: las banderas de arriba los activan. |
+| `COMPOSE_PROFILES` | vacío | Perfiles de Compose a activar (p. ej. `tres-nodos,cuatro-nodos` en el Kafka de producción). Con `scripts/compose.sh` no hace falta: las banderas de arriba los activan. |
 
 ## 2. Secretos (obligatorios, sin valor por defecto; van en `env/<ambiente>.secretos.env`)
 
@@ -76,22 +76,22 @@ Una variable de entorno es un valor que se le pasa a un programa desde afuera, s
 | `KAFKA_DLQ_RETENCION_MS` | `2592000000` | igual | igual | Cuánto se conservan las colas de mensajes fallidos (30 días). |
 | `KAFKA_EXPORTER_BROKER` | `broker:9092` | `broker-1:9092` | `broker-1:9092` | Broker al que se conecta el exportador de métricas. |
 
-**Del compose de Kafka** (`../kafka/env/pruebas.env` y `produccion.env`; el clúster de 2 o 3 nodos):
+**Del compose de Kafka** (`../kafka/env/desarrollo.env`, `pruebas.env` y `produccion.env`; el clúster de 2, 3 o 4 nodos):
 
-| Variable | Pruebas | Producción | Qué hace |
-|---|---|---|---|
-| `KAFKA_CLUSTER_ID` | (generar una vez) | (generar una vez) | Identificador del clúster; `docker run --rm apache/kafka:3.9.0 /opt/kafka/bin/kafka-storage.sh random-uuid`. |
-| `KAFKA_CLUSTER_NOMBRE` | `pruebas` | `produccion` | Nombre que muestra Kafka UI. |
-| `KAFKA_QUORUM_VOTERS` | nodos 1 y 2 | nodos 1, 2 y 3 | Controladores que votan (uno por nodo). |
-| `KAFKA_REPLICATION_FACTOR`, `KAFKA_MIN_ISR`, `KAFKA_BOOTSTRAP_SERVERS` | `2`, `2`, 2 brokers | `3`, `2`, 3 brokers | Igual que arriba, del lado del clúster. |
-| `COMPOSE_PROFILES` | vacío | `tres-nodos` | Activa el nodo 3. |
-| `KAFKA_HOST_PORT_1..3` | `9094`, `9095` | `9094`, `9095`, `9096` | Puertos del host de cada nodo. |
-| `KAFKA_UI_PORT` | `8080` | `8080` | Puerto de la consola web. |
-| `KAFKA_NETWORK` | `kafka_net` | `kafka_net` | Nombre de la red de Docker del clúster (cámbialo solo si levantas dos clústeres en la misma máquina). |
-| `KAFKA_HEAP_OPTS` | `-Xms512m -Xmx512m` | `-Xms1g -Xmx1g` | Memoria de cada JVM de Kafka. |
-| `KAFKA_TOPICS` | (lo define facturación) | igual | Solo del job de tópicos: `nombre:particiones:replicación:configs`, separados por coma. |
+| Variable | Desarrollo | Pruebas | Producción | Qué hace |
+|---|---|---|---|---|
+| `KAFKA_CLUSTER_ID` | (generar una vez) | (generar una vez) | (generar una vez) | Identificador del clúster; `docker run --rm apache/kafka:3.9.0 /opt/kafka/bin/kafka-storage.sh random-uuid`. |
+| `KAFKA_CLUSTER_NOMBRE` | `desarrollo` | `pruebas` | `produccion` | Nombre que muestra Kafka UI. |
+| `KAFKA_QUORUM_VOTERS` | nodos 1 y 2 | nodos 1, 2 y 3 | nodos 1, 2 y 3 (el 4 es solo broker) | Controladores que votan (uno por nodo). |
+| `KAFKA_REPLICATION_FACTOR`, `KAFKA_MIN_ISR`, `KAFKA_BOOTSTRAP_SERVERS` | `2`, `2`, 2 brokers | `3`, `2`, 3 brokers | `3`, `2`, 4 brokers | Igual que arriba, del lado del clúster. |
+| `COMPOSE_PROFILES` | vacío | `tres-nodos` | `tres-nodos,cuatro-nodos` | Activa los nodos 3 y 4. |
+| `KAFKA_HOST_PORT_1..4` | `9094`, `9095` | `9094`, `9095`, `9096` | `9094` a `9097` | Puertos del host de cada nodo. |
+| `KAFKA_UI_PORT` | `8080` | `8080` | `8080` | Puerto de la consola web. |
+| `KAFKA_NETWORK` | `kafka_net` | `kafka_net` | `kafka_net` | Nombre de la red de Docker del clúster (cámbialo solo si levantas dos clústeres en la misma máquina). |
+| `KAFKA_HEAP_OPTS` | `-Xms512m -Xmx512m` | `-Xms512m -Xmx512m` | `-Xms1g -Xmx1g` | Memoria de cada JVM de Kafka. |
+| `KAFKA_TOPICS` | (lo define facturación) | igual | igual | Solo del job de tópicos: `nombre:particiones:replicación:configs`, separados por coma. |
 
-El Kafka de **desarrollo** (un solo nodo, `../kafka/docker-compose.yml`) usa `KAFKA_CLUSTER_ID`, `KAFKA_HOST_PORT` (`9094`), `KAFKA_UI_PORT` (`8080`) y `KAFKA_TOPICS` de `../kafka/.env`.
+El Kafka de un solo nodo (`../kafka/docker-compose.yml`, para quien solo necesite un broker) usa `KAFKA_CLUSTER_ID`, `KAFKA_HOST_PORT` (`9094`), `KAFKA_UI_PORT` (`8080`) y `KAFKA_TOPICS` de `../kafka/.env`.
 
 ## 5. Plazos y ajustes de rendimiento (los de los servicios; todos tienen valor por defecto)
 

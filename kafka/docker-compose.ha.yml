@@ -1,17 +1,22 @@
-# Kafka con réplicas, en modo KRaft (cada nodo es broker y controlador): 2 nodos en PRUEBAS y 3 en PRODUCCIÓN. El de un solo
-# nodo (docker-compose.yml de esta carpeta) queda para desarrollo.
+# Kafka con réplicas, en modo KRaft: 2 nodos en DESARROLLO, 3 en PRUEBAS y 4 en PRODUCCIÓN. Los nodos 1 a 3 son broker y
+# controlador a la vez; el nodo 4 (solo producción) es solo broker: un quórum de 4 controladores no tolera más caídas que
+# uno de 3 y cuesta más, así que en producción los controladores siguen siendo 3 y el cuarto nodo suma capacidad y réplicas.
 #
-#   PRUEBAS (2 nodos, replicación 2, min ISR 2):
+#   DESARROLLO (2 nodos, replicación 2, min ISR 2):
+#     docker compose --env-file env/desarrollo.env -f docker-compose.ha.yml up -d --build
+#   PRUEBAS (3 nodos, replicación 3, min ISR 2):
 #     docker compose --env-file env/pruebas.env -f docker-compose.ha.yml up -d --build
-#   PRODUCCIÓN (3 nodos, replicación 3, min ISR 2):
+#   PRODUCCIÓN (4 nodos, replicación 3, min ISR 2):
 #     docker compose --env-file env/produccion.env -f docker-compose.ha.yml up -d --build
 #
 # Qué tolera cada uno (con acks=all en los productores):
-#   - 3 nodos, min ISR 2: un nodo caído no frena nada ni pierde mensajes; dos caídos detienen las escrituras a propósito.
-#   - 2 nodos, min ISR 2: todo mensaje confirmado está en los dos nodos (la misma garantía de durabilidad que producción),
+#   - 4 nodos (3 controladores), replicación 3, min ISR 2: un nodo caído, sea cual sea, no frena nada ni pierde mensajes; con
+#     dos caídos, o el quórum de controladores o el min ISR dejan de cumplirse y las escrituras se detienen a propósito.
+#   - 3 nodos, replicación 3, min ISR 2: igual que producción con un nodo caído; dos caídos detienen las escrituras.
+#   - 2 nodos, replicación 2, min ISR 2: todo mensaje confirmado está en los dos nodos (la misma garantía de durabilidad),
 #     pero con un nodo caído las escrituras se detienen: con 2 controladores no hay mayoría. Sirve para probar la
 #     durabilidad y el comportamiento ante una caída, no para tolerarla.
-# El nodo 3 solo existe con el perfil "tres-nodos" (env/produccion.env lo activa con COMPOSE_PROFILES).
+# El nodo 3 solo existe con el perfil "tres-nodos" y el 4 con "cuatro-nodos" (los activa COMPOSE_PROFILES en env/<ambiente>.env).
 #
 # Los servicios se conectan con KAFKA_BOOTSTRAP_SERVERS y los tópicos se crean con KAFKA_REPLICATION_FACTOR y
 # KAFKA_MIN_ISR (ver facturacion-electronica-ec/env/<ambiente>.env). Variables de este archivo: ver env/*.env.
@@ -26,7 +31,7 @@ x-broker-comun: &broker-comun
     KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
     KAFKA_CONTROLLER_QUORUM_VOTERS: ${KAFKA_QUORUM_VOTERS:-1@broker-1:9093,2@broker-2:9093,3@broker-3:9093}
     KAFKA_LOG_DIRS: /var/lib/kafka/data
-    # El mismo cluster id en los tres nodos.
+    # El mismo cluster id en todos los nodos.
     CLUSTER_ID: "${KAFKA_CLUSTER_ID:?KAFKA_CLUSTER_ID is required, generate one with: docker run --rm apache/kafka:3.9.0 /opt/kafka/bin/kafka-storage.sh random-uuid}"
     # Replicación: todas las copias que diga KAFKA_REPLICATION_FACTOR (3 por defecto) y al menos KAFKA_MIN_ISR
     # (2 por defecto) sincronizadas para aceptar una escritura.
@@ -90,6 +95,21 @@ services:
     volumes:
       - kafka_data_3:/var/lib/kafka/data
 
+  # Solo broker (sin rol de controlador): no escucha en el puerto del quórum.
+  broker-4:
+    <<: *broker-comun
+    profiles: ["cuatro-nodos"]
+    environment:
+      <<: *broker-env
+      KAFKA_PROCESS_ROLES: broker
+      KAFKA_NODE_ID: 4
+      KAFKA_LISTENERS: PLAINTEXT://:9092,PLAINTEXT_HOST://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker-4:9092,PLAINTEXT_HOST://localhost:${KAFKA_HOST_PORT_4:-9097}
+    ports:
+      - "${KAFKA_HOST_PORT_4:-9097}:9094"
+    volumes:
+      - kafka_data_4:/var/lib/kafka/data
+
   topic-init:
     build:
       context: ./topic-init
@@ -100,6 +120,9 @@ services:
       broker-2:
         condition: service_healthy
       broker-3:
+        condition: service_healthy
+        required: false
+      broker-4:
         condition: service_healthy
         required: false
     environment:
@@ -134,3 +157,4 @@ volumes:
   kafka_data_1:
   kafka_data_2:
   kafka_data_3:
+  kafka_data_4:

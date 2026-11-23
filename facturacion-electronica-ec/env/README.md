@@ -15,7 +15,7 @@ segundo, se detiene y te dice cómo crearlo.
 ## Antes de empezar (una vez por máquina o servidor)
 
 Los servicios necesitan dos stacks ya levantados, fuera de este compose:
-1. **Kafka** (`../kafka`): `cd ../kafka && cp .env.example .env && docker compose up -d --build` (red `kafka_net`). En pruebas usa el clúster de 2 nodos y en producción el de 3 (`docker compose --env-file env/<ambiente>.env -f docker-compose.ha.yml up -d --build`, ver `../kafka/README.md`); el `env/<ambiente>.env` de facturación ya trae `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_REPLICATION_FACTOR` y `KAFKA_MIN_ISR` de cada uno. La lista de todas las variables y sus valores por defecto: `documentacion/VARIABLES_DE_ENTORNO.md`.
+1. **Kafka** (`../kafka`): `cd ../kafka && cp .env.example .env && docker compose up -d --build` (red `kafka_net`). En desarrollo usa el clúster de 2 nodos, en pruebas el de 3 y en producción el de 4 (`docker compose --env-file env/<ambiente>.env -f docker-compose.ha.yml up -d --build`, ver `../kafka/README.md`); el `env/<ambiente>.env` de facturación ya trae `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_REPLICATION_FACTOR` y `KAFKA_MIN_ISR` de cada uno. La lista de todas las variables y sus valores por defecto: `documentacion/VARIABLES_DE_ENTORNO.md`.
 2. **Postgres** del ambiente, en la red `facturacion_net`, con un esquema y un rol por servicio: `cd ../postgres && ./compose.sh <amb> up -d --build`
    (usa estos mismos archivos de ambiente, así que las contraseñas `*_DB_PASSWORD` coinciden por construcción). Sus banderas opcionales
    (PgBouncer, réplica, respaldo con restauración a un instante) están en `../postgres/README.md`.

@@ -10,7 +10,7 @@ repositorio). No contiene ningún secreto: los valores secretos los generas tú 
 -----------------------------------------------------------------------------------------------------
   docker-kafka/
     postgres/                       Postgres 16 (una base, un esquema y un rol por servicio)
-    kafka/                          Kafka: 1 nodo (desarrollo), 2 nodos (pruebas), 3 nodos (producción)
+    kafka/                          Kafka: 2 nodos (desarrollo), 3 nodos (pruebas), 4 nodos (producción)
     facturacion-electronica-ec/     los 7 microservicios Quarkus + el jar compartido + Compose + docs
       identidad-service             usuarios, api-keys (JWT)                      puerto 8097
       firma-electronica-service     empresas, certificados .p12, firma XAdES      puerto 8091
@@ -42,8 +42,8 @@ los datos (volúmenes de Docker).
     (mvn -B package desde facturacion-electronica-ec/).
 
 Recursos recomendados: 8 GB de RAM libres para Docker (16 GB con la observabilidad y el clúster de
-Kafka de 3 nodos), 15 GB de disco, y estos puertos libres en la máquina:
-  5436 Postgres (5435 el de pruebas, 5437 su réplica) · 9094 Kafka (9095 y 9096 en el clúster) · 8080 Kafka UI
+Kafka de 4 nodos), 15 GB de disco, y estos puertos libres en la máquina:
+  5436 Postgres (5435 el de pruebas, 5437 su réplica) · 9094 Kafka (9095 a 9097 en el clúster) · 8080 Kafka UI
   8091-8097 los servicios · 3001 Grafana · 9090 Prometheus · 9093 Alertmanager (solo con observabilidad)
 
 
@@ -90,10 +90,11 @@ Reemplaza <amb> por desarrollo o pruebas. Todo desde Git Bash.
 
   PASO 4. Kafka
       cd ../kafka
-      desarrollo (1 nodo):
-          cp .env.example .env        # y pon un KAFKA_CLUSTER_ID nuevo (ver abajo)
-          docker compose up -d --build
-      pruebas (2 nodos):
+      desarrollo (2 nodos):
+          edita env/desarrollo.env (KAFKA_CLUSTER_ID)
+          docker compose --env-file env/desarrollo.env -f docker-compose.ha.yml up -d --build
+      (un solo broker, si solo lo necesitas: cp .env.example .env y docker compose up -d --build)
+      pruebas (3 nodos):
           edita env/pruebas.env (KAFKA_CLUSTER_ID)
           docker compose --env-file env/pruebas.env -f docker-compose.ha.yml up -d --build
       Generar un KAFKA_CLUSTER_ID:
@@ -146,7 +147,7 @@ Reemplaza <amb> por desarrollo o pruebas. Todo desde Git Bash.
 6. PRODUCCIÓN (DIFERENCIAS)
 -----------------------------------------------------------------------------------------------------
   - Usa tu propio Postgres: pon su host en DB_HOST dentro de env/produccion.env (no uses el paso 3).
-  - Kafka de 3 nodos: cd kafka && docker compose --env-file env/produccion.env -f docker-compose.ha.yml up -d --build
+  - Kafka de 4 nodos: cd kafka && docker compose --env-file env/produccion.env -f docker-compose.ha.yml up -d --build
   - Reemplaza en env/produccion.env los valores CAMBIAR-... (DB_HOST, CORS_ORIGINS con https y sin *).
   - Secretos NUEVOS y distintos a los de otros ambientes. No expongas los puertos 8091-8097 a Internet: ponlos
     detrás del proxy/gateway con TLS (WSO2: límite de peticiones, bloqueo de login, tamaño de cuerpo).
