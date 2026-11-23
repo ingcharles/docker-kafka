@@ -15,13 +15,13 @@ RUN mvn -q -B -DskipTests package
 
 # Runtime: solo JRE, no-root, únicamente el layout fast-jar copiado.
 FROM eclipse-temurin:21-jre-alpine
-RUN addgroup -S app && adduser -S app -G app
+RUN addgroup -S -g 10001 app && adduser -S -u 10001 -G app app
 WORKDIR /app
 COPY --from=build --chown=app:app /build/target/quarkus-app/lib/ ./lib/
 COPY --from=build --chown=app:app /build/target/quarkus-app/*.jar ./
 COPY --from=build --chown=app:app /build/target/quarkus-app/app/ ./app/
 COPY --from=build --chown=app:app /build/target/quarkus-app/quarkus/ ./quarkus/
-USER app
+USER 10001:10001
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=6 \
   CMD wget -qO- http://localhost:8080/sagas/api/v1/q/health/ready || exit 1

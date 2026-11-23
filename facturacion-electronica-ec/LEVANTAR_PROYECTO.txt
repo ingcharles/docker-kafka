@@ -153,6 +153,11 @@ Reemplaza <amb> por desarrollo o pruebas. Todo desde Git Bash.
     detrás del proxy/gateway con TLS (WSO2: límite de peticiones, bloqueo de login, tamaño de cuerpo).
   - Haz respaldo de la base antes de actualizar (las migraciones corren solas).
   - Una empresa con ambiente PRODUCCION emite documentos con validez legal.
+  - En vez de docker compose para los 7 servicios, producción puede correr en un clúster RKE2 (4 réplicas por servicio, imágenes en
+    Harbor, Prometheus y Grafana en el clúster). El despliegue vive en el repositorio aparte facturacion-despliegue: un push a la
+    rama desarrollo, pruebas o produccion de este repositorio construye las imágenes y escribe su digest en la misma rama de aquel (en
+    produccion, tras la aprobación del environment); ArgoCD sincroniza. Guía completa en el README de facturacion-despliegue.
+    Postgres y Kafka siguen con Docker en sus servidores.
 
 
 7. DÓNDE ESTÁ CADA COSA (DOCUMENTOS)
