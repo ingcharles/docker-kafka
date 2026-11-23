@@ -25,7 +25,7 @@ class ClavesJwtTest {
     }
 
     @Test
-    void testDeberiaLeeEd25519EnPemConSaltosDeLineaReales() throws Exception {
+    void testDeberiaLeerUnaClaveEd25519EnPemConSaltosDeLineaReales() throws Exception {
         KeyPair par = par("Ed25519");
 
         assertEquals(par.getPublic(), ClavesJwt.leerPublica(pem("PUBLIC KEY", par.getPublic().getEncoded(), "\n")));
@@ -33,7 +33,7 @@ class ClavesJwtTest {
     }
 
     @Test
-    void testDeberiaLeeElPemEnUnaSolaLineaConSaltosLiteralesComoLoDejaUnaVariableDeEntorno() throws Exception {
+    void testDeberiaLeerElPemEnUnaSolaLineaConSaltosLiteralesComoLoDejaUnaVariableDeEntorno() throws Exception {
         KeyPair par = par("Ed25519");
         String enUnaLinea = pem("PUBLIC KEY", par.getPublic().getEncoded(), "\n").replace("\n", "\\n");
 
@@ -41,14 +41,14 @@ class ClavesJwtTest {
     }
 
     @Test
-    void testDeberiaLeeSoloElBase64SinEncabezados() throws Exception {
+    void testDeberiaLeerLaClaveSoloEnBase64SinEncabezados() throws Exception {
         KeyPair par = par("Ed25519");
 
         assertEquals(par.getPublic(), ClavesJwt.leerPublica(Base64.getEncoder().encodeToString(par.getPublic().getEncoded())));
     }
 
     @Test
-    void testDeberiaTambienAceptaRsa() throws Exception {
+    void testDeberiaAceptarTambienClavesRsa() throws Exception {
         KeyPair par = par("RSA");
 
         assertEquals(par.getPublic(), ClavesJwt.leerPublica(pem("PUBLIC KEY", par.getPublic().getEncoded(), "\n")));
@@ -56,7 +56,7 @@ class ClavesJwtTest {
     }
 
     @Test
-    void testDeberiaUnaClaveVaciaOInvalidaFallaAlArrancarConUnMensajeClaro() {
+    void testDeberiaFallarAlArrancarConUnMensajeClaroSiLaClaveEstaVaciaOEsInvalida() {
         assertThrows(IllegalArgumentException.class, () -> ClavesJwt.leerPublica(null));
         assertThrows(IllegalArgumentException.class, () -> ClavesJwt.leerPublica("   "));
         assertThrows(IllegalArgumentException.class, () -> ClavesJwt.leerPublica("esto no es base64 ***"));

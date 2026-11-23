@@ -1,6 +1,7 @@
 package com.facturacion.firma.application.service;
 
 import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.security.cert.X509Certificate;
@@ -62,7 +63,7 @@ public class CertificadoService {
                             metadata.alias(),
                             metadata.huellaDigital(),
                             cifradoService.cifrar(contenidoP12),
-                            cifradoService.cifrar(contrasena.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                            cifradoService.cifrar(contrasena.getBytes(StandardCharsets.UTF_8)),
                             metadata.fechaEmision(),
                             metadata.fechaExpiracion(),
                             EstadoCertificado.ACTIVO,

@@ -37,7 +37,7 @@ public class AutorizacionPoller {
     @Scheduled(every = "{sri.autorizacion.poll.intervalo}", delayed = "10s",
         concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public Uni<Void> consultarPendientes() {
-        return sriConectorService.listarPendientesDeAutorizacion(BATCH_SIZE)
+        return sriConectorService.reclamarPendientesDeAutorizacion(BATCH_SIZE)
             .onItem().transformToMulti(batch -> Multi.createFrom().iterable(batch))
             .onItem().transformToUniAndConcatenate(envio -> sriConectorService.consultarAutorizacion(envio)
                 .onFailure().invoke(failure -> LogCodificado.error(LOG, failure, CodigoLog.CONSULTA_AUTORIZACION_FALLIDA,

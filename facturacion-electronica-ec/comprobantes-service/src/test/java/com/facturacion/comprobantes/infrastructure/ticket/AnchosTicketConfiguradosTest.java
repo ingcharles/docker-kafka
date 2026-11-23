@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -28,25 +29,25 @@ class AnchosTicketConfiguradosTest {
     }
 
     @Test
-    void testDeberiaSirveLosAnchosConfiguradosYElQueSeUsaPorDefecto() {
+    void testDeberiaServirLosAnchosConfiguradosYElQueSeUsaPorDefecto() {
         AnchosTicketConfigurados anchos = new AnchosTicketConfigurados(configuracion(Map.of(58, 32, 80, 48), 80));
 
         assertEquals(new AnchoTicket(80, 48), anchos.obtenerPorDefecto());
         assertEquals(new AnchoTicket(58, 32), anchos.buscar(58).orElseThrow());
         assertTrue(anchos.buscar(70).isEmpty());
-        assertEquals(java.util.List.of(58, 80), anchos.listarDisponibles());
+        assertEquals(List.of(58, 80), anchos.listarDisponibles());
     }
 
     @Test
-    void testDeberiaUnPapelNuevoEsSoloUnaLineaDeConfiguracion() {
+    void testDeberiaAgregarUnPapelNuevoSoloConUnaLineaDeConfiguracion() {
         AnchosTicketConfigurados anchos = new AnchosTicketConfigurados(configuracion(Map.of(58, 32, 112, 64), 58));
 
         assertEquals(64, anchos.buscar(112).orElseThrow().columnas());
-        assertEquals(java.util.List.of(58, 112), anchos.listarDisponibles());
+        assertEquals(List.of(58, 112), anchos.listarDisponibles());
     }
 
     @Test
-    void testDeberiaUnaConfiguracionIncoherenteFallaAlArrancar() {
+    void testDeberiaFallarAlArrancarConUnaConfiguracionIncoherente() {
         assertThrows(IllegalStateException.class, () -> new AnchosTicketConfigurados(configuracion(Map.of(), 80)));
         assertThrows(IllegalStateException.class,
             () -> new AnchosTicketConfigurados(configuracion(Map.of(80, 0), 80)));

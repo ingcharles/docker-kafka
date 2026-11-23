@@ -14,7 +14,7 @@ import com.facturacion.comprobantes.shared.constant.MessagingConstants;
 class ActualizacionComprobanteServiceTest {
 
     @Test
-    void testDeberiaCadaComandoLlevaAlEstadoQueLeCorresponde() {
+    void testDeberiaLlevarCadaComandoAlEstadoQueLeCorresponde() {
         assertEquals(EstadoComprobante.FIRMADO,
             ActualizacionComprobanteService.obtenerEstadoDestino(MessagingConstants.COMANDO_MARCAR_FIRMADO));
         assertEquals(EstadoComprobante.FIRMA_FALLIDA,
@@ -28,7 +28,7 @@ class ActualizacionComprobanteServiceTest {
     }
 
     @Test
-    void testDeberiaUnComandoDesconocidoEsUnError() {
+    void testDeberiaFallarConUnComandoDesconocido() {
         ErrorNegocioException error = assertThrows(ErrorNegocioException.class,
             () -> ActualizacionComprobanteService.obtenerEstadoDestino("OTRO"));
         assertEquals(CodigoError.COMANDO_DESCONOCIDO, error.getCodigo());

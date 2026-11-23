@@ -3,6 +3,7 @@ package com.facturacion.comprobantes.infrastructure.xml;
 import java.io.ByteArrayOutputStream;
 import java.io.StringWriter;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -60,7 +61,7 @@ final class XmlComprobanteUtil {
     }
 
     static String formatearMonto(BigDecimal monto) {
-        return monto.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
+        return monto.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
     /** dirEstablecimiento es obligatorio en NC/ND/Retención pero este servicio no rastrea establecimientos aparte — se usa la matriz como valor por defecto. */

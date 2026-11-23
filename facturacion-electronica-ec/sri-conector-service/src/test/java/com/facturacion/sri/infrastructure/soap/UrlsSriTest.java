@@ -14,19 +14,19 @@ class UrlsSriTest {
     private static final String OFICIAL = "https://celcer.sri.gob.ec/ws";
 
     @Test
-    void testDeberiaSinOverrideSeUsaLaUrlOficial() {
+    void testDeberiaUsarLaUrlOficialSiNoHayOverride() {
         assertEquals(OFICIAL, UrlsSri.elegir(null, OFICIAL, SOLO_SRI));
         assertEquals(OFICIAL, UrlsSri.elegir("  ", OFICIAL, SOLO_SRI));
     }
 
     @Test
-    void testDeberiaUnHostDelSriPorHttpsSeRespeta() {
+    void testDeberiaRespetarUnHostDelSriPorHttps() {
         String propia = "https://cel.sri.gob.ec/comprobantes-electronicos-ws/Recepcion";
         assertEquals(propia, UrlsSri.elegir(propia, OFICIAL, SOLO_SRI));
     }
 
     @Test
-    void testDeberiaHostsAjenosRedInternaMetadatosYEsquemasNoHttpsSeIgnoran() {
+    void testDeberiaIgnorarHostsAjenosRedInternaMetadatosYEsquemasQueNoSonHttps() {
         for (String malo : List.of("https://atacante.example.com/x", "http://celcer.sri.gob.ec/ws",
             "https://169.254.169.254/latest/meta-data", "http://localhost:8080/x", "https://postgres:5432",
             "https://sri.gob.ec.atacante.com/x", "https://user:pass@celcer.sri.gob.ec/x", "file:///etc/passwd",
@@ -37,14 +37,14 @@ class UrlsSriTest {
     }
 
     @Test
-    void testDeberiaElDominioMismoYSusSubdominiosCoincidenConElPatronComodin() {
+    void testDeberiaCoincidirElDominioYSusSubdominiosConElPatronComodin() {
         assertTrue(UrlsSri.esPermitida("https://sri.gob.ec/x", SOLO_SRI));
         assertTrue(UrlsSri.esPermitida("https://a.b.sri.gob.ec/x", SOLO_SRI));
         assertFalse(UrlsSri.esPermitida("https://notsri.gob.ec/x", SOLO_SRI));
     }
 
     @Test
-    void testDeberiaElComodinTotalSoloParaDesarrolloAceptaUnMock() {
+    void testDeberiaAceptarUnMockSoloConElComodinTotalDeDesarrollo() {
         assertTrue(UrlsSri.esPermitida("http://mock-sri:8080/x", List.of("*")));
     }
 }

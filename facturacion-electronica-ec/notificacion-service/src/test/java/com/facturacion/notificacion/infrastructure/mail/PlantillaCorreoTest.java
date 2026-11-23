@@ -50,7 +50,7 @@ class PlantillaCorreoTest {
     // ---- plantilla por defecto (archivos) ----
 
     @Test
-    void testDeberiaCadaTipoTienePlantillaHtmlYTextoConLosDatosDelComprobante() {
+    void testDeberiaArmarParaCadaTipoUnaPlantillaHtmlYTextoConLosDatosDelComprobante() {
         for (TipoComprobanteCorreo tipo : TipoComprobanteCorreo.values()) {
             ContenidoCorreo contenido = plantilla.armar(comprobante(tipo.name(), "Ana Pérez", null));
 
@@ -69,7 +69,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaElHtmlSeEntregaComoDocumentoCompleto() {
+    void testDeberiaEntregarElHtmlComoDocumentoCompleto() {
         String html = plantilla.armar(comprobante("FACTURA", "Ana", null)).html();
 
         assertTrue(html.startsWith("<!DOCTYPE html>"));
@@ -79,7 +79,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaElTextoSeparaElSaludoLaIntroduccionYLosDatosConLineasEnBlanco() {
+    void testDeberiaSepararConLineasEnBlancoElSaludoLaIntroduccionYLosDatosDelTexto() {
         String texto = plantilla.armar(comprobante("FACTURA", "Ana", null)).texto();
 
         assertTrue(texto.contains("Estimado(a) Ana,\n\nSe emitió"), texto);
@@ -88,7 +88,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaElHtmlEscapaLosValoresYElTextoNo() {
+    void testDeberiaEscaparLosValoresEnElHtmlYNoEnElTexto() {
         ContenidoCorreo contenido = plantilla.armar(comprobante("FACTURA", "<script>alert(1)</script> & Cía", null));
 
         assertFalse(contenido.html().contains("<script>"));
@@ -98,7 +98,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaSinNombreDelReceptorElSaludoEsGeneral() {
+    void testDeberiaSaludarEnGeneralSiNoHayNombreDelReceptor() {
         for (String nombre : new String[] {null, "", "   "}) {
             ContenidoCorreo contenido = plantilla.armar(comprobante("FACTURA", nombre, null));
 
@@ -108,7 +108,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaElNombreDeLaEmpresaSeAgregaAlAsuntoAlEncabezadoYAlPie() {
+    void testDeberiaAgregarElNombreDeLaEmpresaAlAsuntoAlEncabezadoYAlPie() {
         ContenidoCorreo contenido = plantilla.armar(comprobante("NOTA_CREDITO", null, "Tienda Ejemplo"));
 
         assertEquals("Nota de crédito " + NUMERO + " - Tienda Ejemplo", contenido.asunto());
@@ -117,7 +117,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaUnTipoDesconocidoUsaLaPlantillaGenerica() {
+    void testDeberiaUsarLaPlantillaGenericaParaUnTipoDesconocido() {
         ContenidoCorreo contenido = plantilla.armar(comprobante("TIPO_NUEVO", null, null));
 
         assertEquals("Comprobante " + NUMERO, contenido.asunto());
@@ -125,7 +125,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaUnaClaveSinFormatoNoImpideArmarElCorreo() {
+    void testDeberiaArmarElCorreoAunqueLaClaveNoTengaFormatoValido() {
         ContenidoCorreo contenido = plantilla.armar(comprobante("FACTURA", null, "123", ajustes(null, null, null, null)));
 
         assertEquals("Factura", contenido.asunto());
@@ -135,7 +135,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaSinTotalNoSeMuestraLaFilaDelTotal() {
+    void testDeberiaOmitirLaFilaDelTotalSiNoHayTotal() {
         CorreoSalida.Comprobante sinTotal = new CorreoSalida.Comprobante("receptor@ejemplo.test", CLAVE, "FACTURA", null,
             null, new byte[] {1}, "<autorizacion/>", ajustes(null, null, null, null));
 
@@ -146,7 +146,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaElAsuntoNuncaTraeSaltosDeLinea() {
+    void testDeberiaQuitarLosSaltosDeLineaDelAsunto() {
         ContenidoCorreo contenido = plantilla.armar(comprobante("FACTURA", null, "Tienda\r\nBcc: otro@ejemplo.test"));
         ContenidoCorreo conAjuste = plantilla.armar(comprobante("FACTURA", null, CLAVE,
             ajustes("Su factura\r\nBcc: otro@ejemplo.test", null, null, null)));
@@ -158,7 +158,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaElTextoNoLlevaEtiquetasHtml() {
+    void testDeberiaOmitirLasEtiquetasHtmlEnElTexto() {
         for (TipoComprobanteCorreo tipo : TipoComprobanteCorreo.values()) {
             String texto = plantilla.armar(comprobante(tipo.name(), "Ana", null)).texto();
 
@@ -167,7 +167,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaElAjusteDeAsuntoDeLaEmpresaReemplazaAlAsuntoPorDefecto() {
+    void testDeberiaReemplazarElAsuntoPorDefectoConElAjusteDeAsuntoDeLaEmpresa() {
         ContenidoCorreo contenido = plantilla.armar(comprobante("FACTURA", null, CLAVE,
             ajustes("Su factura de Tienda", "Tienda", null, null)));
 
@@ -177,7 +177,7 @@ class PlantillaCorreoTest {
     // ---- el logo ----
 
     @Test
-    void testDeberiaConLogoElEncabezadoLlevaLaImagenIncrustada() {
+    void testDeberiaPonerLaImagenIncrustadaEnElEncabezadoSiHayLogo() {
         ContenidoCorreo contenido = plantilla.armar(comprobante("FACTURA", null, CLAVE,
             ajustes(null, "Tienda Ejemplo", LOGO, null)));
 
@@ -186,7 +186,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaSinLogoElEncabezadoMuestraElNombreDeLaEmpresa() {
+    void testDeberiaMostrarElNombreDeLaEmpresaEnElEncabezadoSinLogo() {
         ContenidoCorreo contenido = plantilla.armar(comprobante("FACTURA", null, "Tienda Ejemplo"));
 
         assertFalse(contenido.html().contains("<img"));
@@ -195,7 +195,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaSinLogoNiNombreElEncabezadoSoloLlevaElTipo() {
+    void testDeberiaMostrarSoloElTipoEnElEncabezadoSinLogoNiNombre() {
         ContenidoCorreo contenido = plantilla.armar(comprobante("FACTURA", null, null));
 
         assertFalse(contenido.html().contains("<img"));
@@ -205,7 +205,7 @@ class PlantillaCorreoTest {
     // ---- plantilla propia de la empresa ----
 
     @Test
-    void testDeberiaLaPlantillaDeLaEmpresaReemplazaLasVariablesYEscapaElHtml() {
+    void testDeberiaReemplazarLasVariablesYEscaparElHtmlEnLaPlantillaDeLaEmpresa() {
         PlantillaCorreoEmpresa propia = propia("{{tipoComprobante}} {{numero}} de {{nombreEmisor}}",
             "<p>Hola {{nombreReceptor}}, su {{tipoComprobante}} {{numero}} por USD {{total}} del {{fechaEmision}}.</p>"
                 + "<p>{{claveAcceso}} / {{rucEmisor}}</p>",
@@ -222,7 +222,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaSinTextoPropioElTextoSeDerivaDelHtml() {
+    void testDeberiaDerivarElTextoDelHtmlSiLaPlantillaNoTraeTextoPropio() {
         PlantillaCorreoEmpresa propia = propia("Asunto", "<h1>Hola</h1><p>Su factura {{numero}}</p>"
             + "<table><tr><td>Total</td><td>{{total}}</td></tr></table>", null);
 
@@ -232,7 +232,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaConTextoPropioElTextoUsaSusVariablesSinEscapar() {
+    void testDeberiaUsarLasVariablesSinEscaparEnElTextoPropio() {
         PlantillaCorreoEmpresa propia = propia("Asunto", "<p>Hola</p>", "Hola {{nombreReceptor}}: {{numero}}");
 
         ContenidoCorreo contenido = plantilla.armar(comprobante("FACTURA", "Pérez & Cía", CLAVE,
@@ -242,7 +242,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaEnUnaPlantillaDeEmpresaElReceptorSinNombreSeLlamaCliente() {
+    void testDeberiaLlamarClienteAlReceptorSinNombreEnLaPlantillaDeEmpresa() {
         PlantillaCorreoEmpresa propia = propia("Asunto", "<p>Estimado(a) {{nombreReceptor}}</p>", null);
 
         ContenidoCorreo contenido = plantilla.armar(comprobante("FACTURA", null, CLAVE, ajustes(null, null, null, propia)));
@@ -251,7 +251,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaLaPlantillaDeLaEmpresaGanaSobreElAjusteDeAsunto() {
+    void testDeberiaPriorizarLaPlantillaDeLaEmpresaSobreElAjusteDeAsunto() {
         PlantillaCorreoEmpresa propia = propia("Asunto de la plantilla", "<p>Hola</p>", null);
 
         ContenidoCorreo contenido = plantilla.armar(comprobante("FACTURA", null, CLAVE,
@@ -261,7 +261,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaLaVariableLogoPonePorLaImagenOPorElNombreDeLaEmpresa() {
+    void testDeberiaSustituirLaVariableLogoPorLaImagenOPorElNombreDeLaEmpresa() {
         PlantillaCorreoEmpresa propia = propia("Asunto", "<div>{{logo}}</div><p>Hola</p>", null);
 
         String conLogo = plantilla.armar(comprobante("FACTURA", null, CLAVE, ajustes(null, "Tienda", LOGO, propia))).html();
@@ -275,7 +275,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaEnElTextoLaVariableLogoEsElNombreDeLaEmpresa() {
+    void testDeberiaSustituirLaVariableLogoPorElNombreDeLaEmpresaEnElTexto() {
         PlantillaCorreoEmpresa propia = propia("Asunto", "<p>x</p>", "{{logo}} - {{numero}}");
 
         ContenidoCorreo contenido = plantilla.armar(comprobante("FACTURA", null, CLAVE, ajustes(null, "Tienda", LOGO, propia)));
@@ -284,7 +284,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaUnaPlantillaDeEmpresaQueFallaNoPierdeElCorreoYSaleConLaPorDefecto() {
+    void testDeberiaArmarElCorreoConLaPlantillaPorDefectoSiLaDeLaEmpresaFalla() {
         PlantillaCorreoEmpresa defectuosa = propia(null, "<p>Hola</p>", null);
 
         ContenidoCorreo contenido = plantilla.armar(comprobante("FACTURA", "Ana", CLAVE, ajustes(null, null, null, defectuosa)));
@@ -296,7 +296,7 @@ class PlantillaCorreoTest {
     // ---- la plantilla por defecto como punto de partida ----
 
     @Test
-    void testDeberiaLaPlantillaPorDefectoSeExportaConSusVariables() {
+    void testDeberiaExportarLaPlantillaPorDefectoConSusVariables() {
         PlantillaPorDefecto exportada = plantilla.exportarPorDefecto(TipoComprobanteCorreo.FACTURA);
 
         assertEquals("{{tipoComprobante}} {{numero}} - {{nombreEmisor}}", exportada.asunto());
@@ -312,7 +312,7 @@ class PlantillaCorreoTest {
     }
 
     @Test
-    void testDeberiaLaPlantillaPorDefectoExportadaEsUnaPlantillaValidaYSeVeIgual() {
+    void testDeberiaGenerarUnaPlantillaValidaYIgualALaOriginalAlExportarLaPorDefecto() {
         for (TipoComprobanteCorreo tipo : TipoComprobanteCorreo.values()) {
             PlantillaPorDefecto exportada = plantilla.exportarPorDefecto(tipo);
 

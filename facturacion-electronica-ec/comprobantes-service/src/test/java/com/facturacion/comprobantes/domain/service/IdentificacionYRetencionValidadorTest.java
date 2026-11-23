@@ -30,7 +30,7 @@ class IdentificacionYRetencionValidadorTest {
     }
 
     @Test
-    void testDeberiaConsumidorFinalExigeTrece9() {
+    void testDeberiaExigirTrece9ParaConsumidorFinal() {
         assertTrue(TRECE_NUEVES.matches("9{13}"));
         assertDoesNotThrow(() -> IdentificacionValidador.validar(CONSUMIDOR_FINAL, TRECE_NUEVES, "c"));
         rechaza(() -> IdentificacionValidador.validar(CONSUMIDOR_FINAL, "1710034065", "c"),
@@ -38,7 +38,7 @@ class IdentificacionYRetencionValidadorTest {
     }
 
     @Test
-    void testDeberiaLos9SoloSonValidosConElTipoConsumidorFinal() {
+    void testDeberiaAceptarLosTrece9SoloConElTipoConsumidorFinal() {
         for (String tipo : new String[] { RUC, CEDULA, PASAPORTE, EXTERIOR }) {
             rechaza(() -> IdentificacionValidador.validar(tipo, TRECE_NUEVES, "c"),
                 CodigoError.IDENTIFICACION_FIJA_CON_OTRO_TIPO);
@@ -46,7 +46,7 @@ class IdentificacionYRetencionValidadorTest {
     }
 
     @Test
-    void testDeberiaRucTreceCedulaDiezDigitos() {
+    void testDeberiaExigirTreceDigitosParaRucYDiezParaCedula() {
         assertDoesNotThrow(() -> IdentificacionValidador.validar(RUC, "1722039953001", "c"));
         assertDoesNotThrow(() -> IdentificacionValidador.validar(CEDULA, "1710034065", "c"));
         rechaza(() -> IdentificacionValidador.validar(RUC, "172203995300", "c"),
@@ -58,18 +58,18 @@ class IdentificacionYRetencionValidadorTest {
     }
 
     @Test
-    void testDeberiaPasaporteYExteriorSonDeFormatoLibre() {
+    void testDeberiaAceptarFormatoLibreParaPasaporteYExterior() {
         assertDoesNotThrow(() -> IdentificacionValidador.validar(PASAPORTE, "AB123456", "c"));
         assertDoesNotThrow(() -> IdentificacionValidador.validar(EXTERIOR, "X-99/2020", "c"));
     }
 
     @Test
-    void testDeberiaUnTipoQueNoEsDeLaTabla6LoDecideElCatalogoNoEsteValidador() {
+    void testDeberiaDejarAlCatalogoLaDecisionSobreUnTipoQueNoEsDeLaTabla6() {
         assertDoesNotThrow(() -> IdentificacionValidador.validar("99", "lo-que-sea", "c"));
     }
 
     @Test
-    void testDeberiaValorRetenidoDebeSerBasePorPorcentaje() {
+    void testDeberiaExigirQueElValorRetenidoSeaBasePorPorcentaje() {
         assertDoesNotThrow(() -> RetencionValidador.validarValorRetenido(
             new BigDecimal("300.00"), new BigDecimal("10"), new BigDecimal("30.00"), "r"));
         // tolera 1 centavo de redondeo

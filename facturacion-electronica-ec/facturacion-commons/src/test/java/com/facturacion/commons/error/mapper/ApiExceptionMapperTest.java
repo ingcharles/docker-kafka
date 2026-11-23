@@ -8,6 +8,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import com.facturacion.commons.error.ApiErrorResponse;
+import com.facturacion.commons.error.ErrorCatalogo;
 import com.facturacion.commons.error.ErrorComun;
 import com.facturacion.commons.exception.ConflictoException;
 import com.facturacion.commons.exception.ErrorInternoException;
@@ -20,7 +21,7 @@ import com.facturacion.commons.exception.TokenInvalidoException;
 class ApiExceptionMapperTest {
 
     @Test
-    void testDeberiaNotFoundConTextoLiteralSale404ConCodigoGenerico() {
+    void testDeberiaResponderNotFoundConTextoLiteralComo404ConCodigoGenerico() {
         ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(new NotFoundException(ErrorComun.RECURSO_NO_ENCONTRADO, "Comprobante no encontrado: 7"));
         assertEquals(404, cuerpo.getStatus());
         assertEquals("Not Found", cuerpo.getError());
@@ -30,14 +31,14 @@ class ApiExceptionMapperTest {
     }
 
     @Test
-    void testDeberiaCadaExcepcionGenericaTraeSuEstado() {
+    void testDeberiaResponderCadaExcepcionGenericaConSuEstado() {
         assertEquals(401, ApiExceptionMapper.construirCuerpo(new TokenInvalidoException(ErrorComun.TOKEN_INVALIDO, "x")).getStatus());
         assertEquals(403, ApiExceptionMapper.construirCuerpo(new SinPermisoException(ErrorComun.SIN_PERMISO, "x")).getStatus());
         assertEquals(409, ApiExceptionMapper.construirCuerpo(new ConflictoException(ErrorComun.CONFLICTO, "x")).getStatus());
     }
 
     /** Un estado que JAX-RS no trae en {@code Response.Status} (422) sale con su código y frase, no como un 500. */
-    private enum ErrorDePrueba implements com.facturacion.commons.error.ErrorCatalogo {
+    private enum ErrorDePrueba implements ErrorCatalogo {
         ENTIDAD_NO_PROCESABLE;
 
         @Override
@@ -57,7 +58,7 @@ class ApiExceptionMapperTest {
     }
 
     @Test
-    void testDeberiaUnEstadoNoEstandarComoElCuatrocientosVeintidosSeConserva() {
+    void testDeberiaConservarUnEstadoHttpNoEstandarComoElCuatrocientosVeintidos() {
         ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(
             new ErrorNegocioException(ErrorDePrueba.ENTIDAD_NO_PROCESABLE));
 
@@ -67,7 +68,7 @@ class ApiExceptionMapperTest {
     }
 
     @Test
-    void testDeberiaErrorNegocioUsaLaEntradaDelCatalogoYSusDetalles() {
+    void testDeberiaResponderUnErrorDeNegocioConLaEntradaDelCatalogoYSusDetalles() {
         ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(
             ErrorNegocioException.crearConDetalles(ErrorComun.SOLICITUD_INVALIDA, List.of("a", "b"), "varios problemas"));
         assertEquals(400, cuerpo.getStatus());
@@ -77,7 +78,7 @@ class ApiExceptionMapperTest {
     }
 
     @Test
-    void testDeberiaUnFalloInternoNoExponeSuDetalleYConservaSuCodigo() {
+    void testDeberiaOcultarElDetalleDeUnFalloInternoYConservarSuCodigo() {
         ApiErrorResponse cuerpo = ApiExceptionMapper.construirCuerpo(
             new ErrorInternoException(new RuntimeException("detalle interno"), ErrorComun.PAYLOAD_NO_SERIALIZABLE));
 

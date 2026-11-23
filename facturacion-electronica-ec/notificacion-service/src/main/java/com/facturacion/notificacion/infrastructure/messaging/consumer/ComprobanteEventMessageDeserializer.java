@@ -4,6 +4,7 @@ import io.quarkus.kafka.client.serialization.ObjectMapperDeserializer;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import com.facturacion.notificacion.application.event.ComprobanteEventMessage;
 
@@ -23,7 +24,7 @@ public class ComprobanteEventMessageDeserializer extends ObjectMapperDeserialize
 
     private static ObjectMapper construirObjectMapper() {
         return new ObjectMapper()
-            .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+            .registerModule(new JavaTimeModule())
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 }

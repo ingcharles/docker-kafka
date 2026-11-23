@@ -1,5 +1,7 @@
 package com.facturacion.comprobantes.application.service;
 
+import java.util.Base64;
+
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -164,7 +166,7 @@ public class ActualizacionComprobanteService {
             return null;
         }
         try {
-            return java.util.Base64.getDecoder().decode(base64);
+            return Base64.getDecoder().decode(base64);
         } catch (IllegalArgumentException e) {
             LogCodificado.warn(LOG, CodigoLog.LOGO_NO_VALIDO, null);
             return null;

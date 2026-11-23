@@ -16,7 +16,7 @@ class CatalogoErroresTest {
     private static final Pattern FORMATO = Pattern.compile("^[A-Z]+-(\\d{3})-\\d{3}$");
 
     @Test
-    void testDeberiaCodigosUnicosConFormatoYEstadoCoherente() {
+    void testDeberiaExigirCodigosUnicosConFormatoYEstadoCoherente() {
         Set<String> vistos = new HashSet<>();
         for (ErrorComun error : ErrorComun.values()) {
             Matcher m = FORMATO.matcher(error.codigo());
@@ -28,14 +28,14 @@ class CatalogoErroresTest {
     }
 
     @Test
-    void testDeberiaTodaEntradaTieneTextoEnLosMensajesComunes() {
+    void testDeberiaExigirTextoEnLosMensajesComunesParaCadaEntrada() {
         for (ErrorComun error : ErrorComun.values()) {
             assertTrue(Mensajes.existeComun(error.claveMensaje()), "Falta el texto de " + error);
         }
     }
 
     @Test
-    void testDeberiaMensajesReemplazaLosParametrosSinReglasDeComillas() {
+    void testDeberiaReemplazarLosParametrosDelMensajeSinReglasDeComillas() {
         assertEquals("No existe 'x'", Mensajes.obtenerTexto(ErrorComun.RECURSO_NO_ENCONTRADO, "No existe 'x'"));
         assertEquals("Falló la validación", Mensajes.obtenerTexto(ErrorComun.VALIDACION_FALLIDA));
     }

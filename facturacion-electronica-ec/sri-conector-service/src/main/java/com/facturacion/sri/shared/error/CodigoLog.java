@@ -15,6 +15,7 @@ public enum CodigoLog implements MensajeCatalogo {
     COMANDO_DUPLICADO_DESCARTADO("SRI-204", "log.comando_duplicado_descartado"),
     HTTP_AUTORIZACION("SRI-205", "log.http_autorizacion"),
     HTTP_RECEPCION("SRI-206", "log.http_recepcion"),
+    CONSULTA_DESCARTADA("SRI-207", "log.consulta_descartada"),
     URL_SRI_IGNORADA("SRI-301", "log.url_sri_ignorada"),
     SRI_RECHAZA_RECEPCION("SRI-401", "log.sri_rechaza_recepcion"),
     SRI_NO_AUTORIZA("SRI-402", "log.sri_no_autoriza"),

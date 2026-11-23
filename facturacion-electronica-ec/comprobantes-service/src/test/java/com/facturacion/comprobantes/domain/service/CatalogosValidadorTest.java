@@ -83,7 +83,7 @@ class CatalogosValidadorTest {
     // ---- formas de pago ----
 
     @Test
-    void testDeberiaFormasDePagoVigentesExcluyenLasQueYaTerminaronLaVigencia() {
+    void testDeberiaExcluirLasFormasDePagoCuyaVigenciaYaTermino() {
         assertEquals(Set.of("01"), completo.formasPagoVigentes());
         assertEquals("TARJETA DE CREDITO", completo.descripcionFormaPago("19"));
         assertEquals("FORMA DE PAGO 05", completo.descripcionFormaPago("05"));
@@ -92,18 +92,18 @@ class CatalogosValidadorTest {
     // ---- tarifas ----
 
     @Test
-    void testDeberiaTarifaSeTomaDelCatalogoCuandoElClienteNoLaManda() {
+    void testDeberiaTomarLaTarifaDelCatalogoSiElClienteNoLaManda() {
         assertTarifa("15", CatalogosValidador.resolverTarifa(completo, IVA, "4", null));
     }
 
     @Test
-    void testDeberiaTarifaDelClienteDebeCoincidirConElCatalogo() {
+    void testDeberiaExigirQueLaTarifaDelClienteCoincidaConElCatalogo() {
         assertTarifa("15", CatalogosValidador.resolverTarifa(completo, IVA, "4", d("15")));
         rechaza(() -> CatalogosValidador.resolverTarifa(completo, IVA, "4", d("12")), CodigoError.TARIFA_NO_COINCIDE);
     }
 
     @Test
-    void testDeberiaRechazaCodigoPorcentajeInexistenteVencidoOInactivo() {
+    void testDeberiaRechazarUnCodigoPorcentajeInexistenteVencidoOInactivo() {
         for (String codigoPorcentaje : List.of("99", "3", "8")) { // inexistente, vencido (2017), inactivo
             rechaza(() -> CatalogosValidador.resolverTarifa(completo, IVA, codigoPorcentaje, null),
                 CodigoError.PORCENTAJE_IMPUESTO_NO_VIGENTE);
@@ -111,18 +111,18 @@ class CatalogosValidadorTest {
     }
 
     @Test
-    void testDeberiaVigenciaSeEvaluaALaFechaDeEmision() {
+    void testDeberiaEvaluarLaVigenciaALaFechaDeEmision() {
         CatalogosSriAFecha en2016 = catalogos(LocalDate.of(2016, 12, 1), TARIFAS_IVA, RETENCIONES, List.of());
         assertTarifa("14", CatalogosValidador.resolverTarifa(en2016, IVA, "3", null));
     }
 
     @Test
-    void testDeberiaRechazaImpuestoInexistente() {
+    void testDeberiaRechazarUnImpuestoInexistente() {
         rechaza(() -> CatalogosValidador.resolverTarifa(completo, "9", "1", d("1")), CodigoError.IMPUESTO_NO_EXISTE);
     }
 
     @Test
-    void testDeberiaImpuestosSinTarifasEnElCatalogoUsanLaDelRequest() {
+    void testDeberiaUsarLaTarifaDelRequestParaImpuestosSinTarifasEnElCatalogo() {
         // ICE: el catálogo no trae sus tarifas; la tarifa viaja con el request / el ítem
         assertTarifa("75", CatalogosValidador.resolverTarifa(completo, ICE, "3011", d("75")));
         rechaza(() -> CatalogosValidador.resolverTarifa(completo, ICE, "3011", null),
@@ -130,7 +130,7 @@ class CatalogosValidadorTest {
     }
 
     @Test
-    void testDeberiaConReplicaVaciaElIvaSinTarifaDelClienteFallaConCodigoPropio() {
+    void testDeberiaFallarConCodigoPropioSiLaReplicaEstaVaciaYElClienteNoMandaLaTarifaDelIva() {
         CatalogosSriAFecha vacio = new CatalogosSriAFecha(HOY, List.of(), List.of(), List.of(), List.of(), List.of(),
             List.of(), List.of());
         rechaza(() -> CatalogosValidador.resolverTarifa(vacio, IVA, "4", null), CodigoError.TARIFA_NO_DISPONIBLE);
@@ -141,7 +141,7 @@ class CatalogosValidadorTest {
     // ---- tipo de identificación ----
 
     @Test
-    void testDeberiaConsumidorFinalSoloEnFactura() {
+    void testDeberiaAdmitirConsumidorFinalSoloEnFactura() {
         assertDoesNotThrow(() -> CatalogosValidador.validarTipoIdentificacion(completo, CONSUMIDOR_FINAL,
             TipoComprobante.FACTURA, "x"));
         for (TipoComprobante tipo : List.of(TipoComprobante.NOTA_CREDITO, TipoComprobante.NOTA_DEBITO,
@@ -154,7 +154,7 @@ class CatalogosValidadorTest {
     }
 
     @Test
-    void testDeberiaRechazaTipoDeIdentificacionFueraDeLaTabla6() {
+    void testDeberiaRechazarUnTipoDeIdentificacionFueraDeLaTabla6() {
         rechaza(() -> CatalogosValidador.validarTipoIdentificacion(completo, "09", TipoComprobante.FACTURA, "x"),
             CodigoError.TIPO_IDENTIFICACION_NO_EXISTE);
     }
@@ -162,7 +162,7 @@ class CatalogosValidadorTest {
     // ---- retenciones ----
 
     @Test
-    void testDeberiaRetencionIvaValidaCodigoYPorcentaje() {
+    void testDeberiaValidarElCodigoYElPorcentajeDeLaRetencionDeIva() {
         assertDoesNotThrow(() -> CatalogosValidador.validarRetencion(completo, RETENCION_IVA, "9", d("10")));
         rechaza(() -> CatalogosValidador.validarRetencion(completo, RETENCION_IVA, "9", d("20")),
             CodigoError.PORCENTAJE_RETENER_NO_COINCIDE);
@@ -171,14 +171,14 @@ class CatalogosValidadorTest {
     }
 
     @Test
-    void testDeberiaRetencionDeRentaSinCodigosCargadosSoloValidaElImpuesto() {
+    void testDeberiaValidarSoloElImpuestoDeLaRetencionDeRentaSiNoHayCodigosCargados() {
         assertDoesNotThrow(() -> CatalogosValidador.validarRetencion(completo, RENTA, "312", d("1.75")));
         rechaza(() -> CatalogosValidador.validarRetencion(completo, "4", "312", d("1")),
             CodigoError.IMPUESTO_RETENER_NO_EXISTE);
     }
 
     @Test
-    void testDeberiaRetencionIsdUsaElPorcentajeVigenteALaFechaDeEmision() {
+    void testDeberiaUsarElPorcentajeDeIsdVigenteALaFechaDeEmision() {
         assertDoesNotThrow(() -> CatalogosValidador.validarRetencion(completo, ISD, "4580", d("5")));
         CatalogosSriAFecha en2022 = catalogos(LocalDate.of(2022, 3, 1), TARIFAS_IVA, RETENCIONES, List.of());
         // en 2022 el catálogo de este test no tiene fila vigente para 4580: existe pero no está vigente
@@ -189,7 +189,7 @@ class CatalogosValidadorTest {
     // ---- codSustento ----
 
     @Test
-    void testDeberiaSustentoSoloSeValidaSiElCatalogoEstaCargado() {
+    void testDeberiaValidarElSustentoSoloSiElCatalogoEstaCargado() {
         assertDoesNotThrow(() -> CatalogosValidador.validarSustento(completo, "99"));
         CatalogosSriAFecha conSustentos = catalogos(HOY, TARIFAS_IVA, RETENCIONES,
             List.of(new SustentoRow("01", "Crédito tributario", true)));
@@ -210,7 +210,7 @@ class CatalogosValidadorTest {
         new TarifaRow("5", "5001", "IRBPNR", d("0.02"), TipoTarifa.ESPECIFICA, SIN_INICIO, null, true));
 
     @Test
-    void testDeberiaUnaTarifaQueCambiaDeValorSeResuelveSegunLaFechaDeEmision() {
+    void testDeberiaResolverUnaTarifaQueCambiaDeValorSegunLaFechaDeEmision() {
         CatalogosSriAFecha enero = catalogos(LocalDate.of(2023, 1, 15), TARIFAS_ICE, RETENCIONES, List.of());
         CatalogosSriAFecha hoy = catalogos(HOY, TARIFAS_ICE, RETENCIONES, List.of());
 
@@ -219,7 +219,7 @@ class CatalogosValidadorTest {
     }
 
     @Test
-    void testDeberiaElTipoDeLaTarifaSaleDelCatalogo() {
+    void testDeberiaTomarElTipoDeLaTarifaDelCatalogo() {
         assertEquals(TipoTarifa.ESPECIFICA,
             CatalogosValidador.resolverTarifaConTipo(completoConIce(), ICE, "3011", null, null).tipo());
         assertEquals(TipoTarifa.ESPECIFICA,
@@ -227,7 +227,7 @@ class CatalogosValidadorTest {
     }
 
     @Test
-    void testDeberiaConDosModalidadesSePrefiereLaPorcentualYSePuedePedirLaOtra() {
+    void testDeberiaPreferirLaModalidadPorcentualSiHayDosYPermitirPedirLaOtra() {
         CatalogosSriAFecha catalogos = completoConIce();
 
         CatalogosValidador.TarifaResuelta porDefecto =
@@ -242,13 +242,13 @@ class CatalogosValidadorTest {
     }
 
     @Test
-    void testDeberiaPedirUnaModalidadQueElCodigoNoTieneFallaConCodigoPropio() {
+    void testDeberiaFallarConCodigoPropioAlPedirUnaModalidadQueElCodigoNoTiene() {
         rechaza(() -> CatalogosValidador.resolverTarifaConTipo(completoConIce(), ICE, "3011", null,
             TipoTarifa.PORCENTAJE), CodigoError.TIPO_TARIFA_NO_VIGENTE);
     }
 
     @Test
-    void testDeberiaUnCodigoIceQueNoEstaEnLaTablaSeRechazaYLaTarifaMandadaDebeCoincidir() {
+    void testDeberiaRechazarUnCodigoIceFueraDeLaTablaYExigirQueLaTarifaMandadaCoincida() {
         rechaza(() -> CatalogosValidador.resolverTarifaConTipo(completoConIce(), ICE, "9999", null, null),
             CodigoError.PORCENTAJE_IMPUESTO_NO_VIGENTE);
         rechaza(() -> CatalogosValidador.resolverTarifaConTipo(completoConIce(), ICE, "3031", d("50"), null),
@@ -256,7 +256,7 @@ class CatalogosValidadorTest {
     }
 
     @Test
-    void testDeberiaConElCatalogoDeIrbpnrVacioSigueSiendoUnaTarifaPorUnidad() {
+    void testDeberiaTratarElIrbpnrComoTarifaPorUnidadAunqueSuCatalogoEsteVacio() {
         assertEquals(TipoTarifa.ESPECIFICA,
             CatalogosValidador.resolverTarifaConTipo(completo, "5", "5001", d("0.02"), null).tipo());
     }

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -42,7 +43,7 @@ class SagaReenvioMasivoTest {
     }
 
     @Test
-    void testDeberiaReenviaSoloLasFallidasDeLaEmpresaYLasPoneAEsperarLaNotificacion() {
+    void testDeberiaReenviarSoloLasFallidasDeLaEmpresaYPonerlasAEsperarLaNotificacion() {
         UUID fallida1 = saga(RUC, SagaState.NOTIFICACION_FALLIDA);
         UUID fallida2 = saga(RUC, SagaState.NOTIFICACION_FALLIDA);
         UUID notificada = saga(RUC, SagaState.NOTIFICADO);
@@ -61,7 +62,7 @@ class SagaReenvioMasivoTest {
     }
 
     @Test
-    void testDeberiaUnaSegundaLlamadaNoReenviaLasQueYaSeMandaron() {
+    void testDeberiaNoReenviarEnUnaSegundaLlamadaLasQueYaSeMandaron() {
         saga(RUC, SagaState.NOTIFICACION_FALLIDA);
 
         assertEquals(1, reenviar(RUC, 100));
@@ -70,7 +71,7 @@ class SagaReenvioMasivoTest {
     }
 
     @Test
-    void testDeberiaElLimiteAcotaElLoteYElRestoSeReenviaEnLaSiguienteLlamada() {
+    void testDeberiaAcotarElLoteConElLimiteYReenviarElRestoEnLaSiguienteLlamada() {
         for (int i = 0; i < 3; i++) {
             saga(RUC, SagaState.NOTIFICACION_FALLIDA);
         }
@@ -82,11 +83,11 @@ class SagaReenvioMasivoTest {
 
     private void resultadoDeNotificacion(UUID id, String tipo, String motivo) {
         servicio.procesarEventoNotificacion(new NotificacionResultadoEventMessage(UUID.randomUUID(), id, tipo, "x", motivo,
-            java.time.Instant.now())).await().atMost(Duration.ofSeconds(5));
+            Instant.now())).await().atMost(Duration.ofSeconds(5));
     }
 
     @Test
-    void testDeberiaSiElReenvioSaleBienLaSagaPasaANotificadoYSeBorraElMotivoDelFallo() {
+    void testDeberiaPasarLaSagaANotificadoYBorrarElMotivoDelFalloSiElReenvioSaleBien() {
         UUID id = saga(RUC, SagaState.NOTIFICACION_FALLIDA);
         sagas.get(id).setFailureReason("ClosedChannelException");
 
@@ -97,7 +98,7 @@ class SagaReenvioMasivoTest {
     }
 
     @Test
-    void testDeberiaSiElReenvioFallaOtraVezLaSagaVuelveANotificacionFallida() {
+    void testDeberiaVolverANotificacionFallidaSiElReenvioFallaOtraVez() {
         UUID id = saga(RUC, SagaState.AUTORIZADO);
 
         resultadoDeNotificacion(id, MessagingConstants.EVENT_TYPE_NOTIFICACION_FALLIDA, "socket closed");

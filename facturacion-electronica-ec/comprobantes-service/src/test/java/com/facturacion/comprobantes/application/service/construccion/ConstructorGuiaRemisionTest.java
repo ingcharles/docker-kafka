@@ -28,7 +28,7 @@ class ConstructorGuiaRemisionTest {
     }
 
     @Test
-    void testDeberiaUnInicioDeTransporteDeAyerOMananaSeRechazaConLasDosFechas() {
+    void testDeberiaRechazarUnInicioDeTransporteDeAyerOMananaInformandoLasDosFechas() {
         for (LocalDate otraFecha : List.of(FechasSri.obtenerHoy().minusDays(1), FechasSri.obtenerHoy().plusDays(1))) {
             ErrorNegocioException error = assertThrows(ErrorNegocioException.class,
                 () -> constructor.construir(guiaConInicio(otraFecha), 1L, catalogos));

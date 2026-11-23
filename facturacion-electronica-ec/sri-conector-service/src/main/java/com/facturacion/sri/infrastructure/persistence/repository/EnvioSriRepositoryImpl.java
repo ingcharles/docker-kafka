@@ -7,8 +7,8 @@ import java.util.stream.Collectors;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.persistence.LockModeType;
 
-import io.quarkus.panache.common.Page;
 import io.smallrye.mutiny.Uni;
 
 import com.facturacion.commons.exception.NotFoundException;
@@ -73,10 +73,18 @@ public class EnvioSriRepositoryImpl implements EnvioSriRepository {
     }
 
     @Override
-    public Uni<List<EnvioSri>> findPendientesDeAutorizacion(EstadoEnvioSri estado, int batchSize) {
-        return repository.find("estado", mapper.map(estado))
-            .page(Page.ofSize(batchSize))
-            .list()
-            .map(entities -> entities.stream().map(mapper::toDomain).collect(Collectors.toList()));
+    public Uni<List<EnvioSri>> reclamarPendientesDeAutorizacion(int batchSize, Instant consultadosAntesDe, Instant ahora) {
+        return repository.findRecibidosParaConsultar(mapper.map(EstadoEnvioSri.RECIBIDO), consultadosAntesDe, batchSize)
+            .map(entities -> entities.stream().map(entity -> {
+                // La reserva se guarda al confirmar la transacción: las demás instancias ya no lo ven como pendiente.
+                entity.ultimaConsultaEn = ahora;
+                return mapper.toDomain(entity);
+            }).collect(Collectors.toList()));
+    }
+
+    @Override
+    public Uni<EnvioSri> findByIdBloqueado(UUID id) {
+        return repository.<EnvioSriEntity>findById(id, LockModeType.PESSIMISTIC_WRITE)
+            .map(entity -> entity == null ? null : mapper.toDomain(entity));
     }
 }

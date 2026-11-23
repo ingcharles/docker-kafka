@@ -238,7 +238,7 @@ public class ComprobanteResource {
     public Uni<Response> obtenerXml(
             @Parameter(description = "Id del comprobante", required = true) @PathParam("id") UUID id,
             @Parameter(description = "generado | firmado | autorizado")
-            @QueryParam("tipo") @jakarta.ws.rs.DefaultValue("generado") String tipo) {
+            @QueryParam("tipo") @DefaultValue("generado") String tipo) {
         return consultaService.obtenerDominioPorId(id, tokenPrincipal.getRuc()).map((Comprobante c) -> {
             String xml = switch (tipo) {
                 case "firmado" -> c.getXmlFirmado();

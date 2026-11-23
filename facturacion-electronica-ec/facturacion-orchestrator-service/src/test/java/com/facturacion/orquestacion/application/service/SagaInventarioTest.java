@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -87,7 +88,7 @@ class SagaInventarioTest {
     }
 
     @Test
-    void testDeberiaConLaBanderaApagadaLaSagaEsLaDeSiempreYNoToca() {
+    void testDeberiaMantenerLaSagaDeSiempreSinTocarInventarioConLaBanderaApagada() {
         UUID id = UUID.randomUUID();
 
         esperar(servicio(false).procesarEventoComprobante(creado(id, "FACTURA", unItem())));
@@ -98,7 +99,7 @@ class SagaInventarioTest {
     }
 
     @Test
-    void testDeberiaConLaBanderaEncendidaPrimeroSeReservaElStockYAunNoSeFirma() {
+    void testDeberiaReservarElStockAntesDeFirmarConLaBanderaEncendida() {
         UUID id = UUID.randomUUID();
 
         esperar(servicio(true).procesarEventoComprobante(creado(id, "FACTURA", unItem())));
@@ -112,7 +113,7 @@ class SagaInventarioTest {
     }
 
     @Test
-    void testDeberiaSoloLasFacturasConItemsDeInventarioDescuentanStock() {
+    void testDeberiaDescontarStockSoloEnLasFacturasConItemsDeInventario() {
         UUID notaCredito = UUID.randomUUID();
         UUID facturaSinItems = UUID.randomUUID();
         UUID facturaConItemsNulos = UUID.randomUUID();
@@ -131,7 +132,7 @@ class SagaInventarioTest {
     }
 
     @Test
-    void testDeberiaConStockReservadoSaleElComandoDeFirmaGuardado() {
+    void testDeberiaEmitirElComandoDeFirmaGuardadoCuandoElStockQuedaReservado() {
         UUID id = UUID.randomUUID();
         SagaOrchestratorService servicio = servicio(true);
         esperar(servicio.procesarEventoComprobante(creado(id, "FACTURA", unItem())));
@@ -145,7 +146,7 @@ class SagaInventarioTest {
     }
 
     @Test
-    void testDeberiaSinStockLaSagaTerminaYElComprobanteSeMarcaSinFirmarNiLiberar() {
+    void testDeberiaTerminarLaSagaYMarcarElComprobanteSinFirmarNiLiberarSiNoHayStock() {
         UUID id = UUID.randomUUID();
         SagaOrchestratorService servicio = servicio(true);
         esperar(servicio.procesarEventoComprobante(creado(id, "FACTURA", unItem())));
@@ -162,7 +163,7 @@ class SagaInventarioTest {
     }
 
     @Test
-    void testDeberiaAlAutorizarElSriSeConfirmaElStock() {
+    void testDeberiaConfirmarElStockAlAutorizarElSri() {
         UUID id = UUID.randomUUID();
         SagaOrchestratorService servicio = servicio(true);
         esperar(servicio.procesarEventoComprobante(creado(id, "FACTURA", unItem())));
@@ -178,7 +179,7 @@ class SagaInventarioTest {
     }
 
     @Test
-    void testDeberiaSiElSriRechazaOLaFirmaFallaSeLiberaElStock() {
+    void testDeberiaLiberarElStockSiElSriRechazaOLaFirmaFalla() {
         UUID rechazada = UUID.randomUUID();
         UUID sinFirma = UUID.randomUUID();
         SagaOrchestratorService servicio = servicio(true);
@@ -200,7 +201,7 @@ class SagaInventarioTest {
     }
 
     @Test
-    void testDeberiaUnaSagaSinInventarioNuncaMandaConfirmarNiLiberar() {
+    void testDeberiaNoConfirmarNiLiberarStockEnUnaSagaSinInventario() {
         UUID id = UUID.randomUUID();
         SagaOrchestratorService servicio = servicio(false);
         esperar(servicio.procesarEventoComprobante(creado(id, "FACTURA", unItem())));
@@ -213,7 +214,7 @@ class SagaInventarioTest {
     }
 
     @Test
-    void testDeberiaLaBanderaSeEvaluaAlCrearLaSagaYUnaEnCursoTerminaComoEmpezo() {
+    void testDeberiaEvaluarLaBanderaAlCrearLaSagaYTerminarUnaEnCursoComoEmpezo() {
         UUID id = UUID.randomUUID();
         esperar(servicio(true).procesarEventoComprobante(creado(id, "FACTURA", unItem())));
         stock(servicio(false), id, MessagingConstants.EVENT_TYPE_STOCK_RESERVADO, List.of());
@@ -227,7 +228,7 @@ class SagaInventarioTest {
     }
 
     @Test
-    void testDeberiaUnEventoRepetidoNoSeAplicaDosVeces() {
+    void testDeberiaNoAplicarDosVecesUnEventoRepetido() {
         UUID id = UUID.randomUUID();
         SagaOrchestratorService servicio = servicio(true);
         ComprobanteEventMessage evento = creado(id, "FACTURA", unItem());
@@ -241,7 +242,7 @@ class SagaInventarioTest {
     }
 
     @Test
-    void testDeberiaUnEventoQueNoMueveLaSagaSeIgnoraPorSuTipo() {
+    void testDeberiaIgnorarPorSuTipoUnEventoQueNoMueveLaSaga() {
         ComprobanteEventMessage autorizado = new ComprobanteEventMessage(UUID.randomUUID(), UUID.randomUUID(),
             MessagingConstants.EVENT_TYPE_COMPROBANTE_AUTORIZADO, "1722039953001", "1".repeat(49), "PRUEBAS", null,
             true, "FACTURA", null, Instant.now());
@@ -251,7 +252,7 @@ class SagaInventarioTest {
     }
 
     @Test
-    void testDeberiaUnEventoFueraDeEstadoSeIgnoraYQuedaDicho() {
+    void testDeberiaIgnorarUnEventoFueraDeEstadoDejandoConstancia() {
         UUID id = UUID.randomUUID();
         SagaOrchestratorService servicio = servicio(true);
         esperar(servicio.procesarEventoComprobante(creado(id, "FACTURA", unItem())));
@@ -268,7 +269,7 @@ class SagaInventarioTest {
     }
 
     @Test
-    void testDeberiaUnEventoInformativoDeInventarioSeIgnoraPorSuTipo() {
+    void testDeberiaIgnorarPorSuTipoUnEventoInformativoDeInventario() {
         UUID id = UUID.randomUUID();
         SagaOrchestratorService servicio = servicio(true);
         esperar(servicio.procesarEventoComprobante(creado(id, "FACTURA", unItem())));
@@ -345,14 +346,14 @@ class SagaInventarioTest {
         }
 
         @Override
-        public Uni<List<SagaInstance>> findPendientesDeNotificacion(java.time.Instant fallidasAntesDe,
-                java.time.Instant sinRespuestaAntesDe, int maxIntentos, int limite) {
+        public Uni<List<SagaInstance>> findPendientesDeNotificacion(Instant fallidasAntesDe,
+                Instant sinRespuestaAntesDe, int maxIntentos, int limite) {
             List<SagaInstance> items = datos.values().stream()
                 .filter(s -> (s.getState() == SagaState.NOTIFICACION_FALLIDA && s.getReintentosNotificacion() < maxIntentos
                         && !s.getUpdatedAt().isAfter(fallidasAntesDe))
                     || (s.getState() == SagaState.AUTORIZADO && s.isNotificacionEsperada()
                         && !s.getUpdatedAt().isAfter(sinRespuestaAntesDe)))
-                .sorted(java.util.Comparator.comparing(SagaInstance::getUpdatedAt))
+                .sorted(Comparator.comparing(SagaInstance::getUpdatedAt))
                 .limit(limite).toList();
             return Uni.createFrom().item(items);
         }
@@ -366,7 +367,7 @@ class SagaInventarioTest {
             }
             saga.setState(SagaState.AUTORIZADO);
             saga.setReintentosNotificacion(saga.getReintentosNotificacion() + 1);
-            saga.setUpdatedAt(java.time.Instant.now());
+            saga.setUpdatedAt(Instant.now());
             return Uni.createFrom().item(saga);
         }
     }

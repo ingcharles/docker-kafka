@@ -162,4 +162,13 @@ public class EnvioSri {
     public void setActualizadoEn(Instant actualizadoEn) {
         this.actualizadoEn = actualizadoEn;
     }
+
+    /**
+     * Si el resultado de una consulta todavía se puede aplicar: el envío sigue esperando la autorización y nadie más
+     * aplicó una consulta mientras esta esperaba al SRI (los intentos no cambiaron). Una segunda instancia que consultó
+     * lo mismo ve {@code false} y descarta su resultado, así no se publica dos veces el mismo evento.
+     */
+    public boolean esConsultaVigente(int intentosAlReclamar) {
+        return estado == EstadoEnvioSri.RECIBIDO && intentosAutorizacion == intentosAlReclamar;
+    }
 }

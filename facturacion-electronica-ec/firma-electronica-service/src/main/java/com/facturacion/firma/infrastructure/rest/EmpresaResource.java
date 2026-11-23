@@ -2,6 +2,7 @@ package com.facturacion.firma.infrastructure.rest;
 
 import java.net.URI;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.UUID;
 
 import jakarta.inject.Inject;
@@ -280,7 +281,7 @@ public class EmpresaResource {
     public Uni<Response> listarConfiguracion(
             @Parameter(description = "Id de la empresa", required = true) @PathParam("id") UUID id) {
         return acceso.exigirEmpresa(id).chain(() -> configuracionService.listar(id))
-            .map((java.util.List<ConfiguracionEmpresaResponse> ajustes) -> Response.ok(ajustes).build());
+            .map((List<ConfiguracionEmpresaResponse> ajustes) -> Response.ok(ajustes).build());
     }
 
     @GET

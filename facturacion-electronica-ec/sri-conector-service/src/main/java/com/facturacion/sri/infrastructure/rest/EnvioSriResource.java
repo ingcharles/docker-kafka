@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 import jakarta.inject.Inject;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
@@ -77,7 +78,7 @@ public class EnvioSriResource {
             @Parameter(description = "Id del comprobante en comprobantes-service", required = true)
             @PathParam("comprobanteId") UUID comprobanteId,
             @Parameter(description = "firmado | autorizado")
-            @QueryParam("tipo") @jakarta.ws.rs.DefaultValue("firmado") String tipo) {
+            @QueryParam("tipo") @DefaultValue("firmado") String tipo) {
         return sriConectorService.obtenerDominioPorComprobanteId(comprobanteId, tokenPrincipal.getRuc()).map((EnvioSri envio) -> {
             String xml = "autorizado".equals(tipo) ? envio.getXmlAutorizado() : envio.getXmlFirmado();
             if (xml == null) {

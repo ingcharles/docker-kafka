@@ -25,6 +25,7 @@ import com.facturacion.notificacion.application.dto.VariablePlantillaResponse;
 import com.facturacion.notificacion.application.dto.VersionPlantillaResponse;
 import com.facturacion.notificacion.application.dto.VistaPreviaRequest;
 import com.facturacion.notificacion.application.dto.VistaPreviaResponse;
+import com.facturacion.notificacion.application.mapper.PlantillaCorreoResponseMapper;
 import com.facturacion.notificacion.domain.model.entity.PlantillaCorreoEmpresa;
 import com.facturacion.notificacion.domain.model.enums.TipoComprobanteCorreo;
 import com.facturacion.notificacion.domain.model.enums.VariableCorreo;
@@ -74,14 +75,16 @@ public class PlantillaCorreoService {
     private final SaneadorHtml saneador;
     private final ArmadorContenidoCorreo armador;
     private final LectorAjustesCorreo lectorAjustes;
+    private final PlantillaCorreoResponseMapper mapper;
 
     @Inject
     public PlantillaCorreoService(PlantillaCorreoRepository repository, SaneadorHtml saneador,
-            ArmadorContenidoCorreo armador, LectorAjustesCorreo lectorAjustes) {
+            ArmadorContenidoCorreo armador, LectorAjustesCorreo lectorAjustes, PlantillaCorreoResponseMapper mapper) {
         this.repository = repository;
         this.saneador = saneador;
         this.armador = armador;
         this.lectorAjustes = lectorAjustes;
+        this.mapper = mapper;
     }
 
     /** Crea la plantilla de la empresa para ese tipo, o la reemplaza (sube la versión y la anterior queda en el historial). */
@@ -109,12 +112,12 @@ public class PlantillaCorreoService {
     public Uni<PlantillaCorreoResponse> obtener(String empresaRuc, String tipoTexto) {
         TipoComprobanteCorreo tipo = interpretarTipo(tipoTexto);
         return Panache.withSession(() -> repository.buscar(empresaRuc, tipo))
-            .map(plantilla -> PlantillaCorreoResponse.desde(exigirExistente(plantilla, tipo)));
+            .map(plantilla -> mapper.toResponse(exigirExistente(plantilla, tipo)));
     }
 
     public Uni<List<PlantillaCorreoResponse>> listar(String empresaRuc) {
         return Panache.withSession(() -> repository.listar(empresaRuc))
-            .map(plantillas -> plantillas.stream().map(PlantillaCorreoResponse::desde).toList());
+            .map(mapper::toResponses);
     }
 
     /** Borra la plantilla de la empresa para ese tipo: desde entonces el correo sale con la plantilla por defecto. */
@@ -130,18 +133,18 @@ public class PlantillaCorreoService {
     public Uni<List<VersionPlantillaResponse>> listarHistorial(String empresaRuc, String tipoTexto) {
         TipoComprobanteCorreo tipo = interpretarTipo(tipoTexto);
         return Panache.withSession(() -> repository.listarHistorial(empresaRuc, tipo))
-            .map(versiones -> versiones.stream().map(VersionPlantillaResponse::desde).toList());
+            .map(mapper::toVersionResponses);
     }
 
     /** La plantilla por defecto del tipo, con las variables escritas, para que la empresa parta de ella. */
     public PlantillaPorDefectoResponse obtenerPorDefecto(String tipoTexto) {
         TipoComprobanteCorreo tipo = interpretarTipo(tipoTexto);
-        return PlantillaPorDefectoResponse.desde(tipo.name(), armador.exportarPorDefecto(tipo));
+        return mapper.toResponse(tipo.name(), armador.exportarPorDefecto(tipo));
     }
 
     /** Las variables que se pueden usar en una plantilla. */
     public List<VariablePlantillaResponse> listarVariables() {
-        return Arrays.stream(VariableCorreo.values()).map(VariablePlantillaResponse::desde).toList();
+        return Arrays.stream(VariableCorreo.values()).map(mapper::toResponse).toList();
     }
 
     /**
@@ -185,8 +188,8 @@ public class PlantillaCorreoService {
         return plantilla;
     }
 
-    private static ResultadoGuardado armarResultado(PlantillaCorreoEmpresa plantilla, boolean creada) {
-        return new ResultadoGuardado(PlantillaCorreoResponse.desde(plantilla), creada);
+    private ResultadoGuardado armarResultado(PlantillaCorreoEmpresa plantilla, boolean creada) {
+        return new ResultadoGuardado(mapper.toResponse(plantilla), creada);
     }
 
     private static CorreoSalida.Comprobante armarComprobanteDeEjemplo(String empresaRuc, TipoComprobanteCorreo tipo,

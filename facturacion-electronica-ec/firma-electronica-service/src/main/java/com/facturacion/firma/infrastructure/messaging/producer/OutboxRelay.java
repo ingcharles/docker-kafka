@@ -1,10 +1,12 @@
 package com.facturacion.firma.infrastructure.messaging.producer;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -20,6 +22,7 @@ import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.kafka.api.OutgoingKafkaRecordMetadata;
+import io.vertx.core.Context;
 import io.vertx.core.Vertx;
 
 import com.facturacion.commons.error.LogCodificado;
@@ -43,7 +46,7 @@ public class OutboxRelay {
     private static final Logger LOG = Logger.getLogger(OutboxRelay.class);
 
     @ConfigProperty(name = "outbox.relay.timeout-ack")
-    java.time.Duration timeoutAck;
+    Duration timeoutAck;
     private static final int BATCH_SIZE = 20;
 
     @Inject
@@ -67,7 +70,7 @@ public class OutboxRelay {
 
     private Map<String, Emitter<String>> emittersByTopic;
 
-    @jakarta.annotation.PostConstruct
+    @PostConstruct
     void inicializar() {
         emittersByTopic = Map.of(
             MessagingConstants.EMPRESA_EVENTS_TOPIC, empresaEventsEmitter,
@@ -98,7 +101,7 @@ public class OutboxRelay {
             return Uni.createFrom().item(event);
         }
 
-        io.vertx.core.Context callingContext = Vertx.currentContext();
+        Context callingContext = Vertx.currentContext();
         CompletableFuture<Void> delivered = new CompletableFuture<>();
         Message<String> message = Message.of(event.payload,
                 Metadata.of(OutgoingKafkaRecordMetadata.<String>builder()

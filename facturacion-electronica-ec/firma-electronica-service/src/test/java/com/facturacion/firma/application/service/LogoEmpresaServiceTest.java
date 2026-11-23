@@ -22,13 +22,13 @@ class LogoEmpresaServiceTest {
     private static final byte[] JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0};
 
     @Test
-    void testDeberiaReconoceUnPngYUnJpegPorSuCabecera() {
+    void testDeberiaReconocerUnPngYUnJpegPorSuCabecera() {
         assertEquals("image/png", LogoEmpresaService.detectarTipo(conCabecera(PNG, 1000)));
         assertEquals("image/jpeg", LogoEmpresaService.detectarTipo(conCabecera(JPEG, 1000)));
     }
 
     @Test
-    void testDeberiaRechazaLoQueNoEsPngNiJpegAunqueSeaPequeno() {
+    void testDeberiaRechazarLoQueNoEsPngNiJpegAunqueSeaPequeno() {
         byte[] gif = "GIF89a....".getBytes();
         byte[] pdf = "%PDF-1.7".getBytes();
         byte[] ejecutable = {'M', 'Z', 0, 0, 0};
@@ -39,13 +39,13 @@ class LogoEmpresaServiceTest {
     }
 
     @Test
-    void testDeberiaRechazaUnArchivoVacioONulo() {
+    void testDeberiaRechazarUnArchivoVacioONulo() {
         assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.detectarTipo(new byte[0]));
         assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.detectarTipo(null));
     }
 
     @Test
-    void testDeberiaRechazaUnArchivoMasGrandeQueElTopeYAceptaUnoJustoEnElTope() {
+    void testDeberiaRechazarUnArchivoMasGrandeQueElTopeYAceptarUnoJustoEnElTope() {
         byte[] justo = conCabecera(PNG, LogoEmpresaService.MAXIMO_BYTES);
         byte[] pasado = conCabecera(PNG, LogoEmpresaService.MAXIMO_BYTES + 1);
 
@@ -55,7 +55,7 @@ class LogoEmpresaServiceTest {
     }
 
     @Test
-    void testDeberiaUnaCabeceraIncompletaNoEsUnPng() {
+    void testDeberiaNoReconocerComoPngUnaCabeceraIncompleta() {
         byte[] truncado = Arrays.copyOf(PNG, 4);
         assertThrows(LogoInvalidoException.class, () -> LogoEmpresaService.detectarTipo(truncado));
     }

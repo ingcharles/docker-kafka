@@ -7,11 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.mapstruct.factory.Mappers;
 
 import com.facturacion.commons.exception.ApiException;
 import com.facturacion.notificacion.application.dto.PlantillaCorreoRequest;
 import com.facturacion.notificacion.application.dto.VariablePlantillaResponse;
 import com.facturacion.notificacion.application.dto.VistaPreviaRequest;
+import com.facturacion.notificacion.application.mapper.PlantillaCorreoResponseMapper;
 import com.facturacion.notificacion.domain.model.enums.TipoComprobanteCorreo;
 import com.facturacion.notificacion.domain.model.enums.VariableCorreo;
 import com.facturacion.notificacion.domain.model.vo.ContenidoCorreo;
@@ -42,7 +44,8 @@ class PlantillaCorreoServiceTest {
         }
     };
     private final SaneadorHtml saneador = new SaneadorHtmlOwasp();
-    private final PlantillaCorreoService servicio = new PlantillaCorreoService(null, saneador, armador, null);
+    private final PlantillaCorreoService servicio = new PlantillaCorreoService(null, saneador, armador, null,
+        Mappers.getMapper(PlantillaCorreoResponseMapper.class));
 
     private ApiException rechazo(String tipo, String asunto, String html, String texto) {
         return assertThrows(ApiException.class,
@@ -50,7 +53,7 @@ class PlantillaCorreoServiceTest {
     }
 
     @Test
-    void testDeberiaUnTipoQueNoExisteSeRechazaConLosTiposValidos() {
+    void testDeberiaRechazarUnTipoQueNoExisteInformandoLosTiposValidos() {
         for (String tipo : new String[] {"BOLETA", "factura", "", " FACTURA", "TODOS"}) {
             ApiException error = rechazo(tipo, "Asunto", "<p>Hola</p>", null);
 
@@ -60,14 +63,14 @@ class PlantillaCorreoServiceTest {
     }
 
     @Test
-    void testDeberiaSiElHtmlSoloTieneLoPeligrosoSeRechazaPorQuedarVacio() {
+    void testDeberiaRechazarUnHtmlQueSoloTieneLoPeligrosoPorQuedarVacio() {
         for (String html : new String[] {"<script>alert(1)</script>", "<style>p{}</style><iframe src=\"https://x\"></iframe>"}) {
             assertEquals(NotificacionError.PLANTILLA_SIN_CONTENIDO, rechazo("FACTURA", "Asunto", html, null).getError(), html);
         }
     }
 
     @Test
-    void testDeberiaLasReglasDeLasVariablesSeAplicanAntesDeGuardar() {
+    void testDeberiaAplicarLasReglasDeLasVariablesAntesDeGuardar() {
         assertEquals(NotificacionError.PLANTILLA_VARIABLE_DESCONOCIDA,
             rechazo("FACTURA", "{{nada}}", "<p>x</p>", null).getError());
         assertEquals(NotificacionError.PLANTILLA_VARIABLE_EN_ETIQUETA,
@@ -77,7 +80,7 @@ class PlantillaCorreoServiceTest {
     }
 
     @Test
-    void testDeberiaLaVistaPreviaTambienRechazaLoQueNoSePodriaGuardar() {
+    void testDeberiaRechazarEnLaVistaPreviaLoQueNoSePodriaGuardar() {
         VistaPreviaRequest invalida = new VistaPreviaRequest("FACTURA", "{{nada}}", "<p>x</p>", null);
 
         ApiException error = assertThrows(ApiException.class, () -> servicio.armarVistaPrevia(RUC, invalida));
@@ -88,7 +91,7 @@ class PlantillaCorreoServiceTest {
     }
 
     @Test
-    void testDeberiaLaPlantillaPorDefectoSePideConElNombreExactoDelTipo() {
+    void testDeberiaPedirLaPlantillaPorDefectoConElNombreExactoDelTipo() {
         assertEquals("asunto NOTA_DEBITO", servicio.obtenerPorDefecto("NOTA_DEBITO").asunto());
         assertEquals("NOTA_DEBITO", servicio.obtenerPorDefecto("NOTA_DEBITO").tipoComprobante());
         assertEquals(NotificacionError.PLANTILLA_TIPO_INVALIDO,
@@ -96,7 +99,7 @@ class PlantillaCorreoServiceTest {
     }
 
     @Test
-    void testDeberiaLasVariablesSeListanTodasConSuMarcadorYDescripcion() {
+    void testDeberiaListarTodasLasVariablesConSuMarcadorYDescripcion() {
         List<VariablePlantillaResponse> variables = servicio.listarVariables();
 
         assertEquals(VariableCorreo.values().length, variables.size());

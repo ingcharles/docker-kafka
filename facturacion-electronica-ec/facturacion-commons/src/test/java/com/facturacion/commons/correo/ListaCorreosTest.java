@@ -10,24 +10,24 @@ import org.junit.jupiter.api.Test;
 class ListaCorreosTest {
 
     @Test
-    void testDeberiaPartirRecortaCadaPiezaYConservaLasVacias() {
+    void testDeberiaPartirUnTextoRecortandoCadaPiezaYConservandoLasVacias() {
         assertEquals(List.of("a@x.com", "", "b@x.com", ""), ListaCorreos.partir(" a@x.com , ,b@x.com,"));
     }
 
     @Test
-    void testDeberiaTextoNuloOEnBlancoNoTieneCorreos() {
+    void testDeberiaDevolverListaVaciaSiElTextoEsNuloOEstaEnBlanco() {
         assertTrue(ListaCorreos.partir(null).isEmpty());
         assertTrue(ListaCorreos.partir("   ").isEmpty());
         assertTrue(ListaCorreos.separar(null).isEmpty());
     }
 
     @Test
-    void testDeberiaSepararDescartaLasPiezasVacias() {
+    void testDeberiaSepararDescartandoLasPiezasVacias() {
         assertEquals(List.of("a@x.com", "b@x.com"), ListaCorreos.separar("a@x.com,, b@x.com,"));
     }
 
     @Test
-    void testDeberiaUnirUsaElSeparador() {
+    void testDeberiaUnirLosCorreosConElSeparador() {
         assertEquals("a@x.com,b@x.com", ListaCorreos.unir(List.of("a@x.com", "b@x.com")));
     }
 }

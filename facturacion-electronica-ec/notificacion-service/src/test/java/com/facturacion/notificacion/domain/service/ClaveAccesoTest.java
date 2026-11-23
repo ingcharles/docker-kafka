@@ -11,18 +11,18 @@ class ClaveAccesoTest {
     private static final String CLAVE = "0911202601172203995300110010010000000019910239814";
 
     @Test
-    void testDeberiaExtraeElRucDelEmisorDeLaClave() {
+    void testDeberiaExtraerElRucDelEmisorDeLaClave() {
         assertEquals("1722039953001", ClaveAcceso.obtenerRucDelEmisor(CLAVE));
     }
 
     @Test
-    void testDeberiaExtraeElNumeroYLaFechaDeEmisionDeLaClave() {
+    void testDeberiaExtraerElNumeroYLaFechaDeEmisionDeLaClave() {
         assertEquals("001-001-000000001", ClaveAcceso.obtenerNumeroDelComprobante(CLAVE));
         assertEquals("09/11/2026", ClaveAcceso.obtenerFechaDeEmision(CLAVE));
     }
 
     @Test
-    void testDeberiaUnaClaveMalFormadaNoDaNumeroNiFecha() {
+    void testDeberiaNoDevolverNumeroNiFechaDeUnaClaveMalFormada() {
         assertNull(ClaveAcceso.obtenerNumeroDelComprobante(null));
         assertNull(ClaveAcceso.obtenerNumeroDelComprobante(CLAVE.substring(1)));
         assertNull(ClaveAcceso.obtenerFechaDeEmision(null));
@@ -31,7 +31,7 @@ class ClaveAccesoTest {
     }
 
     @Test
-    void testDeberiaUnaClaveMalFormadaNoDaRuc() {
+    void testDeberiaNoDevolverRucDeUnaClaveMalFormada() {
         assertNull(ClaveAcceso.obtenerRucDelEmisor(null));
         assertNull(ClaveAcceso.obtenerRucDelEmisor(""));
         assertNull(ClaveAcceso.obtenerRucDelEmisor(CLAVE.substring(1)));

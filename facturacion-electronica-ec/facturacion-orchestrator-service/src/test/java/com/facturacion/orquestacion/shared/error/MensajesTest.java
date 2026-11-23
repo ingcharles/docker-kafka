@@ -17,7 +17,7 @@ import com.facturacion.commons.error.Mensajes;
 class MensajesTest {
 
     @Test
-    void testDeberiaCadaCodigoTieneSuMensaje() {
+    void testDeberiaExigirMensajeParaCadaCodigo() {
         for (CodigoError codigo : CodigoError.values()) {
             assertTrue(Mensajes.existe(codigo.claveMensaje()), codigo + " no tiene clave en mensajes.properties");
             assertFalse(Mensajes.obtenerTexto(codigo).isBlank(), codigo + " tiene mensaje vacío");
@@ -25,7 +25,7 @@ class MensajesTest {
     }
 
     @Test
-    void testDeberiaMensajesNoUsadosNoSeAcumulan() {
+    void testDeberiaNoAcumularMensajesSinUso() {
         Set<String> usadas = Arrays.stream(CodigoError.values()).map(CodigoError::claveMensaje)
             .collect(Collectors.toSet());
         Arrays.stream(OrquestacionError.values()).forEach(e -> usadas.add(e.claveMensaje()));
@@ -35,7 +35,7 @@ class MensajesTest {
     }
 
     @Test
-    void testDeberiaLosParametrosReemplazanLosMarcadores() {
+    void testDeberiaReemplazarLosMarcadoresConLosParametros() {
         assertEquals("Reintento automático 2 de 3: sin respuesta en estado FIRMADO, se vuelve a publicar el último comando.",
             Mensajes.obtenerTexto(CodigoError.SAGA_REINTENTO_AUTOMATICO, 2, 3, "FIRMADO"));
     }

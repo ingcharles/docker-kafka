@@ -14,6 +14,7 @@ import jakarta.inject.Inject;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
+import io.vertx.mutiny.sqlclient.RowSet;
 import io.vertx.mutiny.sqlclient.Tuple;
 import io.vertx.pgclient.PgException;
 
@@ -65,7 +66,7 @@ public class CatalogoAdminService {
             }
         }
         sql.append(" order by ").append(def.listarClaves().stream().map(Columna::nombre).collect(Collectors.joining(", ")));
-        Uni<io.vertx.mutiny.sqlclient.RowSet<Row>> consulta = params.size() == 0
+        Uni<RowSet<Row>> consulta = params.size() == 0
             ? pool.query(sql.toString()).execute()
             : pool.preparedQuery(sql.toString()).execute(params);
         return consulta.map(filas -> {

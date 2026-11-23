@@ -3,6 +3,7 @@ package com.facturacion.comprobantes.application.service.construccion;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import jakarta.enterprise.context.ApplicationScoped;
@@ -65,7 +66,7 @@ public class ConstructorFactura implements ConstructorComprobante<CrearFacturaRe
                 comprobante.setCompradorCorreo(comun.armarCorreos(request.getCompradorCorreo(), "compradorCorreo"));
                 comprobante.setMoneda(request.getMoneda());
                 comprobante.setPlaca(request.getPlaca() == null || request.getPlaca().isBlank() ? null
-                    : request.getPlaca().toUpperCase(java.util.Locale.ROOT));
+                    : request.getPlaca().toUpperCase(Locale.ROOT));
                 CombustibleSri.exigirPlacaSiHayCombustible(detalles, comprobante.getPlaca());
                 comprobante.setDetalles(detalles);
                 comprobante.setPagos(comun.armarPagos(request.getPagos(), comprobante.getImporteTotal(), true, catalogos));

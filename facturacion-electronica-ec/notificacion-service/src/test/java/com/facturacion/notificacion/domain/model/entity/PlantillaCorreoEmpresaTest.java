@@ -21,7 +21,7 @@ class PlantillaCorreoEmpresaTest {
     }
 
     @Test
-    void testDeberiaLaPrimeraVersionEsLaUno() {
+    void testDeberiaCrearLaPlantillaEnLaVersionUno() {
         PlantillaCorreoEmpresa plantilla = nueva();
 
         assertEquals(1, plantilla.getVersion());
@@ -32,7 +32,7 @@ class PlantillaCorreoEmpresaTest {
     }
 
     @Test
-    void testDeberiaReemplazarSubeLaVersionYConservaLaFechaDeCreacion() {
+    void testDeberiaSubirLaVersionYConservarLaFechaDeCreacionAlReemplazar() {
         PlantillaCorreoEmpresa plantilla = nueva();
 
         plantilla.reemplazar("Otro", "<p>Chao</p>", "Chao", false, DESPUES);
@@ -47,7 +47,7 @@ class PlantillaCorreoEmpresaTest {
     }
 
     @Test
-    void testDeberiaLaCopiaConservaLaVersionAnteriorAunqueLaOriginalCambie() {
+    void testDeberiaConservarLaVersionAnteriorEnLaCopiaAunqueLaOriginalCambie() {
         PlantillaCorreoEmpresa plantilla = nueva();
 
         PlantillaCorreoEmpresa anterior = plantilla.copiar();

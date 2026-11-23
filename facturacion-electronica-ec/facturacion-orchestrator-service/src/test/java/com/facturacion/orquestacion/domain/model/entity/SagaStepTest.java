@@ -20,7 +20,7 @@ class SagaStepTest {
     private static final int LONGITUD_MAXIMA_STEP_NAME = 100;
 
     @Test
-    void testDeberiaLaNotaGuardaElCodigoCortoEnElNombreYElMensajeLargoEnElPayload() {
+    void testDeberiaGuardarElCodigoCortoEnElNombreYElMensajeLargoEnElPayloadDeLaNota() {
         String mensaje = Mensajes.obtenerTexto(CodigoError.SAGA_EXPIRADA, "FIRMADO", 3);
         SagaStep nota = SagaStep.crearNota(UUID.randomUUID(), CodigoError.SAGA_EXPIRADA.codigo(), mensaje);
 
@@ -32,7 +32,7 @@ class SagaStepTest {
     }
 
     @Test
-    void testDeberiaNingunCodigoDeErrorSuperaElLimiteDeStepName() {
+    void testDeberiaNoSuperarElLimiteDeStepNameConNingunCodigoDeError() {
         for (CodigoError codigo : CodigoError.values()) {
             assertTrue(codigo.codigo().length() <= LONGITUD_MAXIMA_STEP_NAME, codigo.name());
         }

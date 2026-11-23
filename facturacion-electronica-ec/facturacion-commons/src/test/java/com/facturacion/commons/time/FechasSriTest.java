@@ -15,7 +15,7 @@ class FechasSriTest {
     private static final Instant MADRUGADA_UTC = Instant.parse("2026-11-18T02:30:15Z");
 
     @Test
-    void testDeberiaFormateaSiempreEnHoraDeEcuador() {
+    void testDeberiaFormatearSiempreEnHoraDeEcuador() {
         assertEquals("17/11/2026", FechasSri.formatearFecha(MADRUGADA_UTC));
         assertEquals("17/11/2026 21:30:15", FechasSri.formatearFechaHora(MADRUGADA_UTC));
         assertEquals("17/11/2026 21:30", FechasSri.formatearFechaHoraCorta(MADRUGADA_UTC));
@@ -23,14 +23,14 @@ class FechasSriTest {
     }
 
     @Test
-    void testDeberiaLaFechaDeLaClaveDeAccesoNoLlevaSeparadores() {
+    void testDeberiaFormatearLaFechaDeLaClaveDeAccesoSinSeparadores() {
         assertEquals("18112026", FechasSri.formatearFechaClaveAcceso(LocalDate.of(2026, 11, 18)));
         assertEquals("05012027", FechasSri.formatearFechaClaveAcceso(LocalDate.of(2027, 1, 5)));
         assertEquals("05/01/2027", FechasSri.formatearFecha(LocalDate.of(2027, 1, 5)));
     }
 
     @Test
-    void testDeberiaLeeFechasDelSriDeFormaEstricta() {
+    void testDeberiaLeerLasFechasDelSriDeFormaEstricta() {
         assertEquals(LocalDate.of(2026, 2, 28), FechasSri.leerFecha("28/02/2026"));
         assertThrows(DateTimeParseException.class, () -> FechasSri.leerFecha("31/02/2026"));
         assertThrows(DateTimeParseException.class, () -> FechasSri.leerFecha("2026-02-28"));
@@ -38,12 +38,12 @@ class FechasSriTest {
     }
 
     @Test
-    void testDeberiaElInicioDelDiaEsLaMedianocheDeEcuador() {
+    void testDeberiaTomarLaMedianocheDeEcuadorComoInicioDelDia() {
         assertEquals(Instant.parse("2026-11-17T05:00:00Z"), FechasSri.obtenerInicioDelDia("17/11/2026"));
     }
 
     @Test
-    void testDeberiaEcuadorEstaCincoHorasDetrasDeUtc() {
+    void testDeberiaUsarUnDesfaseDeCincoHorasRespectoDeUtc() {
         assertEquals(-5 * 3600, ZonaHoraria.ECUADOR.getTotalSeconds());
     }
 }

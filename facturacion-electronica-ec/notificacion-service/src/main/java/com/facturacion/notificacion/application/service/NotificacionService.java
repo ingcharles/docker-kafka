@@ -13,6 +13,7 @@ import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.Context;
 import io.vertx.core.Vertx;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -77,7 +78,7 @@ public class NotificacionService {
      * {@link #guardarResultado}.
      */
     public Uni<String> enviarCorreo(ComprobanteEventMessage evento) {
-        io.vertx.core.Context callingContext = Vertx.currentContext();
+        Context callingContext = Vertx.currentContext();
         byte[] ridePdf = Base64.getDecoder().decode(evento.ridePdfBase64());
         TipoComprobanteCorreo tipo = TipoComprobanteCorreo.obtenerPorNombre(evento.tipoComprobante());
         return Panache.withSession(() -> lectorAjustes.leer(evento.empresaRuc(), tipo, obtenerNombreDeLaEmpresa(evento)))

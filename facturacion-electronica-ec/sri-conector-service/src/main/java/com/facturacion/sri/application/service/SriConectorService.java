@@ -1,5 +1,6 @@
 package com.facturacion.sri.application.service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -12,6 +13,8 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 import io.quarkus.hibernate.reactive.panache.Panache;
+import io.quarkus.hibernate.reactive.panache.common.WithSession;
+import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -65,6 +68,9 @@ public class SriConectorService {
 
     @ConfigProperty(name = "sri.autorizacion.poll.max-intentos")
     int maxIntentosAutorizacion;
+
+    @ConfigProperty(name = "sri.autorizacion.poll.reserva")
+    Duration reservaConsulta;
 
     @Inject
     public SriConectorService(EnvioSriRepository envioSriRepository, RecepcionSri recepcionClient,
@@ -157,7 +163,23 @@ public class SriConectorService {
             .onItem().transformToUni(ajustes -> autorizacionClient
                 .consultar(envio.getClaveAcceso(), envio.getAmbiente(), ajustes.urlOverride())
                 .onItem().transformToUni(resultado -> Panache.withTransaction(
-                    () -> aplicarResultadoAutorizacion(envio, resultado, ajustes.maxIntentos()))));
+                    () -> aplicarSiSigueVigente(envio, resultado, ajustes.maxIntentos()))));
+    }
+
+    /**
+     * Con 2 o más instancias, otra pudo consultar el mismo envío mientras esta esperaba al SRI (la reserva dura poco). Se
+     * toma el envío con bloqueo y solo se aplica el resultado si nadie más lo aplicó; si no, se descarta y no se publica
+     * un segundo evento.
+     */
+    private Uni<Void> aplicarSiSigueVigente(EnvioSri envio, AutorizacionResultado resultado, int maxIntentos) {
+        return envioSriRepository.findByIdBloqueado(envio.getId())
+            .onItem().transformToUni(actual -> {
+                if (actual == null || !actual.esConsultaVigente(envio.getIntentosAutorizacion())) {
+                    LogCodificado.info(LOG, CodigoLog.CONSULTA_DESCARTADA, "claveAcceso=" + envio.getClaveAcceso());
+                    return Uni.createFrom().voidItem();
+                }
+                return aplicarResultadoAutorizacion(envio, resultado, maxIntentos);
+            });
     }
 
     private record AjustesConsulta(String urlOverride, int maxIntentos) {
@@ -217,12 +239,17 @@ public class SriConectorService {
             .replaceWithVoid();
     }
 
-    @io.quarkus.hibernate.reactive.panache.common.WithSession
-    public Uni<List<EnvioSri>> listarPendientesDeAutorizacion(int batchSize) {
-        return envioSriRepository.findPendientesDeAutorizacion(EstadoEnvioSri.RECIBIDO, batchSize);
+    /**
+     * Toma los envíos que toca consultar y los reserva en una transacción corta (con {@code SKIP LOCKED}), para que otra
+     * instancia no consulte los mismos al SRI. La consulta en sí va después, sin transacción abierta.
+     */
+    @WithTransaction
+    public Uni<List<EnvioSri>> reclamarPendientesDeAutorizacion(int batchSize) {
+        Instant ahora = Instant.now();
+        return envioSriRepository.reclamarPendientesDeAutorizacion(batchSize, ahora.minus(reservaConsulta), ahora);
     }
 
-    @io.quarkus.hibernate.reactive.panache.common.WithSession
+    @WithSession
     public Uni<EnvioSri> obtenerDominioPorComprobanteId(UUID comprobanteId, String empresaRuc) {
         return envioSriRepository.findByComprobanteId(comprobanteId)
             .onItem().transform(envio -> filtrarPorEmpresa(envio, empresaRuc))
@@ -230,7 +257,7 @@ public class SriConectorService {
                 new NotFoundException(SriError.ENVIO_NO_ENCONTRADO_POR_COMPROBANTE, comprobanteId));
     }
 
-    @io.quarkus.hibernate.reactive.panache.common.WithSession
+    @WithSession
     public Uni<EnvioSriResponse> obtenerPorComprobanteId(UUID comprobanteId, String empresaRuc) {
         return envioSriRepository.findByComprobanteId(comprobanteId)
             .onItem().transform(envio -> filtrarPorEmpresa(envio, empresaRuc))
@@ -239,7 +266,7 @@ public class SriConectorService {
             .map(mapper::toResponse);
     }
 
-    @io.quarkus.hibernate.reactive.panache.common.WithSession
+    @WithSession
     public Uni<EnvioSriResponse> obtenerPorClaveAcceso(String claveAcceso, String empresaRuc) {
         return envioSriRepository.findByClaveAcceso(claveAcceso)
             .onItem().transform(envio -> filtrarPorEmpresa(envio, empresaRuc))

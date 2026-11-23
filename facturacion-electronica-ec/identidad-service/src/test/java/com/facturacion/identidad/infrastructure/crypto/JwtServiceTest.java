@@ -38,20 +38,20 @@ class JwtServiceTest {
     }
 
     @Test
-    void testDeberiaUnTokenDeSesionSeValidaYDevuelveElUsuario() {
+    void testDeberiaValidarUnTokenDeSesionYDevolverElUsuario() {
         UUID usuario = UUID.randomUUID();
         assertEquals(usuario, jwt.validarTokenSesion(jwt.generarTokenSesion(usuario, "a@x.com")));
     }
 
     @Test
-    void testDeberiaUnaApiKeyNoSirveComoTokenDeSesion() {
+    void testDeberiaRechazarUnaApiKeyUsadaComoTokenDeSesion() {
         String apiKey = jwt.generarApiKey(UUID.randomUUID(), "1722039953001", Rol.ADMIN, null, null, "jti-1",
             Instant.now().plusSeconds(60));
         assertThrows(TokenInvalidoException.class, () -> jwt.validarTokenSesion(apiKey));
     }
 
     @Test
-    void testDeberiaUnTokenManipuladoSeRechaza() {
+    void testDeberiaRechazarUnTokenManipulado() {
         String token = jwt.generarTokenSesion(UUID.randomUUID(), "a@x.com");
         int medio = token.lastIndexOf('.') + 10;
         char original = token.charAt(medio);
@@ -60,25 +60,25 @@ class JwtServiceTest {
     }
 
     @Test
-    void testDeberiaUnTokenFirmadoConOtraLlaveSeRechaza() {
+    void testDeberiaRechazarUnTokenFirmadoConOtraLlave() {
         String token = servicio(par(), 8).generarTokenSesion(UUID.randomUUID(), "a@x.com");
         TokenInvalidoException e = assertThrows(TokenInvalidoException.class, () -> jwt.validarTokenSesion(token));
         assertEquals("Token inválido o expirado", e.getMessage());
     }
 
     @Test
-    void testDeberiaUnTokenExpiradoSeRechaza() {
+    void testDeberiaRechazarUnTokenExpirado() {
         String token = servicio(LLAVES, -1).generarTokenSesion(UUID.randomUUID(), "a@x.com");
         assertThrows(TokenInvalidoException.class, () -> jwt.validarTokenSesion(token));
     }
 
     @Test
-    void testDeberiaUnaCadenaQueNoEsJwtSeRechaza() {
+    void testDeberiaRechazarUnaCadenaQueNoEsJwt() {
         assertThrows(TokenInvalidoException.class, () -> jwt.validarTokenSesion("esto-no-es-un-jwt"));
     }
 
     @Test
-    void testDeberiaLaApiKeyQueEmiteIdentidadlaVerificanLosDemasServiciosConSoloLaLlavePublica() {
+    void testDeberiaVerificarConSoloLaLlavePublicaLaApiKeyQueEmiteIdentidad() {
         UUID usuario = UUID.randomUUID();
         String apiKey = jwt.generarApiKey(usuario, "1722039953001", Rol.OPERADOR, "001", "002", "jti-9",
             Instant.now().plusSeconds(3600));
@@ -96,7 +96,7 @@ class JwtServiceTest {
     }
 
     @Test
-    void testDeberiaUnaApiKeyEmitidaPorOtraLlaveNoLaAceptaNingunServicio() {
+    void testDeberiaRechazarEnTodosLosServiciosUnaApiKeyEmitidaPorOtraLlave() {
         String falsa = servicio(par(), 8).generarApiKey(UUID.randomUUID(), "1722039953001", Rol.ADMIN, null, null,
             "jti-x", Instant.now().plusSeconds(3600));
         JwtVerificador otroServicio = new JwtVerificador(
@@ -106,13 +106,13 @@ class JwtServiceTest {
     }
 
     @Test
-    void testDeberiaNoSeEmiteUnaApiKeySinVencimiento() {
+    void testDeberiaNoEmitirUnaApiKeySinVencimiento() {
         assertThrows(IllegalArgumentException.class,
             () -> jwt.generarApiKey(UUID.randomUUID(), "1722039953001", Rol.ADMIN, null, null, "jti", null));
     }
 
     @Test
-    void testDeberiaCadaApiKeyLlevaUnSoloRucYUnSoloRolSacadosDeLaAsociacion() {
+    void testDeberiaEmitirCadaApiKeyConUnSoloRucYUnSoloRolTomadosDeLaAsociacion() {
         String apiKey = jwt.generarApiKey(UUID.randomUUID(), "1722039953001", Rol.LECTURA, null, null, "jti-2",
             Instant.now().plusSeconds(60));
         String payload = new String(Base64.getUrlDecoder().decode(apiKey.split("\\.")[1]));

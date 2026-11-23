@@ -11,7 +11,7 @@ import com.facturacion.notificacion.domain.model.enums.VariableCorreo;
 class SustitutoVariablesTest {
 
     @Test
-    void testDeberiaReemplazaCadaVariablePorSuValor() {
+    void testDeberiaReemplazarCadaVariablePorSuValor() {
         String resultado = SustitutoVariables.sustituir("{{tipoComprobante}} {{numero}} / {{numero}}",
             variable -> variable == VariableCorreo.NUMERO ? "001-001-000000001" : "Factura");
 
@@ -19,32 +19,32 @@ class SustitutoVariablesTest {
     }
 
     @Test
-    void testDeberiaLosEspaciosDentroDeLasLlavesNoImportan() {
+    void testDeberiaIgnorarLosEspaciosDentroDeLasLlaves() {
         assertEquals("1-2", SustitutoVariables.sustituir("{{ numero }}-{{  total}}", variable -> variable == VariableCorreo.NUMERO ? "1" : "2"));
     }
 
     @Test
-    void testDeberiaUnaVariableQueNoExisteSeReemplazaPorVacio() {
+    void testDeberiaReemplazarPorVacioUnaVariableQueNoExiste() {
         assertEquals("a--b", SustitutoVariables.sustituir("a-{{inventada}}-b", variable -> "x"));
     }
 
     @Test
-    void testDeberiaElValorSeInsertaTalCualAunqueTengaSimbolosDeReemplazo() {
+    void testDeberiaInsertarElValorTalCualAunqueTengaSimbolosDeReemplazo() {
         assertEquals("pagó $1 y \\2", SustitutoVariables.sustituir("pagó {{total}}", variable -> "$1 y \\2"));
     }
 
     @Test
-    void testDeberiaUnValorNuloSeTrataComoVacio() {
+    void testDeberiaTratarUnValorNuloComoVacio() {
         assertEquals("[]", SustitutoVariables.sustituir("[{{numero}}]", variable -> null));
     }
 
     @Test
-    void testDeberiaUnaVariableNoSeEvaluaComoExpresion() {
+    void testDeberiaNoEvaluarUnaVariableComoExpresion() {
         assertEquals("[]", SustitutoVariables.sustituir("[{{numero.toString()}}]", variable -> "x"));
     }
 
     @Test
-    void testDeberiaListaLosNombresQueAparecen() {
+    void testDeberiaListarLosNombresDeLasVariablesQueAparecen() {
         assertEquals(List.of("numero", "inventada", "numero"),
             SustitutoVariables.listarNombres("{{numero}} y {{ inventada }} y {{numero}}"));
         assertEquals(List.of(), SustitutoVariables.listarNombres(null));
@@ -52,7 +52,7 @@ class SustitutoVariablesTest {
     }
 
     @Test
-    void testDeberiaEscapaLoQueHtmlInterpreta() {
+    void testDeberiaEscaparLoQueHtmlInterpreta() {
         assertEquals("&lt;b&gt;A &amp; B&lt;/b&gt; &quot;c&quot; &#39;d&#39;", SustitutoVariables.escaparHtml("<b>A & B</b> \"c\" 'd'"));
         assertEquals("sin cambios", SustitutoVariables.escaparHtml("sin cambios"));
     }

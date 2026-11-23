@@ -27,7 +27,7 @@ class EstadoSqlTest {
     }
 
     @Test
-    void testDeberiaLeeElEstadoDelClienteReactivoAunqueEsteEnvueltoVariasVeces() {
+    void testDeberiaLeerElEstadoSqlDelClienteReactivoAunqueEsteEnvueltoVariasVeces() {
         Throwable envuelta = new RuntimeException("persistence",
             new IllegalStateException("hibernate", new FalloDePostgres(EstadoSql.BLOQUEO_NO_DISPONIBLE)));
 
@@ -35,18 +35,18 @@ class EstadoSqlTest {
     }
 
     @Test
-    void testDeberiaLeeElEstadoDeJdbc() {
+    void testDeberiaLeerElEstadoSqlDeJdbc() {
         assertEquals(Optional.of("57014"), EstadoSql.buscarEn(new SQLException("cancelada", "57014")));
     }
 
     @Test
-    void testDeberiaSinEstadoSqlNoDevuelveNada() {
+    void testDeberiaNoDevolverNadaSiLaFallaNoTraeEstadoSql() {
         assertEquals(Optional.empty(), EstadoSql.buscarEn(new RuntimeException("otra cosa", new IllegalStateException())));
         assertEquals(Optional.empty(), EstadoSql.buscarEn(null));
     }
 
     @Test
-    void testDeberiaSoloLosPlazosVencidosSonRetriables() {
+    void testDeberiaConsiderarRetriablesSoloLosPlazosVencidos() {
         assertTrue(EstadoSql.esPlazoVencido(EstadoSql.BLOQUEO_NO_DISPONIBLE));
         assertTrue(EstadoSql.esPlazoVencido(EstadoSql.CONSULTA_CANCELADA));
         assertTrue(EstadoSql.esPlazoVencido(EstadoSql.TRANSACCION_INACTIVA_VENCIDA));

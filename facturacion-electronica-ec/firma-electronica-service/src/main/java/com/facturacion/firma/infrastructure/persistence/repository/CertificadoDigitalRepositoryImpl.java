@@ -12,6 +12,7 @@ import io.smallrye.mutiny.Uni;
 import com.facturacion.firma.domain.model.entity.CertificadoDigital;
 import com.facturacion.firma.domain.model.enums.EstadoCertificado;
 import com.facturacion.firma.domain.repository.CertificadoDigitalRepository;
+import com.facturacion.firma.infrastructure.persistence.entity.CertificadoDigitalEntity;
 import com.facturacion.firma.infrastructure.persistence.mapper.CertificadoDigitalMapper;
 
 @ApplicationScoped
@@ -60,7 +61,7 @@ public class CertificadoDigitalRepositoryImpl implements CertificadoDigitalRepos
 
     @Override
     public Uni<CertificadoDigital> findById(UUID id) {
-        return repository.<com.facturacion.firma.infrastructure.persistence.entity.CertificadoDigitalEntity>findById(id)
+        return repository.<CertificadoDigitalEntity>findById(id)
             .map(entity -> entity == null ? null : mapper.toDomain(entity));
     }
 }

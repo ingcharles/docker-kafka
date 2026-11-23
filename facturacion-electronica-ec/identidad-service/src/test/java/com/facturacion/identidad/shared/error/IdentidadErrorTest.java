@@ -21,7 +21,7 @@ import com.facturacion.identidad.shared.exception.SinAsociacionException;
 class IdentidadErrorTest {
 
     @Test
-    void testDeberiaCadaCodigoTieneSuMensajeYNoSobranClaves() {
+    void testDeberiaExigirMensajeParaCadaCodigoSinClavesSobrantes() {
         for (IdentidadError error : IdentidadError.values()) {
             assertTrue(Mensajes.existe(error.claveMensaje()), error + " no tiene clave en mensajes.properties");
             assertFalse(Mensajes.obtenerTexto(error, "x").isBlank(), error + " tiene mensaje vacío");
@@ -33,7 +33,7 @@ class IdentidadErrorTest {
     }
 
     @Test
-    void testDeberiaCodigosUnicosConFormatoYEstadoCoherente() {
+    void testDeberiaExigirCodigosUnicosConFormatoYEstadoCoherente() {
         Set<String> vistos = new HashSet<>();
         for (IdentidadError error : IdentidadError.values()) {
             assertTrue(error.codigo().matches("^IDE-" + error.estadoHttp() + "-\\d{3}$"), error.codigo());
@@ -42,7 +42,7 @@ class IdentidadErrorTest {
     }
 
     @Test
-    void testDeberiaLasExcepcionesConservanElTextoYElEstadoDeAntes() {
+    void testDeberiaConservarElTextoYElEstadoDeLasExcepciones() {
         assertEquals("Ya existe un usuario registrado con el email a@x.com",
             new EmailDuplicadoException("a@x.com").getMessage());
         assertEquals(409, new EmailDuplicadoException("a@x.com").getError().estadoHttp());

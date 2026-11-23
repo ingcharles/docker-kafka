@@ -70,7 +70,7 @@ class KafkaRevocacionApiKeysPublicadorTest {
     }
 
     @Test
-    void testDeberiaContinuaEnElHiloDelContextoDeVertxDespuesDelAckDeKafka() throws Exception {
+    void testDeberiaContinuarEnElHiloDelContextoDeVertxDespuesDelAckDeKafka() throws Exception {
         Vertx vertx = Vertx.vertx();
         try {
             KafkaRevocacionApiKeysPublicador publicador =
@@ -95,7 +95,7 @@ class KafkaRevocacionApiKeysPublicadorTest {
     }
 
     @Test
-    void testDeberiaSinContextoDeVertxTambienCompletaTrasElAck() {
+    void testDeberiaCompletarTrasElAckAunqueNoHayaContextoDeVertx() {
         KafkaRevocacionApiKeysPublicador publicador =
             new KafkaRevocacionApiKeysPublicador(new EmisorQueConfirmaEnOtroHilo(), ESPERA);
         AtomicReference<String> hilo = new AtomicReference<>();
@@ -137,7 +137,7 @@ class KafkaRevocacionApiKeysPublicadorTest {
     }
 
     @Test
-    void testDeberiaSinAckDelBrokerLaRevocacionFallaAlVencerElPlazoEnVezDeColgarse() {
+    void testDeberiaFallarLaRevocacionAlVencerElPlazoEnVezDeColgarseSinAckDelBroker() {
         KafkaRevocacionApiKeysPublicador publicador =
             new KafkaRevocacionApiKeysPublicador(new EmisorSinRespuesta(), Duration.ofMillis(200));
 

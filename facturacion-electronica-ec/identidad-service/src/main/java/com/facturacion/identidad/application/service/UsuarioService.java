@@ -2,6 +2,8 @@ package com.facturacion.identidad.application.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -68,7 +70,7 @@ public class UsuarioService {
 
     /** El correo se guarda y se busca sin espacios y en minúsculas: "Ana@X.com" y "ana@x.com" son la misma cuenta. */
     static String normalizarEmail(String email) {
-        return email == null ? null : email.trim().toLowerCase(java.util.Locale.ROOT);
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
     }
 
     @WithTransaction
@@ -218,7 +220,7 @@ public class UsuarioService {
                 List<UUID> usuarioIds = miembros.stream().map(UsuarioEmpresaRol::getUsuarioId)
                     .collect(Collectors.toList());
                 return usuarioRepository.findByIds(usuarioIds).map(usuarios -> {
-                    java.util.Map<UUID, Usuario> porId = usuarios.stream()
+                    Map<UUID, Usuario> porId = usuarios.stream()
                         .collect(Collectors.toMap(Usuario::getId, u -> u));
                     return miembros.stream()
                         .map(m -> {

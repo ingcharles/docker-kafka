@@ -68,7 +68,7 @@ class SagaReenvioAutomaticoTest {
     }
 
     @Test
-    void testDeberiaReenviaUnaFallidaVieja_cuentaElIntentoYPideElReenvioPorElOutbox() {
+    void testDeberiaReenviarUnaFallidaViejaContandoElIntentoYPidiendoElReenvioPorElOutbox() {
         UUID id = saga(SagaState.NOTIFICACION_FALLIDA, 30, 0);
 
         assertEquals(Accion.REENVIAR, atender(id));
@@ -83,7 +83,7 @@ class SagaReenvioAutomaticoTest {
     }
 
     @Test
-    void testDeberiaUnaFallidaRecienFallidaNoSeReenvia() {
+    void testDeberiaNoReenviarUnaFallidaReciente() {
         UUID id = saga(SagaState.NOTIFICACION_FALLIDA, 1, 0);
 
         assertEquals(Accion.ESPERAR, atender(id));
@@ -93,7 +93,7 @@ class SagaReenvioAutomaticoTest {
     }
 
     @Test
-    void testDeberiaDosEjecucionesSeguidasNoDuplicanElEnvio() {
+    void testDeberiaNoDuplicarElEnvioEnDosEjecucionesSeguidas() {
         UUID id = saga(SagaState.NOTIFICACION_FALLIDA, 30, 0);
 
         assertEquals(Accion.REENVIAR, atender(id));
@@ -104,7 +104,7 @@ class SagaReenvioAutomaticoTest {
     }
 
     @Test
-    void testDeberiaUnaAutorizadaQueNuncaRecibioResultadoVuelveANotificacionFallidaSinGastarIntento() {
+    void testDeberiaVolverANotificacionFallidaSinGastarIntentoUnaAutorizadaQueNuncaRecibioResultado() {
         UUID id = saga(SagaState.AUTORIZADO, 30, 1);
 
         assertEquals(Accion.DAR_POR_SIN_RESPUESTA, atender(id));
@@ -117,7 +117,7 @@ class SagaReenvioAutomaticoTest {
     }
 
     @Test
-    void testDeberiaConTresIntentosAgotadosNoSeReenviaMasYNoOcupaLugarEnElLote() {
+    void testDeberiaNoReenviarConTresIntentosAgotadosNiOcuparLugarEnElLote() {
         UUID agotada1 = saga(SagaState.NOTIFICACION_FALLIDA, 900, 3);
         UUID agotada2 = saga(SagaState.NOTIFICACION_FALLIDA, 800, 3);
         UUID elegible1 = saga(SagaState.NOTIFICACION_FALLIDA, 60, 0);
@@ -132,7 +132,7 @@ class SagaReenvioAutomaticoTest {
     }
 
     @Test
-    void testDeberiaElLoteEsDeVeinteYElRestoQuedaParaElSiguienteCiclo() {
+    void testDeberiaLimitarElLoteAVeinteYDejarElRestoParaElSiguienteCiclo() {
         for (int i = 0; i < 25; i++) {
             saga(SagaState.NOTIFICACION_FALLIDA, 60, 0);
         }
@@ -146,7 +146,7 @@ class SagaReenvioAutomaticoTest {
     }
 
     @Test
-    void testDeberiaSiElEnvioSaleBienLaSagaTerminaEnNotificado() {
+    void testDeberiaTerminarLaSagaEnNotificadoSiElEnvioSaleBien() {
         UUID id = saga(SagaState.NOTIFICACION_FALLIDA, 30, 0);
         sagas.get(id).setFailureReason("ClosedChannelException");
 
@@ -158,7 +158,7 @@ class SagaReenvioAutomaticoTest {
     }
 
     @Test
-    void testDeberiaSiElEnvioFallaSiempreSeIntentaTresVecesYLaSagaQuedaVisibleEnNotificacionFallida() {
+    void testDeberiaIntentarTresVecesSiElEnvioFallaSiempreYDejarLaSagaVisibleEnNotificacionFallida() {
         UUID id = saga(SagaState.NOTIFICACION_FALLIDA, 30, 0);
 
         for (int intento = 1; intento <= 3; intento++) {
@@ -176,7 +176,7 @@ class SagaReenvioAutomaticoTest {
     }
 
     @Test
-    void testDeberiaElReenvioManualSigueFuncionandoConIntentosAgotadosYNoCuentaComoAutomatico() {
+    void testDeberiaPermitirElReenvioManualConIntentosAgotadosSinContarloComoAutomatico() {
         UUID id = saga(SagaState.NOTIFICACION_FALLIDA, 900, 3);
 
         int solicitados = servicio.reenviarNotificacionesFallidas(RUC, 100).await().atMost(Duration.ofSeconds(5));

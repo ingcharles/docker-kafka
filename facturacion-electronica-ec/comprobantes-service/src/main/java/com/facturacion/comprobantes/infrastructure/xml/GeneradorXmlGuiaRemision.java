@@ -2,6 +2,7 @@ package com.facturacion.comprobantes.infrastructure.xml;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import jakarta.enterprise.context.ApplicationScoped;
@@ -102,7 +103,7 @@ public class GeneradorXmlGuiaRemision implements GeneradorXmlComprobante {
     }
 
     private Element construirDestinatarios(Document doc, Comprobante c) {
-        Map<java.util.UUID, List<DetalleComprobante>> detallesPorDestinatario = c.getDetalles().stream()
+        Map<UUID, List<DetalleComprobante>> detallesPorDestinatario = c.getDetalles().stream()
             .collect(Collectors.groupingBy(DetalleComprobante::getDestinatarioId));
 
         Element destinatarios = doc.createElement("destinatarios");

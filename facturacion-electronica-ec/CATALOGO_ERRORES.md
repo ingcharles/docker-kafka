@@ -318,6 +318,7 @@ Todo log del código propio lleva un código estable: `[FIR-401] texto (comproba
 | `SRI-204` | INFO | Se descarta el comando {0}: ya se procesó antes |
 | `SRI-205` | INFO | El WS de Autorización del SRI respondió HTTP {0} |
 | `SRI-206` | INFO | El WS de Recepción del SRI respondió HTTP {0} para el ambiente {1} |
+| `SRI-207` | INFO | Se descarta el resultado de la consulta de autorización: otra instancia ya lo aplicó |
 | `SRI-301` | WARN | Se ignora el override de URL del SRI {0}: no es https o su host no está en sri.url.hosts-permitidos; se usa la URL oficial |
 | `SRI-401` | ERROR | El SRI rechazó la recepción del comprobante: {0} |
 | `SRI-402` | ERROR | El SRI no autorizó el comprobante: {0} |

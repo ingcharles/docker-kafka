@@ -22,7 +22,7 @@ class ComprobanteCicloDeVidaTest {
     }
 
     @Test
-    void testDeberiaRecorreElCicloFelizGuardandoLosDatosDeCadaPaso() {
+    void testDeberiaRecorrerElCicloFelizGuardandoLosDatosDeCadaPaso() {
         Comprobante comprobante = borrador();
 
         comprobante.marcarFirmado("<firmado/>");
@@ -43,7 +43,7 @@ class ComprobanteCicloDeVidaTest {
     }
 
     @Test
-    void testDeberiaLaFirmaFallidaYElRechazoGuardanElMotivo() {
+    void testDeberiaGuardarElMotivoDeLaFirmaFallidaYDelRechazo() {
         Comprobante sinCertificado = borrador();
         sinCertificado.marcarFirmaFallida("La empresa no tiene certificado activo");
         assertEquals(EstadoComprobante.FIRMA_FALLIDA, sinCertificado.getEstado());
@@ -57,7 +57,7 @@ class ComprobanteCicloDeVidaTest {
     }
 
     @Test
-    void testDeberiaUnaTransicionIlegalFallaSinTocarNada() {
+    void testDeberiaFallarSinTocarNadaEnUnaTransicionIlegal() {
         Comprobante comprobante = borrador();
 
         assertThrows(IllegalStateException.class,
@@ -68,7 +68,7 @@ class ComprobanteCicloDeVidaTest {
     }
 
     @Test
-    void testDeberiaNoSeRetrocedeNiSeAutorizaDosVeces() {
+    void testDeberiaNoRetrocederNiAutorizarDosVeces() {
         Comprobante comprobante = borrador();
         comprobante.marcarFirmado("<firmado/>");
         comprobante.marcarAutorizado("<a/>", "1", Instant.now());
@@ -79,12 +79,12 @@ class ComprobanteCicloDeVidaTest {
     }
 
     @Test
-    void testDeberiaElRideSoloSeAdjuntaAUnComprobanteAutorizado() {
+    void testDeberiaAdjuntarElRideSoloAUnComprobanteAutorizado() {
         assertThrows(IllegalStateException.class, () -> borrador().adjuntarRide(new byte[] {1}));
     }
 
     @Test
-    void testDeberiaConsultaSiUnDestinoSaltaPasosDelCiclo() {
+    void testDeberiaDetectarSiUnDestinoSaltaPasosDelCiclo() {
         Comprobante comprobante = borrador();
         assertEquals(true, comprobante.esSaltoDePasos(EstadoComprobante.AUTORIZADO));
         assertEquals(false, comprobante.esSaltoDePasos(EstadoComprobante.FIRMADO));

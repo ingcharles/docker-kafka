@@ -2,6 +2,7 @@ package com.facturacion.inventario.infrastructure.rest;
 
 import java.net.URI;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.UUID;
 
 import jakarta.inject.Inject;
@@ -93,7 +94,7 @@ public class ImagenResource {
             @Parameter(description = "Id del ítem", required = true) @PathParam("id") UUID id) {
         return acceso.exigirItem(id)
             .chain(() -> imagenService.listarPorItem(id))
-            .map((java.util.List<ImagenItemResponse> imagenes) -> Response.ok(imagenes).build());
+            .map((List<ImagenItemResponse> imagenes) -> Response.ok(imagenes).build());
     }
 
     @GET

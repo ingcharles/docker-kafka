@@ -1,5 +1,6 @@
 package com.facturacion.orquestacion.infrastructure.messaging.producer;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -45,7 +46,7 @@ public class OrquestacionCommandRelay {
     private static final Logger LOG = Logger.getLogger(OrquestacionCommandRelay.class);
 
     @ConfigProperty(name = "outbox.relay.timeout-ack")
-    java.time.Duration timeoutAck;
+    Duration timeoutAck;
     private static final int BATCH_SIZE = 20;
 
     @Inject

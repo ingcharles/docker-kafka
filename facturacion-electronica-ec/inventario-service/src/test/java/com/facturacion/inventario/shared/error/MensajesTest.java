@@ -17,7 +17,7 @@ import com.facturacion.commons.error.Mensajes;
 class MensajesTest {
 
     @Test
-    void testDeberiaCadaCodigoTieneSuMensaje() {
+    void testDeberiaExigirMensajeParaCadaCodigo() {
         for (CodigoError codigo : CodigoError.values()) {
             assertTrue(Mensajes.existe(codigo.claveMensaje()), codigo + " no tiene clave en mensajes.properties");
             assertFalse(Mensajes.obtenerTexto(codigo).isBlank(), codigo + " tiene mensaje vacío");
@@ -25,7 +25,7 @@ class MensajesTest {
     }
 
     @Test
-    void testDeberiaCadaCodigoDeLogTieneSuMensaje() {
+    void testDeberiaExigirMensajeParaCadaCodigoDeLog() {
         for (CodigoLog codigo : CodigoLog.values()) {
             assertTrue(Mensajes.existe(codigo.claveMensaje()), codigo + " no tiene clave en mensajes.properties");
             assertFalse(Mensajes.obtenerTexto(codigo, 1, 2, 3, 4).isBlank(), codigo + " tiene mensaje vacío");
@@ -33,7 +33,7 @@ class MensajesTest {
     }
 
     @Test
-    void testDeberiaMensajesNoUsadosNoSeAcumulan() {
+    void testDeberiaNoAcumularMensajesSinUso() {
         Set<String> usadas = Arrays.stream(CodigoError.values()).map(CodigoError::claveMensaje)
             .collect(Collectors.toSet());
         Arrays.stream(CodigoLog.values()).forEach(log -> usadas.add(log.claveMensaje()));
@@ -43,7 +43,7 @@ class MensajesTest {
     }
 
     @Test
-    void testDeberiaCodigosYClavesSonUnicos() {
+    void testDeberiaExigirCodigosYClavesUnicos() {
         assertEquals(CodigoError.values().length,
             Arrays.stream(CodigoError.values()).map(CodigoError::codigo).distinct().count(), "códigos repetidos");
         assertEquals(CodigoError.values().length,
@@ -52,6 +52,6 @@ class MensajesTest {
     }
 
     @Test
-    void testDeberiaElMensajeSeLeeDelArchivo() {
+    void testDeberiaLeerElMensajeDelArchivo() {
     }
 }

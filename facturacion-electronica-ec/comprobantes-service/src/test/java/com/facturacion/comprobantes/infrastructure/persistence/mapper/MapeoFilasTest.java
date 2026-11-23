@@ -28,7 +28,7 @@ class MapeoFilasTest {
     private final DetalleComprobanteMapper detalleMapper = new DetalleComprobanteMapperImpl();
 
     @Test
-    void testDeberiaPagosConservanOrdenYValores() {
+    void testDeberiaConservarElOrdenYLosValoresDeLosPagos() {
         List<Pago> pagos = List.of(
             new Pago("01", new BigDecimal("15.00"), null, null),
             new Pago("19", new BigDecimal("100.00"), "30", "dias"),
@@ -45,7 +45,7 @@ class MapeoFilasTest {
     }
 
     @Test
-    void testDeberiaPlazoVuelveSinCerosSobrantesAunqueLaColumnaSeaNumeric142() {
+    void testDeberiaDevolverElPlazoSinCerosSobrantesAunqueLaColumnaSeaNumeric142() {
         ComprobantePagoEntity fila = new ComprobantePagoEntity();
         fila.formaPago = "19";
         fila.total = new BigDecimal("10.00");
@@ -61,7 +61,7 @@ class MapeoFilasTest {
     }
 
     @Test
-    void testDeberiaListasNulasDanListasVacias() {
+    void testDeberiaDevolverListasVaciasPorListasNulas() {
         assertTrue(comprobanteMapper.escribirPagos(null).isEmpty());
         assertTrue(comprobanteMapper.leerPagos(null).isEmpty());
         assertTrue(detalleMapper.escribirImpuestos(null).isEmpty());
@@ -69,7 +69,7 @@ class MapeoFilasTest {
     }
 
     @Test
-    void testDeberiaImpuestoDeFacturaHaceIdaYVuelta() {
+    void testDeberiaConvertirElImpuestoDeFacturaDeIdaYVuelta() {
         List<Impuesto> impuestos = List.of(
             new Impuesto("2", "4", new BigDecimal("15"), new BigDecimal("100.12345678"), new BigDecimal("15.02")),
             new Impuesto("3", "3011", new BigDecimal("10"), new BigDecimal("100.12345678"), new BigDecimal("10.01")));
@@ -84,7 +84,7 @@ class MapeoFilasTest {
     }
 
     @Test
-    void testDeberiaLineaDeRetencionConvierteLaFechaDelDocumentoSustento() {
+    void testDeberiaConvertirLaFechaDelDocumentoSustentoDeLaLineaDeRetencion() {
         Impuesto retencion = new Impuesto("1", null, new BigDecimal("10"), new BigDecimal("300.00"),
             new BigDecimal("30.00"), "312", "01", "001001000000123", "20/07/2026");
 
@@ -97,7 +97,7 @@ class MapeoFilasTest {
     }
 
     @Test
-    void testDeberiaDetalleEnlazaSusImpuestosConLaFilaPadre() {
+    void testDeberiaEnlazarLosImpuestosDelDetalleConLaFilaPadre() {
         DetalleComprobante detalle = new DetalleComprobante(UUID.randomUUID(), null, "P-1", null, "Producto",
             new BigDecimal("2"), new BigDecimal("50.00"), BigDecimal.ZERO,
             List.of(new Impuesto("2", "4", new BigDecimal("15"), new BigDecimal("100.00"), new BigDecimal("15.00"))));

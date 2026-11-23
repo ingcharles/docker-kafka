@@ -66,7 +66,7 @@ class JwtVerificadorTest {
     }
 
     @Test
-    void testDeberiaApiKeyValidaDevuelveElPrincipalConSuUnicaEmpresaYRol() {
+    void testDeberiaDevolverElPrincipalConSuUnicaEmpresaYRolParaUnaApiKeyValida() {
         TokenPrincipal p = verificador.verificar(apiKey(Instant.now().plusSeconds(60)));
         assertEquals(usuario, p.getUsuarioId());
         assertEquals("1722039953001", p.getRuc());
@@ -76,12 +76,12 @@ class JwtVerificadorTest {
     }
 
     @Test
-    void testDeberiaUnTokenFirmadoConOtraLlaveSeRechazaAunqueTodoLoDemasSeaValido() {
+    void testDeberiaRechazarUnTokenFirmadoConOtraLlaveAunqueTodoLoDemasSeaValido() {
         rechaza(base(Instant.now().plusSeconds(60)).signWith(AJENO.getPrivate()).compact());
     }
 
     @Test
-    void testDeberiaNoSePuedeFalsificarFirmandoConHmacUsandoLaLlavePublicaComoSecreto() {
+    void testDeberiaRechazarUnTokenFalsificadoConHmacUsandoLaLlavePublicaComoSecreto() {
         // Ataque de confusión de algoritmo: la llave pública es pública, así que sirve de "secreto" HS256 para
         // cualquiera. El verificador debe fijar la llave asimétrica y rechazar el token.
         SecretKey secreto = Keys.hmacShaKeyFor(
@@ -90,17 +90,17 @@ class JwtVerificadorTest {
     }
 
     @Test
-    void testDeberiaUnTokenSinFirmaOConAlgoritmoNoneSeRechaza() {
+    void testDeberiaRechazarUnTokenSinFirmaOConAlgoritmoNone() {
         rechaza(base(Instant.now().plusSeconds(60)).compact());
     }
 
     @Test
-    void testDeberiaSinElEmisorDeIdentidadSeRechaza() {
+    void testDeberiaRechazarUnTokenSinElEmisorDeIdentidad() {
         rechaza(base(Instant.now().plusSeconds(60)).issuer("otro-sistema").signWith(EMISOR.getPrivate()).compact());
     }
 
     @Test
-    void testDeberiaUnaApiKeyDebeTenerExactamenteUnRucDe13Digitos() {
+    void testDeberiaExigirQueLaApiKeyTengaExactamenteUnRucDe13Digitos() {
         Instant vence = Instant.now().plusSeconds(60);
         rechaza(base(vence).claim("ruc", null).signWith(EMISOR.getPrivate()).compact());
         rechaza(base(vence).claim("ruc", "123").signWith(EMISOR.getPrivate()).compact());
@@ -111,7 +111,7 @@ class JwtVerificadorTest {
     }
 
     @Test
-    void testDeberiaUnaApiKeyDebeTenerExactamenteUnRolConocido() {
+    void testDeberiaExigirQueLaApiKeyTengaExactamenteUnRolConocido() {
         Instant vence = Instant.now().plusSeconds(60);
         rechaza(base(vence).claim("rol", null).signWith(EMISOR.getPrivate()).compact());
         rechaza(base(vence).claim("rol", "SUPERADMIN").signWith(EMISOR.getPrivate()).compact());
@@ -120,14 +120,14 @@ class JwtVerificadorTest {
     }
 
     @Test
-    void testDeberiaUnaApiKeyDebeTenerJtiYVencimiento() {
+    void testDeberiaExigirQueLaApiKeyTengaJtiYVencimiento() {
         Instant vence = Instant.now().plusSeconds(60);
         rechaza(base(vence).id(null).signWith(EMISOR.getPrivate()).compact());
         rechaza(base(vence).expiration(null).signWith(EMISOR.getPrivate()).compact());
     }
 
     @Test
-    void testDeberiaElPuntoDeEmisionExigeEstablecimientoYFormatoValido() {
+    void testDeberiaExigirEstablecimientoYFormatoValidoParaElPuntoDeEmision() {
         Instant vence = Instant.now().plusSeconds(60);
         String conPunto = base(vence).claim("puntoEmision", "002").signWith(EMISOR.getPrivate()).compact();
         assertEquals("002", verificador.verificar(conPunto).getPuntoEmision());
@@ -138,12 +138,12 @@ class JwtVerificadorTest {
     }
 
     @Test
-    void testDeberiaUnTokenDeSesionNoSirveComoApiKey() {
+    void testDeberiaRechazarUnTokenDeSesionUsadoComoApiKey() {
         assertThrows(TokenInvalidoException.class, () -> verificador.verificar(sesion()));
     }
 
     @Test
-    void testDeberiaSoloLosEndpointsPermiteSesionAceptanUnaSesionYSinRuc() {
+    void testDeberiaAceptarUnaSesionSinRucSoloEnLosEndpointsQuePermitenSesion() {
         TokenPrincipal p = verificador.verificarApiKeyOSesion(sesion());
         assertEquals(usuario, p.getUsuarioId());
         assertNull(p.getRuc());
@@ -151,7 +151,7 @@ class JwtVerificadorTest {
     }
 
     @Test
-    void testDeberiaTokenVencidoOManipuladoSeRechazaSinExponerElDetalleDeJjwt() {
+    void testDeberiaRechazarUnTokenVencidoOManipuladoSinExponerElDetalleDeJjwt() {
         rechaza(apiKey(Instant.now().minusSeconds(60)));
 
         // Cambia un carácter del medio de la firma (el último puede ser relleno base64 y decodificar igual).
@@ -162,7 +162,7 @@ class JwtVerificadorTest {
     }
 
     @Test
-    void testDeberiaUnaApiKeyRevocadaSeRechazaAunqueSigaVigente() {
+    void testDeberiaRechazarUnaApiKeyRevocadaAunqueSigaVigente() {
         Instant vence = Instant.now().plusSeconds(3600);
         String revocada = base(vence).id("jti-revocado").signWith(EMISOR.getPrivate()).compact();
         String otra = base(vence).id("jti-vigente").signWith(EMISOR.getPrivate()).compact();

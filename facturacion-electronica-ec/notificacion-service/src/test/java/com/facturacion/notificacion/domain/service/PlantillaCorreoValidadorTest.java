@@ -17,14 +17,14 @@ class PlantillaCorreoValidadorTest {
     }
 
     @Test
-    void testDeberiaUnaPlantillaConVariablesPermitidasSePasa() {
+    void testDeberiaAceptarUnaPlantillaConVariablesPermitidas() {
         assertDoesNotThrow(() -> PlantillaCorreoValidador.validar("{{tipoComprobante}} {{numero}}",
             "<p>Hola {{nombreReceptor}}</p><div>{{logo}}</div><td>{{total}}</td>", "Hola {{nombreReceptor}} {{logo}}"));
         assertDoesNotThrow(() -> PlantillaCorreoValidador.validar("Su factura", "<p>Sin variables</p>", null));
     }
 
     @Test
-    void testDeberiaUnaVariableQueNoExisteSeRechazaConLaListaDeLasPermitidas() {
+    void testDeberiaRechazarUnaVariableQueNoExisteInformandoLasPermitidas() {
         for (String[] caso : new String[][] {
             {"{{inventada}}", "<p>x</p>", null},
             {"ok", "<p>{{otra}}</p>", null},
@@ -39,7 +39,7 @@ class PlantillaCorreoValidadorTest {
     }
 
     @Test
-    void testDeberiaUnaVariableDentroDeUnaEtiquetaSeRechaza() {
+    void testDeberiaRechazarUnaVariableDentroDeUnaEtiqueta() {
         for (String html : new String[] {
             "<a href=\"{{claveAcceso}}\">ver</a>",
             "<img src=\"{{logo}}\">",
@@ -50,13 +50,13 @@ class PlantillaCorreoValidadorTest {
     }
 
     @Test
-    void testDeberiaElAsuntoVaEnUnaSolaLinea() {
+    void testDeberiaExigirQueElAsuntoVayaEnUnaSolaLinea() {
         assertEquals(NotificacionError.PLANTILLA_ASUNTO_MULTILINEA, rechazo("a\nBcc: x@y.z", "<p>x</p>", null).getError());
         assertEquals(NotificacionError.PLANTILLA_ASUNTO_MULTILINEA, rechazo("a\rb", "<p>x</p>", null).getError());
     }
 
     @Test
-    void testDeberiaElLogoNoSePuedeUsarEnElAsunto() {
+    void testDeberiaRechazarLaVariableLogoEnElAsunto() {
         assertEquals(NotificacionError.PLANTILLA_LOGO_EN_ASUNTO, rechazo("{{logo}}", "<p>x</p>", null).getError());
     }
 }

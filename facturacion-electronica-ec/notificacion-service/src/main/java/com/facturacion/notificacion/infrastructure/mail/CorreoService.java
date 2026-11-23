@@ -1,5 +1,9 @@
 package com.facturacion.notificacion.infrastructure.mail;
 
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -33,7 +37,7 @@ import com.facturacion.notificacion.domain.port.CorreoSalida;
 @ApplicationScoped
 public class CorreoService implements CorreoSalida {
 
-    private static final java.nio.charset.Charset UTF8 = java.nio.charset.StandardCharsets.UTF_8;
+    private static final Charset UTF8 = StandardCharsets.UTF_8;
     private static final String NOMBRE_LOGO_INCRUSTADO = "logo";
     private static final String REFERENCIA_AL_LOGO = "cid:" + LogoEmpresa.CID;
     private static final String IDENTIFICADOR_DEL_LOGO = "<" + LogoEmpresa.CID + ">";
@@ -46,7 +50,7 @@ public class CorreoService implements CorreoSalida {
     String remitenteDefecto;
 
     @ConfigProperty(name = "notificacion.correo.timeout")
-    java.time.Duration timeoutEnvio;
+    Duration timeoutEnvio;
 
     @Inject
     public CorreoService(ReactiveMailer mailer, MailRateLimiter rateLimiter, ArmadorContenidoCorreo armador) {

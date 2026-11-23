@@ -7,6 +7,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -54,7 +55,7 @@ public class SriAutorizacionClient implements AutorizacionSri {
     String urlProduccion;
 
     @ConfigProperty(name = "sri.url.hosts-permitidos", defaultValue = "*.sri.gob.ec")
-    java.util.List<String> hostsPermitidos;
+    List<String> hostsPermitidos;
 
     private HttpClient httpClient;
 

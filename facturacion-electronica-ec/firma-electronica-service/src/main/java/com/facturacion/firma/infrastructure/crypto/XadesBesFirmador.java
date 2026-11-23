@@ -3,6 +3,7 @@ package com.facturacion.firma.infrastructure.crypto;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.security.PrivateKey;
@@ -14,6 +15,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import javax.xml.XMLConstants;
+import javax.xml.crypto.dom.DOMStructure;
 import javax.xml.crypto.dsig.CanonicalizationMethod;
 import javax.xml.crypto.dsig.DigestMethod;
 import javax.xml.crypto.dsig.Reference;
@@ -28,6 +30,7 @@ import javax.xml.crypto.dsig.keyinfo.KeyInfo;
 import javax.xml.crypto.dsig.keyinfo.KeyInfoFactory;
 import javax.xml.crypto.dsig.keyinfo.X509Data;
 import javax.xml.crypto.dsig.spec.C14NMethodParameterSpec;
+import javax.xml.crypto.dsig.spec.TransformParameterSpec;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
@@ -114,7 +117,7 @@ public final class XadesBesFirmador {
 
             Reference refComprobante = fabrica.newReference("#" + idComprobante,
                 fabrica.newDigestMethod(DigestMethod.SHA1, null),
-                List.of(fabrica.newTransform(Transform.ENVELOPED, (javax.xml.crypto.dsig.spec.TransformParameterSpec) null)),
+                List.of(fabrica.newTransform(Transform.ENVELOPED, (TransformParameterSpec) null)),
                 null, null);
 
             Reference refKeyInfo = fabrica.newReference("#" + idKeyInfo,
@@ -134,7 +137,7 @@ public final class XadesBesFirmador {
             KeyInfo keyInfo = keyInfoFabrica.newKeyInfo(Collections.singletonList(x509Data), idKeyInfo);
 
             XMLObject signatureObject = fabrica.newXMLObject(
-                Collections.singletonList(new javax.xml.crypto.dom.DOMStructure(qualifyingProperties)),
+                Collections.singletonList(new DOMStructure(qualifyingProperties)),
                 idObject, null, null);
 
             XMLSignature signature = fabrica.newXMLSignature(signedInfo, keyInfo,
@@ -250,7 +253,7 @@ public final class XadesBesFirmador {
         StringWriter writer = new StringWriter();
         transformer.transform(new DOMSource(documento), new StreamResult(writer));
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        out.write(writer.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        out.write(writer.toString().getBytes(StandardCharsets.UTF_8));
         return out.toByteArray();
     }
 }

@@ -30,39 +30,39 @@ class PoliticaReintentoSagaTest {
     }
 
     @Test
-    void testDeberiaEsperaMientrasNoSePaseElPlazoDelEstado() {
+    void testDeberiaEsperarMientrasNoSePaseElPlazoDelEstado() {
         assertEquals(Accion.ESPERAR, PoliticaReintentoSaga.decidir(saga(SagaState.CREADO, Duration.ofSeconds(119), 0), AHORA, PLAZOS));
         assertEquals(Accion.ESPERAR, PoliticaReintentoSaga.decidir(saga(SagaState.FIRMADO, Duration.ofMinutes(14), 0), AHORA, PLAZOS));
     }
 
     @Test
-    void testDeberiaReintentaCuandoSePasaElPlazoYQuedanReintentos() {
+    void testDeberiaReintentarCuandoSePasaElPlazoYQuedanReintentos() {
         assertEquals(Accion.REINTENTAR, PoliticaReintentoSaga.decidir(saga(SagaState.CREADO, Duration.ofMinutes(2), 0), AHORA, PLAZOS));
         assertEquals(Accion.REINTENTAR, PoliticaReintentoSaga.decidir(saga(SagaState.FIRMADO, Duration.ofMinutes(16), 2), AHORA, PLAZOS));
     }
 
     @Test
-    void testDeberiaExpiraCuandoSePasaElPlazoYYaNoQuedanReintentos() {
+    void testDeberiaExpirarCuandoSePasaElPlazoYYaNoQuedanReintentos() {
         assertEquals(Accion.EXPIRAR, PoliticaReintentoSaga.decidir(saga(SagaState.CREADO, Duration.ofMinutes(3), 3), AHORA, PLAZOS));
         assertEquals(Accion.EXPIRAR, PoliticaReintentoSaga.decidir(saga(SagaState.FIRMADO, Duration.ofHours(1), 5), AHORA, PLAZOS));
     }
 
     @Test
-    void testDeberiaElPlazoDelSriEsMasLargoQueElDeLaFirma() {
+    void testDeberiaDarAlSriUnPlazoMasLargoQueALaFirma() {
         Duration intermedia = Duration.ofMinutes(5);
         assertEquals(Accion.REINTENTAR, PoliticaReintentoSaga.decidir(saga(SagaState.CREADO, intermedia, 0), AHORA, PLAZOS));
         assertEquals(Accion.ESPERAR, PoliticaReintentoSaga.decidir(saga(SagaState.FIRMADO, intermedia, 0), AHORA, PLAZOS));
     }
 
     @Test
-    void testDeberiaLosEstadosDeInventarioSeReintentanConElPlazoDeLaFirma() {
+    void testDeberiaReintentarLosEstadosDeInventarioConElPlazoDeLaFirma() {
         assertEquals(Accion.REINTENTAR, PoliticaReintentoSaga.decidir(saga(SagaState.STOCK_PENDIENTE, Duration.ofMinutes(2), 0), AHORA, PLAZOS));
         assertEquals(Accion.REINTENTAR, PoliticaReintentoSaga.decidir(saga(SagaState.STOCK_RESERVADO, Duration.ofMinutes(2), 0), AHORA, PLAZOS));
         assertEquals(Accion.ESPERAR, PoliticaReintentoSaga.decidir(saga(SagaState.STOCK_PENDIENTE, Duration.ofSeconds(30), 0), AHORA, PLAZOS));
     }
 
     @Test
-    void testDeberiaNuncaTocaLosEstadosQueNoSonReintentables() {
+    void testDeberiaNoTocarLosEstadosQueNoSonReintentables() {
         Duration mucho = Duration.ofDays(30);
         for (SagaState estado : SagaState.values()) {
             if (!estado.esReintentable()) {
@@ -72,13 +72,13 @@ class PoliticaReintentoSagaTest {
     }
 
     @Test
-    void testDeberiaSoloLosEstadosQueEsperanRespuestaDeOtroServicioSeReintentan() {
+    void testDeberiaReintentarSoloLosEstadosQueEsperanRespuestaDeOtroServicio() {
         assertEquals(List.of(SagaState.STOCK_PENDIENTE, SagaState.STOCK_RESERVADO, SagaState.CREADO, SagaState.FIRMADO),
             SagaState.reintentables());
     }
 
     @Test
-    void testDeberiaUnaSagaSinCorreoTerminaEnAutorizadoSinNotificacionYElWatchdogNoLaToca() {
+    void testDeberiaTerminarEnAutorizadoSinNotificacionUnaSagaSinCorreoSinQueElWatchdogLaToque() {
         assertTrue(SagaState.AUTORIZADO_SIN_NOTIFICACION.esTerminal());
         assertFalse(SagaState.AUTORIZADO_SIN_NOTIFICACION.esReintentable());
         SagaInstance sinCorreo = SagaInstance.iniciar(UUID.randomUUID(), "1722039953001", "x", "PRUEBAS", false);
@@ -90,7 +90,7 @@ class PoliticaReintentoSagaTest {
     }
 
     @Test
-    void testDeberiaLosEstadosTerminalesNoSonReintentablesYAutorizadoNoEsTerminalNiReintentable() {
+    void testDeberiaClasificarLosEstadosTerminalesComoNoReintentablesYAutorizadoComoNiTerminalNiReintentable() {
         for (SagaState estado : SagaState.values()) {
             assertFalse(estado.esTerminal() && estado.esReintentable(), estado.name());
         }

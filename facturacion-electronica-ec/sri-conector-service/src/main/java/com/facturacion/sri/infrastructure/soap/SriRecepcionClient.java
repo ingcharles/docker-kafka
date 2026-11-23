@@ -7,6 +7,8 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.List;
+import java.util.Set;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -60,7 +62,7 @@ public class SriRecepcionClient implements RecepcionSri {
     String urlProduccion;
 
     @ConfigProperty(name = "sri.url.hosts-permitidos", defaultValue = "*.sri.gob.ec")
-    java.util.List<String> hostsPermitidos;
+    List<String> hostsPermitidos;
 
     private HttpClient httpClient;
 
@@ -106,7 +108,7 @@ public class SriRecepcionClient implements RecepcionSri {
     }
 
     /** Identificadores de error de Recepción que significan "el SRI ya tiene este comprobante" (ver RecepcionResultado). */
-    private static final java.util.Set<String> IDENTIFICADORES_YA_REGISTRADA = java.util.Set.of("43", "70");
+    private static final Set<String> IDENTIFICADORES_YA_REGISTRADA = Set.of("43", "70");
 
     static RecepcionResultado parsear(String cuerpoXml) throws Exception {
         Document doc = SoapXmlUtil.parsear(cuerpoXml);

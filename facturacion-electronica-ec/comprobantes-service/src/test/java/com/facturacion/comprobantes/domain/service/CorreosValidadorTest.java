@@ -23,23 +23,23 @@ class CorreosValidadorTest {
     }
 
     @Test
-    void testDeberiaSinCorreoEsOpcional() {
+    void testDeberiaAceptarQueElCorreoSeaOpcional() {
         assertNull(validar(null));
         assertNull(validar("  "));
     }
 
     @Test
-    void testDeberiaUnCorreoSeAcepta() {
+    void testDeberiaAceptarUnCorreoValido() {
         assertEquals("a@x.com", validar("a@x.com"));
     }
 
     @Test
-    void testDeberiaVariosCorreosSeRecortanYSeNormalizan() {
+    void testDeberiaRecortarYNormalizarVariosCorreos() {
         assertEquals("a@x.com,b@x.com,c@x.com", validar(" a@x.com , b@x.com,c@x.com "));
     }
 
     @Test
-    void testDeberiaUnCorreoSinFormaSeRechaza() {
+    void testDeberiaRechazarUnCorreoSinFormaValida() {
         assertEquals(CodigoError.CORREO_INVALIDO, rechazar("sin-arroba"));
         assertEquals(CodigoError.CORREO_INVALIDO, rechazar("a@x"));
         assertEquals(CodigoError.CORREO_INVALIDO, rechazar("a b@x.com"));
@@ -47,23 +47,23 @@ class CorreosValidadorTest {
     }
 
     @Test
-    void testDeberiaPiezasVaciasSeRechazan() {
+    void testDeberiaRechazarLasPiezasVaciasDeLaLista() {
         assertEquals(CodigoError.CORREO_INVALIDO, rechazar("a@x.com,,b@x.com"));
         assertEquals(CodigoError.CORREO_INVALIDO, rechazar("a@x.com,"));
     }
 
     @Test
-    void testDeberiaMasDelMaximoSeRechaza() {
+    void testDeberiaRechazarMasCorreosQueElMaximo() {
         assertEquals(CodigoError.CORREOS_EXCEDEN_MAXIMO, rechazar("a@x.com,b@x.com,c@x.com,d@x.com"));
     }
 
     @Test
-    void testDeberiaRepetidosSeRechazanSinImportarMayusculas() {
+    void testDeberiaRechazarCorreosRepetidosSinImportarMayusculas() {
         assertEquals(CodigoError.CORREOS_REPETIDOS, rechazar("a@x.com,A@X.com"));
     }
 
     @Test
-    void testDeberiaUnaListaMasLargaQueLaColumnaSeRechaza() {
+    void testDeberiaRechazarUnaListaMasLargaQueLaColumna() {
         String largo = "a".repeat(CorreosValidador.LONGITUD_MAXIMA / 2);
         assertEquals(CodigoError.CORREOS_MUY_LARGOS, rechazar(largo + "@x.com," + largo + "@y.com"));
     }

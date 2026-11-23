@@ -2,6 +2,7 @@ package com.facturacion.comprobantes.infrastructure.persistence.repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.function.Function;
 
 import jakarta.enterprise.context.ApplicationScoped;
 
@@ -59,7 +60,7 @@ public class CatalogoSriRepositoryImpl implements CatalogoSriRepository {
                                         mapear(sustentos, e -> new SustentoRow(e.codigo, e.descripcion, e.activo))))))))));
     }
 
-    private static <E, R> List<R> mapear(List<E> entidades, java.util.function.Function<E, R> mapeo) {
+    private static <E, R> List<R> mapear(List<E> entidades, Function<E, R> mapeo) {
         return entidades.stream().map(mapeo).toList();
     }
 

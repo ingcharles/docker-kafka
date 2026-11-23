@@ -21,25 +21,25 @@ class ConsumidorFinalMontoTest {
     }
 
     @Test
-    void testDeberiaConsumidorFinalHastaCincuentaDolaresSePermite() {
+    void testDeberiaPermitirConsumidorFinalHastaCincuentaDolares() {
         assertDoesNotThrow(() -> validar("07", "50.00"));
         assertDoesNotThrow(() -> validar("07", "0.01"));
     }
 
     @Test
-    void testDeberiaConsumidorFinalPorEncimaDeCincuentaDolaresSeRechaza() {
+    void testDeberiaRechazarConsumidorFinalPorEncimaDeCincuentaDolares() {
         ErrorNegocioException e = assertThrows(ErrorNegocioException.class, () -> validar("07", "50.01"));
         assertEquals(CodigoError.CONSUMIDOR_FINAL_EXCEDE_MONTO, e.getCodigo());
     }
 
     @Test
-    void testDeberiaOtrosTiposDeIdentificacionNoTienenTope() {
+    void testDeberiaNoAplicarTopeAOtrosTiposDeIdentificacion() {
         assertDoesNotThrow(() -> validar("05", "5000.00"));
         assertDoesNotThrow(() -> validar("04", "5000.00"));
     }
 
     @Test
-    void testDeberiaElMontoMaximoEsParametrizable() {
+    void testDeberiaTomarElMontoMaximoDeLaConfiguracion() {
         BigDecimal otro = new BigDecimal("200.00");
         assertDoesNotThrow(() -> IdentificacionValidador.validarMontoConsumidorFinal("07", new BigDecimal("150"), otro, "c"));
         assertThrows(ErrorNegocioException.class,
@@ -47,7 +47,7 @@ class ConsumidorFinalMontoTest {
     }
 
     @Test
-    void testDeberiaSinTipoOSinMontoNoHaceNada() {
+    void testDeberiaNoHacerNadaSiFaltaElTipoOElMonto() {
         assertDoesNotThrow(() -> IdentificacionValidador.validarMontoConsumidorFinal(null, new BigDecimal("999"), MAXIMO, "c"));
         assertDoesNotThrow(() -> IdentificacionValidador.validarMontoConsumidorFinal("07", null, MAXIMO, "c"));
     }

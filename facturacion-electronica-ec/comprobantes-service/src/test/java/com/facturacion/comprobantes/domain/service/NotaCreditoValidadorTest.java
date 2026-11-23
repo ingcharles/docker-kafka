@@ -34,7 +34,7 @@ class NotaCreditoValidadorTest {
     }
 
     @Test
-    void testDeberiaUnDocumentoAutorizadoSePuedeModificarHastaSuValor() {
+    void testDeberiaPermitirModificarUnDocumentoAutorizadoHastaSuValor() {
         Comprobante factura = documento(EstadoComprobante.AUTORIZADO, "100.00");
 
         assertDoesNotThrow(() -> NotaCreditoValidador.validarContraDocumento(factura, NUMERO, FECHA,
@@ -44,7 +44,7 @@ class NotaCreditoValidadorTest {
     }
 
     @Test
-    void testDeberiaLaNotaNoPuedeSuperarElValorDelDocumentoMenosLoYaAcreditado() {
+    void testDeberiaRechazarUnaNotaQueSuperaElValorDelDocumentoMenosLoYaAcreditado() {
         Comprobante factura = documento(EstadoComprobante.AUTORIZADO, "100.00");
 
         assertEquals(CodigoError.NC_EXCEDE_VALOR_DEL_DOCUMENTO, codigoDe(() -> NotaCreditoValidador
@@ -54,7 +54,7 @@ class NotaCreditoValidadorTest {
     }
 
     @Test
-    void testDeberiaTambienAplicaLosControlesComunesDelDocumentoModificado() {
+    void testDeberiaAplicarTambienLosControlesComunesDelDocumentoModificado() {
         assertEquals(CodigoError.DOCUMENTO_MODIFICADO_NO_AUTORIZADO, codigoDe(() -> NotaCreditoValidador
             .validarContraDocumento(documento(EstadoComprobante.FIRMADO, "100.00"), NUMERO, FECHA, BigDecimal.TEN,
                 BigDecimal.ZERO)));
@@ -64,7 +64,7 @@ class NotaCreditoValidadorTest {
     }
 
     @Test
-    void testDeberiaSoloCuentanComoEmitidasLasNotasEnCaminoOAutorizadas() {
+    void testDeberiaContarComoEmitidasSoloLasNotasEnCaminoOAutorizadas() {
         for (EstadoComprobante estado : EstadoComprobante.values()) {
             boolean cuenta = estado == EstadoComprobante.BORRADOR || estado == EstadoComprobante.FIRMADO
                 || estado == EstadoComprobante.AUTORIZADO || estado == EstadoComprobante.NOTIFICADO;

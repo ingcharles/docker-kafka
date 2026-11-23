@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -87,7 +88,7 @@ class EmisionIdempotenteTest {
     }
 
     /** Una emisión que "crea" un comprobante nuevo cada vez que corre y cuenta cuántas veces corrió. */
-    private java.util.function.Supplier<Uni<ComprobanteResponse>> emisionQueCrea() {
+    private Supplier<Uni<ComprobanteResponse>> emisionQueCrea() {
         return () -> {
             emisiones.incrementAndGet();
             Comprobante creado = new Comprobante();
@@ -105,7 +106,7 @@ class EmisionIdempotenteTest {
     }
 
     @Test
-    void testDeberiaLaPrimeraSolicitudEmiteYGuardaElComprobanteConLaClave() {
+    void testDeberiaEmitirYGuardarElComprobanteConLaClaveEnLaPrimeraSolicitud() {
         ResultadoEmision resultado = ejecutar(crearServicio(false), CLAVE, "cuerpo-A");
 
         assertFalse(resultado.repetida());
@@ -114,7 +115,7 @@ class EmisionIdempotenteTest {
     }
 
     @Test
-    void testDeberiaRepetirLaMismaClaveConElMismoCuerpoDevuelveElMismoComprobanteSinEmitirOtro() {
+    void testDeberiaDevolverElMismoComprobanteSinEmitirOtroAlRepetirLaMismaClaveConElMismoCuerpo() {
         EmisionIdempotente servicio = crearServicio(false);
 
         ResultadoEmision primera = ejecutar(servicio, CLAVE, "cuerpo-A");
@@ -126,7 +127,7 @@ class EmisionIdempotenteTest {
     }
 
     @Test
-    void testDeberiaLaMismaClaveConOtroCuerpoEsUnErrorDelCliente() {
+    void testDeberiaRechazarLaMismaClaveConOtroCuerpoComoErrorDelCliente() {
         EmisionIdempotente servicio = crearServicio(false);
         ejecutar(servicio, CLAVE, "cuerpo-A");
 
@@ -137,7 +138,7 @@ class EmisionIdempotenteTest {
     }
 
     @Test
-    void testDeberiaLaMismaClaveConOtroTipoDeComprobanteTampocoSeReutiliza() {
+    void testDeberiaRechazarLaMismaClaveConOtroTipoDeComprobante() {
         EmisionIdempotente servicio = crearServicio(false);
         ejecutar(servicio, CLAVE, "cuerpo-A");
 
@@ -148,7 +149,7 @@ class EmisionIdempotenteTest {
     }
 
     @Test
-    void testDeberiaSiLaSolicitudOriginalSigueEnCursoElReintentoRecibeUnConflicto() {
+    void testDeberiaResponderConflictoAlReintentoSiLaSolicitudOriginalSigueEnCurso() {
         EmisionIdempotente servicio = crearServicio(false);
         // Otra transacción reservó la clave y todavía no termina: la fila existe pero sin comprobante.
         servicio.ejecutar(RUC, CLAVE, TipoComprobante.FACTURA, "cuerpo-A", () -> Uni.createFrom().nothing())
@@ -160,7 +161,7 @@ class EmisionIdempotenteTest {
     }
 
     @Test
-    void testDeberiaSinClaveSeEmiteSiempreSalvoQueSeaObligatoria() {
+    void testDeberiaEmitirSiempreSinClaveSalvoQueSeaObligatoria() {
         EmisionIdempotente opcional = crearServicio(false);
         ejecutar(opcional, null, "cuerpo-A");
         ejecutar(opcional, "  ", "cuerpo-A");
@@ -173,7 +174,7 @@ class EmisionIdempotenteTest {
     }
 
     @Test
-    void testDeberiaUnaClaveConFormatoInvalidoSeRechazaSinEmitir() {
+    void testDeberiaRechazarUnaClaveConFormatoInvalidoSinEmitir() {
         EmisionIdempotente servicio = crearServicio(false);
         for (String invalida : new String[] {"corta", "con espacios y mas", "x".repeat(EmisionIdempotente.LONGITUD_MAXIMA + 1)}) {
             ApiException e = assertThrows(ApiException.class, () -> ejecutar(servicio, invalida, "cuerpo-A"));
@@ -183,7 +184,7 @@ class EmisionIdempotenteTest {
     }
 
     @Test
-    void testDeberiaSiLaEmisionFallaLaClaveNoQuedaAsociadaYElReintentoPuedeVolverAEmitir() {
+    void testDeberiaLiberarLaClaveSiLaEmisionFallaParaQueElReintentoPuedaVolverAEmitir() {
         EmisionIdempotente servicio = crearServicio(false);
         assertThrows(IllegalStateException.class, () -> servicio.ejecutar(RUC, CLAVE, TipoComprobante.FACTURA,
             "cuerpo-A", () -> Uni.createFrom().failure(new IllegalStateException("falla"))).await().indefinitely());
@@ -197,7 +198,7 @@ class EmisionIdempotenteTest {
     }
 
     @Test
-    void testDeberiaLaPurgaBorraLasClavesMasViejasQueLaRetencion() {
+    void testDeberiaBorrarEnLaPurgaLasClavesMasViejasQueLaRetencion() {
         long borradas = crearServicio(false).purgarVencidas().await().indefinitely();
 
         assertEquals(3L, borradas);

@@ -88,7 +88,7 @@ class CertificadoVencimientoTest {
     }
 
     @Test
-    void testDeberiaUnCertificadoActivoPeroVencidoSeMarcaExpiradoYNoFirma() {
+    void testDeberiaMarcarComoExpiradoYNoFirmarConUnCertificadoActivoPeroVencido() {
         conEmpresa();
         activo = certificado(EstadoCertificado.ACTIVO, Instant.now().minusSeconds(3600));
 
@@ -100,7 +100,7 @@ class CertificadoVencimientoTest {
     }
 
     @Test
-    void testDeberiaSiYaEstabaMarcadoExpiradoElMotivoSigueDiciendoQueVencio() {
+    void testDeberiaMantenerElMotivoDeVencimientoSiElCertificadoYaEstabaExpirado() {
         conEmpresa();
         activo = null;
         ultimo = certificado(EstadoCertificado.EXPIRADO, Instant.now().minusSeconds(86400));
@@ -112,7 +112,7 @@ class CertificadoVencimientoTest {
     }
 
     @Test
-    void testDeberiaSinCertificadoAlguno() {
+    void testDeberiaFallarAlFirmarSiLaEmpresaNoTieneCertificado() {
         conEmpresa();
         activo = null;
         ultimo = null;
@@ -121,7 +121,7 @@ class CertificadoVencimientoTest {
     }
 
     @Test
-    void testDeberiaUnCertificadoRevocadoNoSeDiceVencido() {
+    void testDeberiaNoDecirQueEstaVencidoUnCertificadoRevocado() {
         conEmpresa();
         activo = null;
         ultimo = certificado(EstadoCertificado.REVOCADO, Instant.now().plusSeconds(86400));
@@ -130,21 +130,21 @@ class CertificadoVencimientoTest {
     }
 
     @Test
-    void testDeberiaUnaEmpresaQueNoExiste() {
+    void testDeberiaFallarAlFirmarSiLaEmpresaNoExiste() {
         empresa = null;
 
         assertEquals("No hay ninguna empresa registrada con ruc " + RUC, fallo());
     }
 
     @Test
-    void testDeberiaElDominioSabeSiEstaVencido() {
+    void testDeberiaInformarDesdeElDominioSiElCertificadoEstaVencido() {
         Instant ahora = Instant.now();
         assertTrue(certificado(EstadoCertificado.ACTIVO, ahora.minusSeconds(1)).estaVencidoEn(ahora));
         assertFalse(certificado(EstadoCertificado.ACTIVO, ahora.plusSeconds(60)).estaVencidoEn(ahora));
     }
 
     @Test
-    void testDeberiaAlSubirSoloSeAceptaUnCertificadoVigente() {
+    void testDeberiaAceptarAlSubirSoloUnCertificadoVigente() {
         Instant ahora = Instant.now();
 
         CertificadoService.exigirVigente(ahora.minusSeconds(86400), ahora.plusSeconds(86400), ahora);

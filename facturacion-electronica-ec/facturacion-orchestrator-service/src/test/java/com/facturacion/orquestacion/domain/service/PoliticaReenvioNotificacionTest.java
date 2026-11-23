@@ -29,7 +29,7 @@ class PoliticaReenvioNotificacionTest {
     }
 
     @Test
-    void testDeberiaReenviaUnaFallidaQueLlevaQuietaLaEsperaMinimaYTieneIntentos() {
+    void testDeberiaReenviarUnaFallidaQueLlevaQuietaLaEsperaMinimaYTieneIntentos() {
         assertEquals(Accion.REENVIAR, PoliticaReenvioNotificacion.decidir(
             saga(SagaState.NOTIFICACION_FALLIDA, 15, 0, true), AHORA, PLAZOS));
         assertEquals(Accion.REENVIAR, PoliticaReenvioNotificacion.decidir(
@@ -37,25 +37,25 @@ class PoliticaReenvioNotificacionTest {
     }
 
     @Test
-    void testDeberiaUnaFallidaRecienFallidaEsperaAntesDeReenviarse() {
+    void testDeberiaEsperarAntesDeReenviarUnaFallidaReciente() {
         assertEquals(Accion.ESPERAR, PoliticaReenvioNotificacion.decidir(
             saga(SagaState.NOTIFICACION_FALLIDA, 14, 0, true), AHORA, PLAZOS));
     }
 
     @Test
-    void testDeberiaConLosTresIntentosAgotadosYaNoSeReenvia() {
+    void testDeberiaNoReenviarConLosTresIntentosAgotados() {
         assertEquals(Accion.ESPERAR, PoliticaReenvioNotificacion.decidir(
             saga(SagaState.NOTIFICACION_FALLIDA, 600, 3, true), AHORA, PLAZOS));
     }
 
     @Test
-    void testDeberiaUnaAutorizadaSinRespuestaTrasElPlazoVuelveANotificacionFallida() {
+    void testDeberiaVolverANotificacionFallidaUnaAutorizadaSinRespuestaTrasElPlazo() {
         assertEquals(Accion.DAR_POR_SIN_RESPUESTA, PoliticaReenvioNotificacion.decidir(
             saga(SagaState.AUTORIZADO, 10, 1, true), AHORA, PLAZOS));
     }
 
     @Test
-    void testDeberiaUnaAutorizadaDentroDelPlazoOSinNotificacionEsperadaNoSeToca() {
+    void testDeberiaNoTocarUnaAutorizadaDentroDelPlazoOSinNotificacionEsperada() {
         assertEquals(Accion.ESPERAR, PoliticaReenvioNotificacion.decidir(
             saga(SagaState.AUTORIZADO, 9, 0, true), AHORA, PLAZOS));
         assertEquals(Accion.ESPERAR, PoliticaReenvioNotificacion.decidir(
@@ -63,7 +63,7 @@ class PoliticaReenvioNotificacionTest {
     }
 
     @Test
-    void testDeberiaLosDemasEstadosSeIgnoran() {
+    void testDeberiaIgnorarLosDemasEstados() {
         for (SagaState estado : SagaState.values()) {
             if (estado == SagaState.AUTORIZADO || estado == SagaState.NOTIFICACION_FALLIDA) {
                 continue;

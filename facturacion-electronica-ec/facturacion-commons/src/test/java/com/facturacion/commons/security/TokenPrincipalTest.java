@@ -19,7 +19,7 @@ class TokenPrincipalTest {
     }
 
     @Test
-    void testDeberiaSoloEsDeLaEmpresaCuyoRucCoincide() {
+    void testDeberiaPertenecerSoloALaEmpresaCuyoRucCoincide() {
         TokenPrincipal principal = con("1790000000001", "ADMIN");
         assertTrue(principal.esDeLaEmpresa("1790000000001"));
         assertFalse(principal.esDeLaEmpresa("1791111111001"));
@@ -27,25 +27,25 @@ class TokenPrincipalTest {
     }
 
     @Test
-    void testDeberiaUnTokenSinRucNoEsDeNingunaEmpresa() {
+    void testDeberiaNoPertenecerANingunaEmpresaSiElTokenNoTraeRuc() {
         assertFalse(con(null, "ADMIN").esDeLaEmpresa("1790000000001"));
         assertFalse(con(null, "ADMIN").esDeLaEmpresa(null));
     }
 
     @Test
-    void testDeberiaAdminYOperadorPuedenEscribir() {
+    void testDeberiaPermitirEscribirAAdminYOperador() {
         assertDoesNotThrow(() -> con("1790000000001", "ADMIN").exigirEscritura());
         assertDoesNotThrow(() -> con("1790000000001", "OPERADOR").exigirEscritura());
     }
 
     @Test
-    void testDeberiaLecturaYSinRolNoPuedenEscribir() {
+    void testDeberiaNegarEscrituraALecturaYSinRol() {
         assertThrows(SinPermisoException.class, () -> con("1790000000001", "LECTURA").exigirEscritura());
         assertThrows(SinPermisoException.class, () -> con("1790000000001", null).exigirEscritura());
     }
 
     @Test
-    void testDeberiaSoloAdminPasaLaExigenciaDeAdmin() {
+    void testDeberiaAceptarLaExigenciaDeAdminSoloParaAdmin() {
         assertDoesNotThrow(() -> con("1790000000001", "ADMIN").exigirAdmin());
         assertThrows(SinPermisoException.class, () -> con("1790000000001", "OPERADOR").exigirAdmin());
         assertThrows(SinPermisoException.class, () -> con("1790000000001", "LECTURA").exigirAdmin());

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -17,7 +18,7 @@ import com.facturacion.commons.error.Mensajes;
 class MensajesTest {
 
     @Test
-    void testDeberiaCadaCodigoTieneSuMensaje() {
+    void testDeberiaExigirMensajeParaCadaCodigo() {
         for (CodigoError codigo : CodigoError.values()) {
             assertTrue(Mensajes.existe(codigo.claveMensaje()), codigo + " no tiene clave en mensajes.properties");
             assertFalse(Mensajes.obtenerTexto(codigo).isBlank(), codigo + " tiene mensaje vacío");
@@ -25,7 +26,7 @@ class MensajesTest {
     }
 
     @Test
-    void testDeberiaCadaCodigoDeLogTieneSuMensaje() {
+    void testDeberiaExigirMensajeParaCadaCodigoDeLog() {
         for (CodigoLog codigo : CodigoLog.values()) {
             assertTrue(Mensajes.existe(codigo.claveMensaje()), codigo + " no tiene clave en mensajes.properties");
             assertFalse(Mensajes.obtenerTexto(codigo, 1, 2, 3, 4).isBlank(), codigo + " tiene mensaje vacío");
@@ -33,7 +34,7 @@ class MensajesTest {
     }
 
     @Test
-    void testDeberiaMensajesNoUsadosNoSeAcumulan() {
+    void testDeberiaNoAcumularMensajesSinUso() {
         Set<String> usadas = Arrays.stream(CodigoError.values()).map(CodigoError::claveMensaje)
             .collect(Collectors.toSet());
         Arrays.stream(CodigoLog.values()).forEach(log -> usadas.add(log.claveMensaje()));
@@ -43,7 +44,7 @@ class MensajesTest {
     }
 
     @Test
-    void testDeberiaCodigosYClavesSonUnicos() {
+    void testDeberiaExigirCodigosYClavesUnicos() {
         assertEquals(CodigoError.values().length,
             Arrays.stream(CodigoError.values()).map(CodigoError::codigo).distinct().count(), "códigos repetidos");
         assertEquals(CodigoError.values().length,
@@ -52,8 +53,8 @@ class MensajesTest {
     }
 
     @Test
-    void testDeberiaLosParametrosReemplazanLosMarcadores() {
+    void testDeberiaReemplazarLosMarcadoresConLosParametros() {
         assertEquals("El impuesto '9' no existe en la Tabla 16 del SRI. Códigos válidos: [2, 3].",
-            Mensajes.obtenerTexto(CodigoError.IMPUESTO_NO_EXISTE, "9", java.util.List.of("2", "3")));
+            Mensajes.obtenerTexto(CodigoError.IMPUESTO_NO_EXISTE, "9", List.of("2", "3")));
     }
 }

@@ -34,7 +34,7 @@ class DocumentoModificadoValidadorTest {
     }
 
     @Test
-    void testDeberiaElNumeroSeSeparaEnEstablecimientoPuntoYSecuencial() {
+    void testDeberiaSepararElNumeroEnEstablecimientoPuntoYSecuencial() {
         NumeroDocumento numero = DocumentoModificadoValidador.interpretarNumero(NUMERO);
 
         assertEquals("001", numero.establecimiento());
@@ -43,7 +43,7 @@ class DocumentoModificadoValidadorTest {
     }
 
     @Test
-    void testDeberiaUnNumeroConOtroFormatoSeRechaza() {
+    void testDeberiaRechazarUnNumeroConOtroFormato() {
         for (String invalido : new String[] {null, "", "1-1-1", "001-002-123", "001002000000123", "001-002-0000001234", "aaa-bbb-cccccccccc"}) {
             assertEquals(CodigoError.DOCUMENTO_MODIFICADO_NUMERO_INVALIDO,
                 codigoDe(() -> DocumentoModificadoValidador.interpretarNumero(invalido)));
@@ -51,7 +51,7 @@ class DocumentoModificadoValidadorTest {
     }
 
     @Test
-    void testDeberiaLaFechaDelDocumentoNoPuedeSerFutura() {
+    void testDeberiaRechazarUnaFechaDeDocumentoFutura() {
         LocalDate hoy = LocalDate.of(2026, 11, 19);
 
         assertDoesNotThrow(() -> DocumentoModificadoValidador.validarFecha(hoy, hoy));
@@ -61,7 +61,7 @@ class DocumentoModificadoValidadorTest {
     }
 
     @Test
-    void testDeberiaUnDocumentoAutorizadoONotificadoSePuedeModificar() {
+    void testDeberiaPermitirModificarUnDocumentoAutorizadoONotificado() {
         assertDoesNotThrow(() -> DocumentoModificadoValidador.validarContraDocumento(
             documento(EstadoComprobante.AUTORIZADO), NUMERO, FECHA));
         assertDoesNotThrow(() -> DocumentoModificadoValidador.validarContraDocumento(
@@ -69,7 +69,7 @@ class DocumentoModificadoValidadorTest {
     }
 
     @Test
-    void testDeberiaSoloSeModificaUnDocumentoAutorizado() {
+    void testDeberiaRechazarModificarUnDocumentoQueNoEstaAutorizado() {
         for (EstadoComprobante estado : EstadoComprobante.values()) {
             if (estado == EstadoComprobante.AUTORIZADO || estado == EstadoComprobante.NOTIFICADO) {
                 continue;
@@ -81,7 +81,7 @@ class DocumentoModificadoValidadorTest {
     }
 
     @Test
-    void testDeberiaLaFechaIndicadaDebeSerLaDeEmisionDelDocumento() {
+    void testDeberiaExigirQueLaFechaIndicadaSeaLaDeEmisionDelDocumento() {
         Comprobante factura = documento(EstadoComprobante.AUTORIZADO);
 
         assertEquals(CodigoError.DOCUMENTO_MODIFICADO_FECHA_NO_COINCIDE, codigoDe(() -> DocumentoModificadoValidador

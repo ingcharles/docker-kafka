@@ -1,5 +1,6 @@
 package com.facturacion.sri.infrastructure.messaging.producer;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -19,6 +20,7 @@ import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.kafka.api.OutgoingKafkaRecordMetadata;
+import io.vertx.core.Context;
 import io.vertx.core.Vertx;
 
 import com.facturacion.commons.error.LogCodificado;
@@ -38,7 +40,7 @@ public class OutboxRelay {
     private static final Logger LOG = Logger.getLogger(OutboxRelay.class);
 
     @ConfigProperty(name = "outbox.relay.timeout-ack")
-    java.time.Duration timeoutAck;
+    Duration timeoutAck;
     private static final int BATCH_SIZE = 20;
 
     @Inject
@@ -59,7 +61,7 @@ public class OutboxRelay {
     }
 
     private Uni<OutboxEventEntity> publicar(OutboxEventEntity event) {
-        io.vertx.core.Context callingContext = Vertx.currentContext();
+        Context callingContext = Vertx.currentContext();
         CompletableFuture<Void> delivered = new CompletableFuture<>();
         Message<String> message = Message.of(event.payload,
                 Metadata.of(OutgoingKafkaRecordMetadata.<String>builder()

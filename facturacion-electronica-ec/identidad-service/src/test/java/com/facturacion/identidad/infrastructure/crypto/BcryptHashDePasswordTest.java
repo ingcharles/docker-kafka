@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
@@ -24,7 +25,7 @@ class BcryptHashDePasswordTest {
     private final BcryptHashDePassword hasher = new BcryptHashDePassword(2, 10);
 
     @Test
-    void testDeberiaGeneraUnHashQueLuegoVerificaYRechazaOtraContrasena() {
+    void testDeberiaGenerarUnHashQueVerificaLaContrasenaYRechazaOtra() {
         String hash = hasher.generar("secreta-123").await().atMost(ESPERA);
 
         assertNotEquals("secreta-123", hash);
@@ -33,13 +34,13 @@ class BcryptHashDePasswordTest {
     }
 
     @Test
-    void testDeberiaSinCuentaNuncaCoincideAunqueLaContrasenaSeaLaDescartable() {
+    void testDeberiaNoCoincidirNuncaSinCuentaAunqueLaContrasenaSeaLaDescartable() {
         assertFalse(hasher.verificar("contraseña-descartable-sin-cuenta", null).await().atMost(ESPERA));
         assertFalse(hasher.verificar("lo-que-sea", null).await().atMost(ESPERA));
     }
 
     @Test
-    void testDeberiaConTodosLosHilosOcupadosYLaColaLlenaResponde429EnVezDeEncolarSinLimite() throws Exception {
+    void testDeberiaResponderUn429EnVezDeEncolarSinLimiteConTodosLosHilosOcupadosYLaColaLlena() throws Exception {
         BcryptHashDePassword pequeno = new BcryptHashDePassword(1, 1);
         List<CompletableFuture<String>> pedidos = new ArrayList<>();
         for (int i = 0; i < 6; i++) {
@@ -50,7 +51,7 @@ class BcryptHashDePasswordTest {
         for (CompletableFuture<String> pedido : pedidos) {
             try {
                 pedido.get(15, TimeUnit.SECONDS);
-            } catch (java.util.concurrent.ExecutionException e) {
+            } catch (ExecutionException e) {
                 assertTrue(e.getCause() instanceof ErrorNegocioException, e.getCause().toString());
                 assertEquals(IdentidadError.AUTENTICACION_SATURADA, ((ErrorNegocioException) e.getCause()).getError());
                 assertEquals(429, ((ErrorNegocioException) e.getCause()).getError().estadoHttp());
