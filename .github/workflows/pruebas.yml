@@ -1,0 +1,38 @@
+# Push a la rama pruebas (merge de un pull request desde desarrollo): pruebas, imágenes en Harbor y promoción a overlays/pruebas (automática).
+# Pull request a pruebas: solo pruebas.
+#
+# BANDERA: la variable de repositorio CI_PLATAFORMA elige quién corre el pipeline.
+#   (sin definir) o "github" -> corre este workflow.      "gitlab" -> este workflow no hace nada; corre /.gitlab-ci.yml.
+name: pruebas
+
+on:
+  push:
+    branches: [pruebas]
+    paths:
+      - "facturacion-electronica-ec/**"
+      - "kafka/topic-init/**"
+      - ".github/workflows/facturacion-flujo.yml"
+      - ".github/workflows/pruebas.yml"
+  pull_request:
+    branches: [pruebas]
+    paths:
+      - "facturacion-electronica-ec/**"
+      - "kafka/topic-init/**"
+      - ".github/workflows/facturacion-flujo.yml"
+      - ".github/workflows/pruebas.yml"
+
+concurrency:
+  group: facturacion-pruebas
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  flujo:
+    if: ${{ vars.CI_PLATAFORMA != 'gitlab' }}
+    uses: ./.github/workflows/facturacion-flujo.yml
+    with:
+      ambiente: pruebas
+      publicar: ${{ github.event_name != 'pull_request' }}
+    secrets: inherit

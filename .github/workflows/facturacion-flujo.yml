@@ -1,0 +1,162 @@
+# Flujo común de cada ambiente (lo invocan desarrollo.yml, pruebas.yml y produccion.yml; no se ejecuta solo).
+#
+#   pruebas ...... mvn test de los 8 módulos.
+#   imagenes ..... docker build + push a Harbor de los 7 servicios y del job de tópicos (en paralelo); cada imagen queda con su digest.
+#   promover ..... escribe los digests en overlays/<ambiente>/kustomization.yaml de la rama <ambiente> del REPOSITORIO DE DESPLIEGUE.
+#                  ArgoCD ve ese commit y sincroniza. Este job usa el "environment" de GitHub del mismo nombre: en produccion exige
+#                  revisores, así que espera una aprobación antes de tocar el repositorio de despliegue.
+#
+# Configuración (Settings > Secrets and variables > Actions):
+#   Variables: HARBOR_URL (p. ej. harbor.tuempresa.ec), HARBOR_PROYECTO (p. ej. facturacion),
+#              DESPLIEGUE_REPO (propietario/repositorio de despliegue, p. ej. ingcharles/facturacion-despliegue),
+#              RUNNER_ETIQUETA (opcional; "ubuntu-latest" por defecto. Si Harbor está en tu red interna usa un runner propio que lo vea).
+#   Secretos:  HARBOR_USUARIO, HARBOR_CLAVE (robot account con push),
+#              DESPLIEGUE_TOKEN (token con permiso de escritura de contenido sobre el repositorio de despliegue; guárdalo como secreto del
+#              environment de cada ambiente: así el de produccion solo se entrega después de la aprobación).
+name: facturacion-flujo
+
+on:
+  workflow_call:
+    inputs:
+      ambiente:
+        description: desarrollo, pruebas o produccion
+        type: string
+        required: true
+      publicar:
+        description: false en pull requests (solo prueba, no publica ni promueve)
+        type: boolean
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  RAIZ: facturacion-electronica-ec
+  KUSTOMIZE_VERSION: v5.4.3
+
+jobs:
+  pruebas:
+    name: Pruebas (mvn test)
+    runs-on: ${{ vars.RUNNER_ETIQUETA || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Compilar y probar los 8 módulos
+        working-directory: ${{ env.RAIZ }}
+        run: mvn -B test
+      - name: Guardar reportes si falló
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reportes-surefire
+          path: ${{ env.RAIZ }}/**/target/surefire-reports/
+          retention-days: 7
+
+  imagenes:
+    name: Imagen ${{ matrix.imagen }}
+    needs: pruebas
+    if: ${{ inputs.publicar }}
+    runs-on: ${{ vars.RUNNER_ETIQUETA || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { imagen: firma-electronica-service, contexto: facturacion-electronica-ec, dockerfile: facturacion-electronica-ec/firma-electronica-service/Dockerfile }
+          - { imagen: inventario-service, contexto: facturacion-electronica-ec, dockerfile: facturacion-electronica-ec/inventario-service/Dockerfile }
+          - { imagen: comprobantes-service, contexto: facturacion-electronica-ec, dockerfile: facturacion-electronica-ec/comprobantes-service/Dockerfile }
+          - { imagen: sri-conector-service, contexto: facturacion-electronica-ec, dockerfile: facturacion-electronica-ec/sri-conector-service/Dockerfile }
+          - { imagen: notificacion-service, contexto: facturacion-electronica-ec, dockerfile: facturacion-electronica-ec/notificacion-service/Dockerfile }
+          - { imagen: facturacion-orchestrator-service, contexto: facturacion-electronica-ec, dockerfile: facturacion-electronica-ec/facturacion-orchestrator-service/Dockerfile }
+          - { imagen: identidad-service, contexto: facturacion-electronica-ec, dockerfile: facturacion-electronica-ec/identidad-service/Dockerfile }
+          - { imagen: topic-init, contexto: kafka/topic-init, dockerfile: kafka/topic-init/Dockerfile }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.HARBOR_URL }}
+          username: ${{ secrets.HARBOR_USUARIO }}
+          password: ${{ secrets.HARBOR_CLAVE }}
+      - name: Construir y publicar
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.contexto }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          # Sin attestations: el digest es el de la imagen, el que se escribe en los manifiestos.
+          provenance: false
+          sbom: false
+          tags: ${{ vars.HARBOR_URL }}/${{ vars.HARBOR_PROYECTO }}/${{ matrix.imagen }}:${{ inputs.ambiente }}-${{ github.run_number }}-${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.imagen }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.imagen }}
+      - name: Guardar el digest
+        env:
+          IMAGEN: ${{ matrix.imagen }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p digests
+          echo "$DIGEST" > "digests/$IMAGEN"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.imagen }}
+          path: digests/${{ matrix.imagen }}
+          retention-days: 3
+
+  promover:
+    name: Promover a ${{ inputs.ambiente }} (repositorio de despliegue)
+    needs: imagenes
+    if: ${{ inputs.publicar }}
+    # En produccion este environment tiene revisores obligatorios: el job espera aquí hasta que alguien apruebe.
+    environment: ${{ inputs.ambiente }}
+    runs-on: ${{ vars.RUNNER_ETIQUETA || 'ubuntu-latest' }}
+    env:
+      AMBIENTE: ${{ inputs.ambiente }}
+      HARBOR_URL: ${{ vars.HARBOR_URL }}
+      HARBOR_PROYECTO: ${{ vars.HARBOR_PROYECTO }}
+      ORIGEN: ${{ github.repository }}@${{ github.sha }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-*
+          path: digests
+          merge-multiple: true
+      - name: Traer la rama del ambiente del repositorio de despliegue
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.DESPLIEGUE_REPO }}
+          ref: ${{ inputs.ambiente }}
+          token: ${{ secrets.DESPLIEGUE_TOKEN }}
+          path: despliegue
+      - name: Instalar kustomize
+        run: |
+          curl -sSfL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar -xz -C /usr/local/bin kustomize
+      - name: Escribir los digests en el overlay
+        working-directory: despliegue/overlays/${{ inputs.ambiente }}
+        run: |
+          for f in "$GITHUB_WORKSPACE"/digests/*; do
+            img="$(basename "$f")"
+            dig="$(tr -d '[:space:]' < "$f")"
+            case "$dig" in sha256:*) ;; *) echo "Digest inválido para $img: '$dig'"; exit 1;; esac
+            # El nombre provisional (harbor.local/facturacion/...) es el de la base; el registro real y el digest van aquí.
+            kustomize edit set image "harbor.local/facturacion/${img}=${HARBOR_URL}/${HARBOR_PROYECTO}/${img}@${dig}"
+          done
+          kustomize build . > /dev/null
+      - name: Commit y push (ArgoCD sincroniza)
+        working-directory: despliegue
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "overlays/$AMBIENTE/kustomization.yaml"
+          if git diff --cached --quiet; then echo "Sin cambios que promover"; exit 0; fi
+          git commit -m "chore(gitops): promover imágenes a $AMBIENTE" -m "Origen: $ORIGEN"
+          for intento in 1 2 3; do
+            if git pull --rebase origin "$AMBIENTE" && git push origin "HEAD:$AMBIENTE"; then exit 0; fi
+            sleep $((intento * 5))
+          done
+          echo "No se pudo publicar en la rama $AMBIENTE (¿protegida sin permiso para el token?)"
+          exit 1

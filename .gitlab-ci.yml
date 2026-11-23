@@ -1,0 +1,155 @@
+# Despliegue de facturación electrónica a RKE2 (GitOps con ArgoCD) — versión GitLab CI de .github/workflows/{desarrollo,pruebas,produccion}.yml.
+# Hacen lo mismo, con las mismas ramas:
+#   rama desarrollo  -> pruebas + imágenes en Harbor (docker) + promoción automática a overlays/desarrollo del repositorio de despliegue
+#   rama pruebas     -> igual, a overlays/pruebas
+#   rama produccion  -> igual, pero la promoción es un job MANUAL (botón "play"): protege el environment "produccion"
+#                       (Deploy > Environments > produccion, y Settings > CI/CD > Protected environments con los aprobadores)
+#   merge request    -> solo pruebas
+#
+# BANDERA: la variable CI_PLATAFORMA (Settings > CI/CD > Variables) decide si este pipeline corre.
+#   CI_PLATAFORMA = gitlab  -> corre este pipeline (y los workflows de GitHub no hacen nada).
+#   cualquier otro valor    -> este pipeline no se crea (GitHub Actions es el predeterminado).
+#
+# Variables de CI/CD:
+#   HARBOR_URL, HARBOR_PROYECTO, HARBOR_USUARIO, HARBOR_CLAVE (robot con push; marca la clave como masked y protected)
+#   DESPLIEGUE_URL    dirección del repositorio de despliegue SIN credenciales (p. ej. gitlab.tuempresa.ec/grupo/facturacion-despliegue.git)
+#   DESPLIEGUE_TOKEN  token de acceso con write_repository sobre ese repositorio (masked; en produccion, scope solo del environment produccion)
+#   El runner necesita permiso de docker-in-docker (privileged) para construir imágenes.
+workflow:
+  rules:
+    - if: '$CI_PLATAFORMA == "gitlab" && $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(desarrollo|pruebas|produccion)$/'
+    - if: '$CI_PLATAFORMA == "gitlab" && $CI_COMMIT_BRANCH =~ /^(desarrollo|pruebas|produccion)$/'
+
+stages:
+  - validar
+  - imagenes
+  - promover
+
+variables:
+  RAIZ: facturacion-electronica-ec
+  KUSTOMIZE_VERSION: v5.4.3
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+
+cache:
+  key: maven
+  paths:
+    - .m2/repository
+
+.solo_rama_de_ambiente:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE != "merge_request_event" && $CI_COMMIT_BRANCH =~ /^(desarrollo|pruebas|produccion)$/'
+
+pruebas:
+  stage: validar
+  image: maven:3.9.9-eclipse-temurin-21
+  script:
+    - cd "$RAIZ" && mvn -B test
+  artifacts:
+    when: always
+    reports:
+      junit: "**/target/surefire-reports/TEST-*.xml"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - !reference [.solo_rama_de_ambiente, rules]
+
+imagenes:
+  stage: imagenes
+  image: docker:27
+  services:
+    - docker:27-dind
+  needs: [pruebas]
+  script:
+    - echo "$HARBOR_CLAVE" | docker login "$HARBOR_URL" -u "$HARBOR_USUARIO" --password-stdin
+    - IMG="$HARBOR_URL/$HARBOR_PROYECTO/$NOMBRE"
+    - TAG="$CI_COMMIT_BRANCH-$CI_PIPELINE_IID-$CI_COMMIT_SHA"
+    - docker build -t "$IMG:$TAG" -f "$DOCKERFILE" "$CONTEXTO"
+    - docker push "$IMG:$TAG"
+    - docker inspect --format='{{index .RepoDigests 0}}' "$IMG:$TAG" | sed 's/.*@//' > digest.txt
+    - mkdir -p digests && mv digest.txt "digests/$NOMBRE"
+  artifacts:
+    paths:
+      - digests/
+    expire_in: 3 days
+  rules:
+    - !reference [.solo_rama_de_ambiente, rules]
+  parallel:
+    matrix:
+      - NOMBRE: firma-electronica-service
+        DOCKERFILE: facturacion-electronica-ec/firma-electronica-service/Dockerfile
+        CONTEXTO: facturacion-electronica-ec
+      - NOMBRE: inventario-service
+        DOCKERFILE: facturacion-electronica-ec/inventario-service/Dockerfile
+        CONTEXTO: facturacion-electronica-ec
+      - NOMBRE: comprobantes-service
+        DOCKERFILE: facturacion-electronica-ec/comprobantes-service/Dockerfile
+        CONTEXTO: facturacion-electronica-ec
+      - NOMBRE: sri-conector-service
+        DOCKERFILE: facturacion-electronica-ec/sri-conector-service/Dockerfile
+        CONTEXTO: facturacion-electronica-ec
+      - NOMBRE: notificacion-service
+        DOCKERFILE: facturacion-electronica-ec/notificacion-service/Dockerfile
+        CONTEXTO: facturacion-electronica-ec
+      - NOMBRE: facturacion-orchestrator-service
+        DOCKERFILE: facturacion-electronica-ec/facturacion-orchestrator-service/Dockerfile
+        CONTEXTO: facturacion-electronica-ec
+      - NOMBRE: identidad-service
+        DOCKERFILE: facturacion-electronica-ec/identidad-service/Dockerfile
+        CONTEXTO: facturacion-electronica-ec
+      - NOMBRE: topic-init
+        DOCKERFILE: kafka/topic-init/Dockerfile
+        CONTEXTO: kafka/topic-init
+
+# Escribe los digests en la rama del ambiente del repositorio de despliegue (el nombre de la rama de ambiente es el del ambiente).
+.promover:
+  stage: promover
+  image: alpine:3.20
+  needs:
+    - job: imagenes
+      artifacts: true
+  resource_group: promover-$CI_COMMIT_BRANCH
+  before_script:
+    - apk add --no-cache git curl
+    - curl -sSfL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar -xz -C /usr/local/bin kustomize
+  script:
+    - AMBIENTE="$CI_COMMIT_BRANCH"
+    - git config --global user.name "gitlab-ci"
+    - git config --global user.email "gitlab-ci@localhost"
+    - git clone --branch "$AMBIENTE" "https://gitlab-ci-token:${DESPLIEGUE_TOKEN}@${DESPLIEGUE_URL}" "$CI_PROJECT_DIR/despliegue"
+    - cd "$CI_PROJECT_DIR/despliegue/overlays/$AMBIENTE"
+    - |
+      for f in "$CI_PROJECT_DIR"/digests/*; do
+        img="$(basename "$f")"
+        dig="$(tr -d '[:space:]' < "$f")"
+        case "$dig" in sha256:*) ;; *) echo "Digest inválido para $img: '$dig'"; exit 1;; esac
+        kustomize edit set image "harbor.local/facturacion/${img}=${HARBOR_URL}/${HARBOR_PROYECTO}/${img}@${dig}"
+      done
+    - kustomize build . > /dev/null
+    - cd "$CI_PROJECT_DIR/despliegue"
+    - git add "overlays/$AMBIENTE/kustomization.yaml"
+    - |
+      if git diff --cached --quiet; then echo "Sin cambios que promover"; exit 0; fi
+      git commit -m "chore(gitops): promover imágenes a $AMBIENTE" -m "Origen: $CI_PROJECT_PATH@$CI_COMMIT_SHA"
+      for intento in 1 2 3; do
+        if git pull --rebase origin "$AMBIENTE" && git push origin "HEAD:$AMBIENTE"; then exit 0; fi
+        sleep $((intento * 5))
+      done
+      echo "No se pudo publicar en la rama $AMBIENTE"; exit 1
+
+promover:
+  extends: .promover
+  environment:
+    name: $CI_COMMIT_BRANCH
+  rules:
+    - if: '$CI_PIPELINE_SOURCE != "merge_request_event" && $CI_COMMIT_BRANCH =~ /^(desarrollo|pruebas)$/'
+
+# Producción: el job espera a que un aprobador lo ejecute a mano (y solo quien tenga acceso al environment protegido "produccion").
+promover-produccion:
+  extends: .promover
+  environment:
+    name: produccion
+  rules:
+    - if: '$CI_PIPELINE_SOURCE != "merge_request_event" && $CI_COMMIT_BRANCH == "produccion"'
+      when: manual
+      allow_failure: false

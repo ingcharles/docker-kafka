@@ -75,3 +75,18 @@ docker compose --env-file env/produccion.env -f docker-compose.ha.yml up -d --bu
 Las variables de cada ambiente están en `env/desarrollo.env`, `env/pruebas.env` y `env/produccion.env` (el `KAFKA_CLUSTER_ID` se genera una vez por clúster); la lista completa, en `facturacion-electronica-ec/documentacion/VARIABLES_DE_ENTORNO.md`. Los servicios se conectan con `KAFKA_BOOTSTRAP_SERVERS` y los tópicos se crean con `KAFKA_REPLICATION_FACTOR` y `KAFKA_MIN_ISR` (`facturacion-electronica-ec/env/<ambiente>.env`).
 
 Un clúster de un solo nodo existente no se convierte en uno de varios: los tópicos con replicación 1 hay que recrearlos (o reasignar sus réplicas con `kafka-reassign-partitions.sh`). Para probar otro clúster al lado del de desarrollo: otro `KAFKA_NETWORK`, otros puertos y `-p <nombre>`.
+
+## Cambiar entre 1 y 2 nodos en desarrollo
+
+Desarrollo usa 2 nodos (`env/desarrollo.env`). Si solo necesitas un broker (menos memoria, arranque más rápido), se cambia el clúster y la configuración de facturación; son clústeres distintos, así que **los tópicos y los mensajes no se trasladan** (el job de tópicos de facturación los recrea vacíos) y el volumen del otro clúster queda guardado por si vuelves.
+
+**De 2 nodos a uno solo**
+
+1. En `facturacion-electronica-ec/env/desarrollo.env`: `KAFKA_BOOTSTRAP_SERVERS=broker:9092`, `KAFKA_REPLICATION_FACTOR=1`, `KAFKA_MIN_ISR=1` y `KAFKA_EXPORTER_BROKER=broker:9092`.
+2. Bajar el clúster de 2 nodos (en esta carpeta): `docker compose --env-file env/desarrollo.env -f docker-compose.ha.yml down`.
+3. Subir el de un solo nodo: `docker compose up -d --build` (usa `.env`; si no existe, `cp .env.example .env` y ponle un `KAFKA_CLUSTER_ID` nuevo).
+4. Recrear los servicios para que el job de tópicos los cree con replicación 1: `cd ../facturacion-electronica-ec && ./scripts/compose.sh desarrollo up -d --no-build`.
+
+**De un solo nodo a 2**: lo contrario. Dejar en `env/desarrollo.env` de facturación `KAFKA_BOOTSTRAP_SERVERS=broker-1:9092,broker-2:9092`, `KAFKA_REPLICATION_FACTOR=2`, `KAFKA_MIN_ISR=2` y `KAFKA_EXPORTER_BROKER=broker-1:9092`; bajar el de un solo nodo (`docker compose down`), subir el de 2 (`docker compose --env-file env/desarrollo.env -f docker-compose.ha.yml up -d --build`) y recrear los servicios con `compose.sh`.
+
+Los dos clústeres usan los mismos puertos del host (`9094`, `8080`) y la red `kafka_net`: no se levantan a la vez.
