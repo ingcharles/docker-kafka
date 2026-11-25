@@ -1,0 +1,42 @@
+openapi: 3.0.3
+info:
+  title: facturacion-orchestrator-service
+  description: "Contrato generado de las clases Resource (wso2/scripts/generar-contrato.pl). No editar a mano."
+  version: v1
+paths:
+  "/":
+    get:
+      operationId: get
+      summary: "Listar sagas"
+      responses:
+        "200": { description: OK }
+  "/reenviar-notificaciones":
+    post:
+      operationId: post_reenviar_notificaciones
+      summary: "Reenviar en masa los correos fallidos"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/{comprobanteId}":
+    get:
+      operationId: get_comprobanteid
+      summary: "Estado y línea de tiempo de la saga de un comprobante"
+      parameters:
+        - { name: comprobanteId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  "/{comprobanteId}/retry":
+    post:
+      operationId: post_comprobanteid_retry
+      summary: "Reenviar el último comando de una saga atascada"
+      parameters:
+        - { name: comprobanteId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }

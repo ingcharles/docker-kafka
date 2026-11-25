@@ -54,6 +54,23 @@ pruebas:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - !reference [.solo_rama_de_ambiente, rules]
 
+# El monitoreo de Kubernetes se genera desde observabilidad/ de este repositorio: falla si el repositorio de despliegue quedó atrás.
+# No bloquea las imágenes (imagenes solo depende de pruebas): avisa en rojo que falta generar y commitear en el repositorio de despliegue.
+monitoreo:
+  stage: validar
+  image: alpine:3.20
+  needs: []
+  # "verify" da acceso a las variables del environment (p. ej. DESPLIEGUE_TOKEN de produccion) sin registrar un despliegue.
+  environment:
+    name: $CI_COMMIT_BRANCH
+    action: verify
+  script:
+    - apk add --no-cache git perl
+    - git clone --depth 1 --branch "$CI_COMMIT_BRANCH" "https://gitlab-ci-token:${DESPLIEGUE_TOKEN}@${DESPLIEGUE_URL}" /tmp/despliegue
+    - perl "$RAIZ/observabilidad/generar-monitoreo-k8s.pl" /tmp/despliegue --verificar
+  rules:
+    - if: '$DESPLIEGUE_URL && $CI_PIPELINE_SOURCE != "merge_request_event" && $CI_COMMIT_BRANCH =~ /^(desarrollo|pruebas|produccion)$/'
+
 imagenes:
   stage: imagenes
   image: docker:27

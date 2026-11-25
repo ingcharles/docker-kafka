@@ -160,3 +160,20 @@ jobs:
           done
           echo "No se pudo publicar en la rama $AMBIENTE (¿protegida sin permiso para el token?)"
           exit 1
+
+  # El monitoreo de Kubernetes se genera desde observabilidad/ de este repositorio: falla si el repositorio de despliegue quedó atrás.
+  # No bloquea las imágenes: avisa en rojo que falta generar y commitear en el repositorio de despliegue.
+  monitoreo:
+    name: Monitoreo de Kubernetes al día
+    runs-on: ${{ vars.RUNNER_ETIQUETA || 'ubuntu-latest' }}
+    if: ${{ vars.DESPLIEGUE_REPO != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.DESPLIEGUE_REPO }}
+          ref: ${{ inputs.ambiente }}
+          token: ${{ secrets.DESPLIEGUE_TOKEN || github.token }}
+          path: despliegue
+      - name: Comparar con observabilidad/
+        run: perl facturacion-electronica-ec/observabilidad/generar-monitoreo-k8s.pl despliegue --verificar

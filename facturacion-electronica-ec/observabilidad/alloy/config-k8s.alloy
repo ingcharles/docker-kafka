@@ -1,0 +1,43 @@
+// Alloy en Kubernetes: lee por la API los logs de los pods de facturación y los manda a Loki con las mismas etiquetas que en
+// docker compose (config.alloy): "servicio" y, si el servicio escribe en JSON (LOG_FORMATO_JSON=true), "nivel".
+
+discovery.kubernetes "pods" {
+  role = "pod"
+  namespaces {
+    names = ["facturacion-desarrollo", "facturacion-pruebas", "facturacion-produccion"]
+  }
+}
+
+discovery.relabel "etiquetas" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+    target_label  = "servicio"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    target_label  = "namespace"
+  }
+}
+
+loki.source.kubernetes "logs" {
+  targets    = discovery.relabel.etiquetas.output
+  forward_to = [loki.process.json.receiver]
+}
+
+loki.process "json" {
+  stage.json {
+    expressions = { nivel = "level" }
+  }
+  stage.labels {
+    values = { nivel = "" }
+  }
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

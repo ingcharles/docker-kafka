@@ -1,0 +1,7 @@
+comprobantes-service	/comprobantes/api/v1
+facturacion-orchestrator-service	/sagas/api/v1
+firma-electronica-service	/empresas/api/v1
+identidad-service	/identidad/api/v1
+inventario-service	/inventario/api/v1
+notificacion-service	/notificaciones/api/v1
+sri-conector-service	/sri/api/v1

@@ -144,6 +144,19 @@ Reemplaza <amb> por desarrollo o pruebas. Todo desde Git Bash.
   (en ../postgres). Guía: postgres/README.md.
 
 
+5c. GATEWAY WSO2 (OPCIONAL EN LOCAL; DELANTE DE LOS SERVICIOS EN PRODUCCIÓN)
+-----------------------------------------------------------------------------------------------------
+  En Git Bash, desde la raíz del repositorio (la carpeta que contiene wso2/), con los 7 servicios en "healthy":
+      docker compose -f wso2/docker-compose.yml up -d
+      docker inspect -f '{{.State.Health.Status}}' wso2am        # repite hasta "healthy" (≈2 min)
+      BACKEND_PUERTOS="firma-electronica-service=8091 inventario-service=8092 comprobantes-service=8093 sri-conector-service=8094 notificacion-service=8095 facturacion-orchestrator-service=8096 identidad-service=8097" \
+      WSO2_ADMIN_CLAVE=admin perl wso2/scripts/configurar-wso2.pl desarrollo-local
+  Consola: https://localhost:9443 (admin / admin, solo desarrollo). Gateway: https://localhost:8243.
+  La api-key del gateway (cabecera ApiKey) queda en wso2/.local/api-key-desarrollo-local.txt; la del servicio va en
+  Authorization: Bearer. El WSO2 de desarrollo no guarda nada: tras "down" hay que volver a ejecutar el script.
+  Guía completa: wso2/README.md.
+
+
 6. PRODUCCIÓN (DIFERENCIAS)
 -----------------------------------------------------------------------------------------------------
   - Usa tu propio Postgres: pon su host en DB_HOST dentro de env/produccion.env (no uses el paso 3).

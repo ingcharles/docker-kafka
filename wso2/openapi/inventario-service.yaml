@@ -1,0 +1,141 @@
+openapi: 3.0.3
+info:
+  title: inventario-service
+  description: "Contrato generado de las clases Resource (wso2/scripts/generar-contrato.pl). No editar a mano."
+  version: v1
+paths:
+  "/categorias":
+    get:
+      operationId: get_categorias
+      summary: "Listar categorías"
+      responses:
+        "200": { description: OK }
+    post:
+      operationId: post_categorias
+      summary: "Crear una categoría"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/categorias/{id}":
+    get:
+      operationId: get_categorias_id
+      summary: "Obtener una categoría por id"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    put:
+      operationId: put_categorias_id
+      summary: "Actualizar una categoría"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/imagenes/{id}":
+    delete:
+      operationId: delete_imagenes_id
+      summary: "Eliminar una imagen"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  "/imagenes/{id}/contenido":
+    get:
+      operationId: get_imagenes_id_contenido
+      summary: "Descargar el contenido binario de una imagen"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  "/items":
+    get:
+      operationId: get_items
+      summary: "Listar ítems"
+      responses:
+        "200": { description: OK }
+    post:
+      operationId: post_items
+      summary: "Crear un ítem (producto o servicio)"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/items/{id}":
+    get:
+      operationId: get_items_id
+      summary: "Obtener un ítem por id"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    put:
+      operationId: put_items_id
+      summary: "Actualizar un ítem"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/items/{id}/imagenes":
+    get:
+      operationId: get_items_id_imagenes
+      summary: "Listar las imágenes de un ítem"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    post:
+      operationId: post_items_id_imagenes
+      summary: "Subir una imagen para un ítem"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/items/{id}/kardex":
+    get:
+      operationId: get_items_id_kardex
+      summary: "Listar los movimientos de kardex de un ítem"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  "/items/{id}/kardex/ajustes":
+    post:
+      operationId: post_items_id_kardex_ajustes
+      summary: "Registrar un ajuste de kardex"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/items/{id}/kardex/entradas":
+    post:
+      operationId: post_items_id_kardex_entradas
+      summary: "Registrar una entrada de kardex"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }

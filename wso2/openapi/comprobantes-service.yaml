@@ -1,0 +1,141 @@
+openapi: 3.0.3
+info:
+  title: comprobantes-service
+  description: "Contrato generado de las clases Resource (wso2/scripts/generar-contrato.pl). No editar a mano."
+  version: v1
+paths:
+  "/catalogos":
+    get:
+      operationId: get_catalogos
+      summary: "listarCatalogos"
+      responses:
+        "200": { description: OK }
+  "/catalogos/{catalogo}":
+    get:
+      operationId: get_catalogos_catalogo
+      summary: "listar"
+      parameters:
+        - { name: catalogo, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    put:
+      operationId: put_catalogos_catalogo
+      summary: "guardar"
+      parameters:
+        - { name: catalogo, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/comprobantes":
+    get:
+      operationId: get_comprobantes
+      summary: "Listar comprobantes"
+      responses:
+        "200": { description: OK }
+  "/comprobantes/{id}":
+    get:
+      operationId: get_comprobantes_id
+      summary: "Obtener un comprobante por id"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  "/comprobantes/{id}/reenviar-correo":
+    post:
+      operationId: post_comprobantes_id_reenviar_correo
+      summary: "Reenviar el correo del comprobante"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/comprobantes/{id}/ride":
+    get:
+      operationId: get_comprobantes_id_ride
+      summary: "Descargar el RIDE (representación impresa) en PDF"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  "/comprobantes/{id}/ticket":
+    get:
+      operationId: get_comprobantes_id_ticket
+      summary: "Ticket (recibo corto) para impresora de recibos"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  "/comprobantes/{id}/xml":
+    get:
+      operationId: get_comprobantes_id_xml
+      summary: "Descargar el XML del comprobante en una etapa específica"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  "/facturas":
+    post:
+      operationId: post_facturas
+      summary: "Crear una factura"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/guias-remision":
+    post:
+      operationId: post_guias_remision
+      summary: "Crear una guía de remisión"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/liquidaciones-compra":
+    post:
+      operationId: post_liquidaciones_compra
+      summary: "Crear una liquidación de compra"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/notas-credito":
+    post:
+      operationId: post_notas_credito
+      summary: "Crear una nota de crédito"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/notas-debito":
+    post:
+      operationId: post_notas_debito
+      summary: "Crear una nota de débito"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/retenciones":
+    post:
+      operationId: post_retenciones
+      summary: "Crear un comprobante de retención"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }

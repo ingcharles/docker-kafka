@@ -1,0 +1,78 @@
+openapi: 3.0.3
+info:
+  title: notificacion-service
+  description: "Contrato generado de las clases Resource (wso2/scripts/generar-contrato.pl). No editar a mano."
+  version: v1
+paths:
+  "/notificaciones/comprobante/{comprobanteId}":
+    get:
+      operationId: get_notificaciones_comprobante_comprobanteid
+      summary: "Estado del envío por correo de un comprobante, por su id en comprobantes-service"
+      parameters:
+        - { name: comprobanteId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  "/plantillas-correo":
+    get:
+      operationId: get_plantillas_correo
+      summary: "Las plantillas propias de la empresa"
+      responses:
+        "200": { description: OK }
+  "/plantillas-correo/por-defecto/{tipo}":
+    get:
+      operationId: get_plantillas_correo_por_defecto_tipo
+      summary: "La plantilla por defecto de un tipo, con las variables sin reemplazar, como punto de partida"
+      parameters:
+        - { name: tipo, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  "/plantillas-correo/variables":
+    get:
+      operationId: get_plantillas_correo_variables
+      summary: "Variables que se pueden usar en una plantilla, escritas con dobles llaves"
+      responses:
+        "200": { description: OK }
+  "/plantillas-correo/vista-previa":
+    post:
+      operationId: post_plantillas_correo_vista_previa
+      summary: "Cómo quedaría el correo con esta plantilla, con datos de ejemplo y el logo real; no guarda nada"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/plantillas-correo/{tipo}":
+    delete:
+      operationId: delete_plantillas_correo_tipo
+      summary: "Eliminar la plantilla propia de un tipo: el correo vuelve a la plantilla por defecto (rol ADMIN)"
+      parameters:
+        - { name: tipo, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    get:
+      operationId: get_plantillas_correo_tipo
+      summary: "La plantilla propia de la empresa para un tipo"
+      parameters:
+        - { name: tipo, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    put:
+      operationId: put_plantillas_correo_tipo
+      summary: "Crear o reemplazar la plantilla de la empresa para un tipo (rol ADMIN)"
+      parameters:
+        - { name: tipo, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/plantillas-correo/{tipo}/historial":
+    get:
+      operationId: get_plantillas_correo_tipo_historial
+      summary: "Versiones anteriores de la plantilla, la más nueva primero"
+      parameters:
+        - { name: tipo, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }

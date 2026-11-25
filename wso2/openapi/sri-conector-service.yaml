@@ -1,0 +1,30 @@
+openapi: 3.0.3
+info:
+  title: sri-conector-service
+  description: "Contrato generado de las clases Resource (wso2/scripts/generar-contrato.pl). No editar a mano."
+  version: v1
+paths:
+  "/envios/clave/{claveAcceso}":
+    get:
+      operationId: get_envios_clave_claveacceso
+      summary: "Estado del envío al SRI, por clave de acceso"
+      parameters:
+        - { name: claveAcceso, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  "/envios/comprobante/{comprobanteId}":
+    get:
+      operationId: get_envios_comprobante_comprobanteid
+      summary: "Estado del envío al SRI de un comprobante, por su id en comprobantes-service"
+      parameters:
+        - { name: comprobanteId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  "/envios/comprobante/{comprobanteId}/xml":
+    get:
+      operationId: get_envios_comprobante_comprobanteid_xml
+      summary: "Descargar el XML asociado a este envío"
+      parameters:
+        - { name: comprobanteId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }

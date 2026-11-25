@@ -30,6 +30,17 @@ y `./scripts/compose.sh <ambiente> up -d` (el script traduce la bandera al perfi
 
 Los puertos solo se publican en `127.0.0.1` (`OBSERVABILIDAD_BIND`). En producción se sirven por el proxy con TLS y autenticación; no los abras a internet.
 
+## Una sola definición para Compose y Kubernetes
+
+Las alertas (`prometheus/reglas/alertas.yml`), los tableros (`grafana/dashboards/`), la configuración de Loki y las consultas de Postgres se
+cambian **solo aquí**. Los archivos de Kubernetes se generan en el repositorio de despliegue (Alloy usa `alloy/config-k8s.alloy`, porque allí
+lee por la API y no por el socket de Docker):
+
+```bash
+perl observabilidad/generar-monitoreo-k8s.pl ../../facturacion-despliegue              # escribe los archivos
+perl observabilidad/generar-monitoreo-k8s.pl ../../facturacion-despliegue --verificar  # falla si no coinciden (CI del código en GitHub y GitLab; CI del despliegue en GitHub)
+```
+
 ## Qué hay
 
 | Pieza | Para qué |

@@ -4,20 +4,17 @@ Prueba del 2026-11-17 con la empresa `1722039953001` en el ambiente `PRUEBAS` de
 detalle e impuesto, **sin correo del receptor**: la saga termina en `AUTORIZADO_SIN_NOTIFICACION` y no se envía ningún correo (se comprobó: ninguna de
 las 50 emisiones tiene notificación, ni hay envíos en `notificacion-service`).
 
-**Resultado: 44 de 50 autorizadas en la primera pasada.** Las 6 rechazadas (`NO_AUTORIZADO`) eran de dos causas, explicadas abajo. Las 3 con ICE se corrigieron en `ConstructorDetalles` y se volvieron a emitir: ahora las 5 emisiones con ICE (`fase4.sh`) quedan autorizadas. Siguen rechazadas solo las 3 retenciones de renta con porcentaje distinto al del SRI.
+**Resultado: 44 de 50 autorizadas en la primera pasada.** Las 6 rechazadas (`NO_AUTORIZADO`) eran de dos causas, explicadas abajo. Las 3 con ICE se corrigieron en `ConstructorDetalles` y se volvieron a emitir: ahora las 5 emisiones con ICE (F09, F10, F11, F13 y F15) quedan autorizadas. Siguen rechazadas solo las 3 retenciones de renta con porcentaje distinto al del SRI.
 
 ## Cómo repetirlo
 ```bash
 export APIKEY=<api-key de escritura de la empresa>          # POST /identidad/api/v1/api-keys; revócala al terminar
-bash scripts/ejemplos/fase1.sh && bash -c 'source scripts/ejemplos/lib.sh; esperar 420; tabla'   # facturas
 bash scripts/ejemplos/fase2.sh && bash -c 'source scripts/ejemplos/lib.sh; esperar 420; tabla'   # notas, guías, retenciones, liquidaciones
-bash scripts/ejemplos/fase4.sh && bash -c 'source scripts/ejemplos/lib.sh; esperar 300; tabla'   # solo los casos con ICE (F09, F10, F11, F13, F15)
-bash scripts/ejemplos/fase5.sh && bash -c 'source scripts/ejemplos/lib.sh; esperar 360; tabla'   # IRBPNR y retenciones de renta con porcentajes 2026
-bash scripts/ejemplos/fase6.sh && bash -c 'source scripts/ejemplos/lib.sh; esperar 300; tabla'   # ICE específico, base indicada, ítems por códigos
 bash scripts/ejemplos/fase7.sh && bash -c 'source scripts/ejemplos/lib.sh; esperar 360; tabla'   # varias formas de pago a la vez
 ```
-Las notas de crédito y débito y las guías de la fase 2 apuntan a una factura ya autorizada (`DOC` y `CLAVE_F01` al inicio de `fase2.sh`): cámbialas por una
-tuya. Cada emisión consume un secuencial del SRI; el ambiente `PRUEBAS` no tiene validez tributaria. `fase1.sh` crea dos ítems de inventario con stock.
+`fase2.sh` emite primero su propia factura base y espera a que se autorice; las notas y las guías la usan. Cada emisión consume un secuencial del SRI;
+el ambiente `PRUEBAS` no tiene validez tributaria. Las tablas de abajo que citan `fase1`, `fase4`, `fase5` y `fase6` son el resultado de aquella prueba; esos
+scripts ya no están en el repositorio (quedan en el historial de git).
 
 ## Facturas (28 emisiones; la de IVA 15% se emitió dos veces)
 
@@ -70,7 +67,7 @@ Limitación conocida: el ICE se calcula como porcentaje del subtotal de la líne
 
 **2. IRBPNR (F12, F13) — corregido.** Es una tarifa específica por unidad (USD 0,02 por botella): en el ejemplo oficial de la ficha la base son las unidades (12000.00), la tarifa 0.02 y el valor 240.00. `ConstructorDetalles` lo calculaba como porcentaje del precio (valor 0,00). Ahora base = cantidad y valor = cantidad × tarifa, y no entra en la base del IVA. El RIDE muestra la fila IRBPNR y el "SUBTOTAL IVA" sin el ICE (Tabla 21). Reemisión: F12 (total 14,04) y F13 (24,27) autorizadas.
 
-**3. Porcentaje de retención de renta (fase5.sh).** El SRI valida el par código + porcentaje. Desde el 1/3/2026 rige la Resolución NAC-DGERCGC26-00000009, que cambió porcentajes (p. ej. 1,75% pasó a 2%). Se emitió una retención por código contra el SRI:
+**3. Porcentaje de retención de renta.** El SRI valida el par código + porcentaje. Desde el 1/3/2026 rige la Resolución NAC-DGERCGC26-00000009, que cambió porcentajes (p. ej. 1,75% pasó a 2%). Se emitió una retención por código contra el SRI:
 
 | Código | % | Resultado |
 |---|---|---|
@@ -91,7 +88,7 @@ Limitación conocida: el ICE se calcula como porcentaje del subtotal de la líne
 
 Nuestro servicio no detecta estos errores porque el catálogo de retenciones de renta está vacío (guía de pruebas 9.3) y solo valida el formato; el SRI los rechaza. La tabla código por código del ATS no está en `documentacion/`, y los pares de arriba son solo lo que se verificó emitiendo: cargar un catálogo parcial haría estricta la validación de todos los códigos de renta y rechazaría los no listados.
 
-## ICE específico, base indicada, ítems solo con códigos y ticket (fase6.sh)
+## ICE específico, base indicada, ítems solo con códigos y ticket
 
 Después de cargar la Tabla 18 y el IRBPNR en el catálogo (V20) y de simplificar el ítem a solo códigos (inventario V8, comprobantes V21):
 

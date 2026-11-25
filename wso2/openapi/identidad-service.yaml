@@ -1,0 +1,128 @@
+openapi: 3.0.3
+info:
+  title: identidad-service
+  description: "Contrato generado de las clases Resource (wso2/scripts/generar-contrato.pl). No editar a mano."
+  version: v1
+paths:
+  "/api-keys":
+    get:
+      operationId: get_api_keys
+      summary: "Listar las api-keys del usuario autenticado"
+      responses:
+        "200": { description: OK }
+    post:
+      operationId: post_api_keys
+      summary: "Crear una api-key"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/api-keys/{id}":
+    delete:
+      operationId: delete_api_keys_id
+      summary: "Revocar una api-key"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  "/empresas/{ruc}/usuarios":
+    get:
+      operationId: get_empresas_ruc_usuarios
+      summary: "Listar los usuarios con acceso a este ruc"
+      parameters:
+        - { name: ruc, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    post:
+      operationId: post_empresas_ruc_usuarios
+      summary: "Dar acceso a un usuario a este ruc"
+      parameters:
+        - { name: ruc, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/empresas/{ruc}/usuarios/{usuarioId}":
+    delete:
+      operationId: delete_empresas_ruc_usuarios_usuarioid
+      summary: "Revocar el acceso de un miembro a este ruc"
+      parameters:
+        - { name: ruc, in: path, required: true, schema: { type: string } }
+        - { name: usuarioId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    patch:
+      operationId: patch_empresas_ruc_usuarios_usuarioid
+      summary: "Cambiar el rol de un miembro"
+      parameters:
+        - { name: ruc, in: path, required: true, schema: { type: string } }
+        - { name: usuarioId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/usuarios":
+    post:
+      operationId: post_usuarios
+      summary: "Crear una cuenta de usuario"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/usuarios/login":
+    post:
+      operationId: post_usuarios_login
+      summary: "Autenticarse"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/usuarios/me":
+    get:
+      operationId: get_usuarios_me
+      summary: "Datos del usuario autenticado"
+      responses:
+        "200": { description: OK }
+    patch:
+      operationId: patch_usuarios_me
+      summary: "Actualizar el perfil del usuario autenticado"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/usuarios/me/empresas":
+    get:
+      operationId: get_usuarios_me_empresas
+      summary: "Listar las empresas (ruc) a las que está asociado el usuario autenticado"
+      responses:
+        "200": { description: OK }
+  "/usuarios/me/empresas/{ruc}":
+    delete:
+      operationId: delete_usuarios_me_empresas_ruc
+      summary: "Abandonar una empresa (ruc)"
+      parameters:
+        - { name: ruc, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  "/usuarios/me/password":
+    patch:
+      operationId: patch_usuarios_me_password
+      summary: "Cambiar la contraseña del usuario autenticado"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }

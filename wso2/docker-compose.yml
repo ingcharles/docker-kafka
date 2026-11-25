@@ -1,0 +1,31 @@
+# WSO2 API Manager para desarrollo y pruebas locales (un solo contenedor: gateway + publisher + devportal + admin, base H2 interna).
+# En producción WSO2 es de la plataforma (con su propia base, clúster y TLS): aquí solo sirve para probar la integración.
+#
+#   docker compose -f wso2/docker-compose.yml up -d
+#   wso2/scripts/configurar-wso2.sh desarrollo-local        # crea las APIs, políticas, aplicación y api-key (ver wso2/README.md)
+#
+# Puertos (cambiables en wso2/.env o con variables de entorno):
+#   9443  consola, Publisher (/publisher), Developer Portal (/devportal) y Admin (/admin)  — https, certificado autofirmado
+#   8243  gateway https (aquí llegan los clientes)        8280  gateway http (solo pruebas)
+name: wso2
+
+services:
+  wso2am:
+    image: wso2/wso2am:${WSO2_VERSION:-4.3.0}
+    container_name: wso2am
+    ports:
+      - "${WSO2_PUERTO_CONSOLA:-9443}:9443"
+      - "${WSO2_PUERTO_GATEWAY_HTTPS:-8243}:8243"
+      - "${WSO2_PUERTO_GATEWAY_HTTP:-8280}:8280"
+    # Para que el gateway alcance los servicios que corren en tu máquina (port-forward del clúster o compose) con host.docker.internal.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      JAVA_OPTS: "-Xms512m -Xmx${WSO2_MEMORIA_MAXIMA:-2048}m"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsk https://localhost:9443/services/Version >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 90s
+    restart: unless-stopped

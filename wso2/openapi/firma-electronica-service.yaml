@@ -1,0 +1,225 @@
+openapi: 3.0.3
+info:
+  title: firma-electronica-service
+  description: "Contrato generado de las clases Resource (wso2/scripts/generar-contrato.pl). No editar a mano."
+  version: v1
+paths:
+  "/":
+    get:
+      operationId: get
+      summary: "Listar empresas"
+      responses:
+        "200": { description: OK }
+    post:
+      operationId: post
+      summary: "Registrar una empresa"
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/{empresaId}/establecimientos":
+    get:
+      operationId: get_empresaid_establecimientos
+      summary: "Listar los establecimientos de una empresa"
+      parameters:
+        - { name: empresaId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    post:
+      operationId: post_empresaid_establecimientos
+      summary: "Registrar un establecimiento"
+      parameters:
+        - { name: empresaId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/{empresaId}/establecimientos/{establecimientoId}/puntos-emision":
+    get:
+      operationId: get_empresaid_establecimientos_establecimientoid_puntos_emision
+      summary: "Listar los puntos de emisión de un establecimiento"
+      parameters:
+        - { name: empresaId, in: path, required: true, schema: { type: string } }
+        - { name: establecimientoId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    post:
+      operationId: post_empresaid_establecimientos_establecimientoid_puntos_emision
+      summary: "Registrar un punto de emisión"
+      parameters:
+        - { name: empresaId, in: path, required: true, schema: { type: string } }
+        - { name: establecimientoId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/{empresaId}/establecimientos/{establecimientoId}/puntos-emision/{id}":
+    get:
+      operationId: get_empresaid_establecimientos_establecimientoid_puntos_emision_id
+      summary: "Obtener un punto de emisión por id"
+      parameters:
+        - { name: empresaId, in: path, required: true, schema: { type: string } }
+        - { name: establecimientoId, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    put:
+      operationId: put_empresaid_establecimientos_establecimientoid_puntos_emision_id
+      summary: "Actualizar un punto de emisión"
+      parameters:
+        - { name: empresaId, in: path, required: true, schema: { type: string } }
+        - { name: establecimientoId, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/{empresaId}/establecimientos/{id}":
+    get:
+      operationId: get_empresaid_establecimientos_id
+      summary: "Obtener un establecimiento por id"
+      parameters:
+        - { name: empresaId, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    put:
+      operationId: put_empresaid_establecimientos_id
+      summary: "Actualizar un establecimiento"
+      parameters:
+        - { name: empresaId, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/{id}":
+    get:
+      operationId: get_id
+      summary: "Obtener una empresa por id"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    put:
+      operationId: put_id
+      summary: "Actualizar los datos de una empresa"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/{id}/certificado":
+    delete:
+      operationId: delete_id_certificado
+      summary: "Revocar el certificado activo de la empresa"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    get:
+      operationId: get_id_certificado
+      summary: "Consultar la metadata del certificado activo de la empresa"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    post:
+      operationId: post_id_certificado
+      summary: "Subir el certificado .p12 de la empresa"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/{id}/configuracion":
+    get:
+      operationId: get_id_configuracion
+      summary: "Listar los ajustes de configuración de una empresa"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  "/{id}/configuracion/{clave}":
+    delete:
+      operationId: delete_id_configuracion_clave
+      summary: "Eliminar un ajuste de configuración"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: clave, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    get:
+      operationId: get_id_configuracion_clave
+      summary: "Obtener un ajuste de configuración por clave"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: clave, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    patch:
+      operationId: patch_id_configuracion_clave
+      summary: "Cambiar el valor de un ajuste de configuración ya existente"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: clave, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+    post:
+      operationId: post_id_configuracion_clave
+      summary: "Crear un ajuste de configuración de la empresa"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: clave, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  "/{id}/logo":
+    delete:
+      operationId: delete_id_logo
+      summary: "Quitar el logo de la empresa"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    get:
+      operationId: get_id_logo
+      summary: "Obtener el logo de la empresa"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+    post:
+      operationId: post_id_logo
+      summary: "Subir el logo de la empresa (PNG o JPEG, hasta 200 KB)"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
