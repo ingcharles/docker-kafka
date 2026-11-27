@@ -784,7 +784,7 @@ Cómo se resolvió cada integración externa:
 
 | Tema | Lo resuelve | Configuración |
 |---|---|---|
-| Límite de peticiones, bloqueo por intentos de login y de creación de api-keys, cuotas por api-key | **WSO2** (políticas de throttling por aplicación y por operación; la IP de origen la acota el Ingress, que solo admite la del gateway) | Como código en `../wso2` (`scripts/configurar-wso2.pl`, límites por minuto en `wso2/env/<ambiente>.env`). Políticas en `POST /identidad/api/v1/usuarios/login`, `POST …/usuarios` (alta), `PATCH …/usuarios/me/password`, `POST …/api-keys` y `POST /comprobantes/api/v1/*`; el servicio devuelve `429` solo si su propio pool se satura |
+| Límite de peticiones, bloqueo por intentos de login y de creación de api-keys, cuotas por api-key | **WSO2** (cupo por aplicación cliente y, en las operaciones sensibles, por aplicación y operación con un tope total; sin límite por IP de cliente. Los límites por empresa y por usuario los aplica cada servicio, 10.6. El Ingress solo admite la IP del gateway) | Como código en `../wso2` (`scripts/configurar-wso2.pl`, límites por minuto en `wso2/env/<ambiente>.env`). Políticas en `POST /identidad/api/v1/usuarios/login`, `POST …/usuarios` (alta), `PATCH …/usuarios/me/password`, `POST …/api-keys` y `POST /comprobantes/api/v1/*`; el servicio devuelve `429` al superar el límite por usuario o por empresa (10.6) o si su pool de bcrypt se satura |
 | TLS, WAF, lista de IP, tamaño máximo de cuerpo | WSO2 / balanceador | TLS 1.2+; cuerpo máximo acorde al logo (200 KB), la imagen del ítem y el `.p12`; los servicios no se publican, solo el gateway. El gateway exige su propia api-key (cabecera `ApiKey`) y deja pasar `Authorization` e `Idempotency-Key` sin tocarlos: cada servicio sigue validando su api-key o sesión |
 | `/q/health`, `/q/metrics`, swagger | Red interna | Fuera del gateway público: el contrato de WSO2 (`../wso2/openapi`, generado del código) y las rutas del Ingress solo incluyen rutas de negocio, así que `/q/*` responde 404 por ahí; Swagger y OpenAPI ya están apagados en producción |
 | Secretos (clave de cifrado de los `.p12`, llaves JWT, base, SMTP) | Gestor de secretos (Vault o KMS) | Se inyectan como variables de entorno desde `env/<ambiente>.secretos.env`; nunca en archivos versionados; rotación documentada |
@@ -831,9 +831,57 @@ Las métricas de negocio (sagas por estado, outbox sin publicar, certificados po
 
 Los 7 servicios comparten `x-contenedor` y `x-jvm` en `docker-compose.yml`: límites de memoria (`CONTENEDOR_MEMORIA`), CPU y procesos; sistema de archivos de solo lectura con `/tmp` aparte (PDFBox guarda su caché de fuentes allí), `cap_drop: ALL`, `no-new-privileges`, `init`, rotación de logs y `HEALTHCHECK` en el Dockerfile. La JVM usa un porcentaje de la memoria del contenedor (`JVM_MAX_RAM_PORCENTAJE`, no un `-Xmx` fijo) y termina ante un `OutOfMemoryError` para que `restart` la levante limpia. Valores: `documentacion/VARIABLES_DE_ENTORNO.md`, sección 9.
 
+### 10.6 Límites por empresa y por usuario
+
+El gateway limita por aplicación cliente (10.1); cada servicio limita además las operaciones caras o peligrosas **por usuario** (el `sub` de su api-key o sesión) y **por empresa** (todos sus usuarios juntos). Las consultas y el resto de escrituras solo tienen el límite del gateway.
+
+Los valores están en la tabla `limite_configuracion` del esquema del servicio que hace la operación:
+
+| `operacion` | Dónde se aplica | Esquema | Por defecto (por usuario) |
+|---|---|---|---|
+| `login` (intentos sin éxito) | `POST /usuarios/login` | `identidad` | 5 cada 15 min |
+| `creacion-api-key` | `POST /api-keys` | `identidad` | 10 por hora |
+| `emision` | `POST` de facturas, notas de crédito y débito, guías, retenciones y liquidaciones | `comprobantes` | 60 por minuto |
+| `reenvio-correo` | `POST /comprobantes/{id}/reenviar-correo` | `comprobantes` | 10 por minuto |
+| `reenvio-correo` | `POST /reenviar-notificaciones` | `orquestacion` | 10 por minuto |
+| `carga-certificado` | `POST /{id}/certificado` | `firma_electronica` | 5 cada 15 min |
+
+- Columnas: `ruc` (`*` = general), `maximo_usuario`, `maximo_empresa` (`0` = sin límite) y `ventana_segundos` (1 a 86400). Rige la fila del RUC de la empresa y, si no tiene, la fila `*`. Las filas iniciales son las `*`, sin límite por empresa.
+- Un cambio rige en la siguiente petición, sin reiniciar. No hay endpoint para cambiarlos: ningún rol de la aplicación puede subir su propio límite; lo hace quien administra la base. Ejemplo (límite propio de una empresa en la emisión):
+
+```sql
+insert into comprobantes.limite_configuracion (ruc, operacion, maximo_usuario, maximo_empresa, ventana_segundos)
+values ('1790011001001', 'emision', 120, 600, 60)
+on conflict (ruc, operacion) do update set maximo_usuario = excluded.maximo_usuario,
+    maximo_empresa = excluded.maximo_empresa, ventana_segundos = excluded.ventana_segundos;
+```
+
+- El login no tiene empresa (un usuario puede estar en varias): usa solo la fila `*` y solo `maximo_usuario`, por cuenta.
+- La empresa es la de la api-key; al crear una api-key, la pedida, y solo después de comprobar que el usuario está asociado a ella.
+- Superar un límite responde `429` (`GEN-429-001`) con `Retry-After`. Cuenta cada intento, también el que después falla o repite una `Idempotency-Key`. Quien ya superó su límite no gasta el de la empresa.
+- Todas las api-keys de un usuario en una empresa comparten su cupo. Un sistema externo que atiende a muchas personas con una sola api-key es, aquí, un solo usuario.
+- El contador es una ventana fija en la tabla `limite_uso` del mismo esquema, compartida por las réplicas y actualizada con una sola sentencia. Si la base de límites no responde en 2 s, la operación pasa y queda el log `GEN-304`; una operación sin fila no se limita (`GEN-305`).
+- El login cuenta el intento antes de verificar la contraseña (una ráfaga en paralelo no se salta el límite), vuelve a cero al entrar y no bloquea de forma permanente. Cuenta igual un correo sin cuenta y solo guarda su huella SHA-256. Quien conozca un correo puede agotar sus intentos y dejarlo fuera hasta que termine la ventana.
+- La lógica está en `facturacion-commons` (`LimitadorDeUso`).
+
+**Para no dejar a nadie sin poder consumir:**
+
+- Los topes del gateway (10.1) se aplican antes y son por aplicación cliente: deben quedar por encima de lo que se permita aquí, o responden `429` aunque la base lo admita.
+- `0` es **sin límite**, no "bloqueado".
+- Antes de que una empresa que emite por lotes (un ERP o un punto de venta con una sola api-key) entre en producción, se le da su fila propia en `emision`. El cliente respeta `Retry-After` y reintenta con la misma `Idempotency-Key`.
+- Ver quién está en su tope y liberarlo (la liberación rige de inmediato):
+
+```sql
+select clave, usos, inicio_ventana from comprobantes.limite_uso order by usos desc limit 20;
+delete from comprobantes.limite_uso where clave like 'emision:1790011001001%';   -- una empresa y sus usuarios
+delete from identidad.limite_uso                                                  -- una cuenta bloqueada en el login
+where clave = 'login:*:' || encode(sha256(convert_to(lower(trim('correo@dominio.com')), 'UTF8')), 'hex');
+```
+
+
 ## 11. Fuera de alcance, a propósito
 
-- **Sin proveedor de identidad externo (OIDC/Keycloak)** — `identidad-service` es autenticación propia del ecosistema (JWT firmado con Ed25519, ver sección 8), no un reemplazo de un IdP externo si un cliente lo necesitara más adelante. El límite de peticiones y el bloqueo por intentos (login, creación de api-keys) los aplica el gateway WSO2 (ver 10.1), no el servicio. Sin flujo de **reset** de contraseña por correo (el típico "olvidé mi contraseña", sin conocer la actual) — sí existe **cambio** de contraseña autenticado (`PATCH /usuarios/me/password`, exige la contraseña actual, ver sección 8), que es un caso distinto.
+- **Sin proveedor de identidad externo (OIDC/Keycloak)** — `identidad-service` es autenticación propia del ecosistema (JWT firmado con Ed25519, ver sección 8), no un reemplazo de un IdP externo si un cliente lo necesitara más adelante. El límite de peticiones por aplicación cliente lo aplica el gateway WSO2 (ver 10.1) y los límites por empresa y por usuario de las operaciones delicadas, cada servicio (ver 10.6). Sin flujo de **reset** de contraseña por correo (el típico "olvidé mi contraseña", sin conocer la actual) — sí existe **cambio** de contraseña autenticado (`PATCH /usuarios/me/password`, exige la contraseña actual, ver sección 8), que es un caso distinto.
 - **Sin manifiestos de Kubernetes** — el objetivo de despliegue es Docker Compose.
 - **Sin esquema de contingencia del SRI** — solo se implementó el esquema offline (el que usa el SRI en producción); el esquema de contingencia online queda fuera de alcance.
 - **Factura 1.1.0 (bloque de reembolso)** — fuera de alcance; si se agrega en el futuro, cada tipo de comprobante nuevo o campo opcional nuevo debe re-verificarse contra una llamada real de Recepción antes de darse por bueno (la ficha técnica por sí sola no basta para detectar desajustes de XSD).
@@ -841,7 +889,7 @@ Los 7 servicios comparten `x-contenedor` y `x-jvm` en `docker-compose.yml`: lím
 
 ### Pendientes conocidos
 
-- **El login no se limita en el servicio** (fuerza bruta): el límite por cliente, IP y cuenta se configura en WSO2 (10.1). El servicio solo protege su propio pool: bcrypt corre en un ejecutor acotado y, saturado, responde `429` (`IDE-429-001`). `POST /usuarios` responde `409` a un correo repetido.
+- **No hay límite por IP de cliente**: el login se limita por cuenta (10.6) y por aplicación cliente (10.1). Además el servicio protege su propio pool: bcrypt corre en un ejecutor acotado y, saturado, responde `429` (`IDE-429-001`). `POST /usuarios` responde `409` a un correo repetido.
 - **No se valida el dígito verificador de cédula/RUC** a propósito: el SRI es la autoridad y tiene excepciones. La longitud y el tipo sí se validan.
 - **Los consumidores de Kafka** no validan el sobre del mensaje de forma uniforme: firma y sri-conector rechazan un comando sin `eventId`/`comprobanteId` (va a la DLQ), el resto depende de que venga bien formado. Los DLQ no tienen consumidor ni alerta (ver 6.5).
 - **Logs con código en todos los niveles**: `LogCodificado` y el catálogo de `CATALOGO_ERRORES.md` (sección "Logs"); el primer dígito del código es el nivel. Quedan fuera los logs de las librerías (SmallRye, Quarkus, Hibernate), p. ej. los mensajes de DLQ.

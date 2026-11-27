@@ -29,6 +29,8 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.limite.LimitadorDeUso;
+import com.facturacion.commons.limite.OperacionLimitada;
 import com.facturacion.commons.rest.Respuestas;
 import com.facturacion.commons.paging.PageRequest;
 import com.facturacion.commons.paging.PagedResponse;
@@ -77,15 +79,18 @@ public class ComprobanteResource {
     private final ReenvioNotificacionService reenvioService;
     private final TicketService ticketService;
     private final TokenPrincipal tokenPrincipal;
+    private final LimitadorDeUso limitador;
 
     @Inject
     public ComprobanteResource(ComprobanteService comprobanteService, ComprobanteConsultaService consultaService,
-            ReenvioNotificacionService reenvioService, TicketService ticketService, TokenPrincipal tokenPrincipal) {
+            ReenvioNotificacionService reenvioService, TicketService ticketService, TokenPrincipal tokenPrincipal,
+            LimitadorDeUso limitador) {
         this.comprobanteService = comprobanteService;
         this.consultaService = consultaService;
         this.reenvioService = reenvioService;
         this.ticketService = ticketService;
         this.tokenPrincipal = tokenPrincipal;
+        this.limitador = limitador;
     }
 
     /**
@@ -98,6 +103,11 @@ public class ComprobanteResource {
     private void validarAlcance(EmpresaRequest empresa) {
         tokenPrincipal.exigirEscritura();
         tokenPrincipal.exigirAlcance(empresa.getRuc(), empresa.getEstablecimiento(), empresa.getPuntoEmision());
+    }
+
+    /** 429 si el usuario de la api-key superó su límite de la operación. */
+    private Uni<Void> exigirLimite(OperacionLimitada operacion) {
+        return limitador.exigir(operacion, tokenPrincipal.getUsuarioId(), tokenPrincipal.getRuc());
     }
 
     /**
@@ -124,7 +134,8 @@ public class ComprobanteResource {
             @HeaderParam(ApiConstants.HEADER_CLAVE_IDEMPOTENCIA) @Parameter(description = DESCRIPCION_CLAVE) String claveIdempotencia,
             @Context UriInfo uriInfo) {
         validarAlcance(request.getEmpresa());
-        return comprobanteService.crearFactura(request, claveIdempotencia)
+        return exigirLimite(OperacionLimitada.EMISION)
+            .chain(() -> comprobanteService.crearFactura(request, claveIdempotencia))
             .map(resultado -> armarRespuestaCreacion(resultado, uriInfo));
     }
 
@@ -139,7 +150,8 @@ public class ComprobanteResource {
             @HeaderParam(ApiConstants.HEADER_CLAVE_IDEMPOTENCIA) @Parameter(description = DESCRIPCION_CLAVE) String claveIdempotencia,
             @Context UriInfo uriInfo) {
         validarAlcance(request.getEmpresa());
-        return comprobanteService.crearNotaCredito(request, claveIdempotencia)
+        return exigirLimite(OperacionLimitada.EMISION)
+            .chain(() -> comprobanteService.crearNotaCredito(request, claveIdempotencia))
             .map(resultado -> armarRespuestaCreacion(resultado, uriInfo));
     }
 
@@ -154,7 +166,8 @@ public class ComprobanteResource {
             @HeaderParam(ApiConstants.HEADER_CLAVE_IDEMPOTENCIA) @Parameter(description = DESCRIPCION_CLAVE) String claveIdempotencia,
             @Context UriInfo uriInfo) {
         validarAlcance(request.getEmpresa());
-        return comprobanteService.crearNotaDebito(request, claveIdempotencia)
+        return exigirLimite(OperacionLimitada.EMISION)
+            .chain(() -> comprobanteService.crearNotaDebito(request, claveIdempotencia))
             .map(resultado -> armarRespuestaCreacion(resultado, uriInfo));
     }
 
@@ -169,7 +182,8 @@ public class ComprobanteResource {
             @HeaderParam(ApiConstants.HEADER_CLAVE_IDEMPOTENCIA) @Parameter(description = DESCRIPCION_CLAVE) String claveIdempotencia,
             @Context UriInfo uriInfo) {
         validarAlcance(request.getEmpresa());
-        return comprobanteService.crearGuiaRemision(request, claveIdempotencia)
+        return exigirLimite(OperacionLimitada.EMISION)
+            .chain(() -> comprobanteService.crearGuiaRemision(request, claveIdempotencia))
             .map(resultado -> armarRespuestaCreacion(resultado, uriInfo));
     }
 
@@ -184,7 +198,8 @@ public class ComprobanteResource {
             @HeaderParam(ApiConstants.HEADER_CLAVE_IDEMPOTENCIA) @Parameter(description = DESCRIPCION_CLAVE) String claveIdempotencia,
             @Context UriInfo uriInfo) {
         validarAlcance(request.getEmpresa());
-        return comprobanteService.crearRetencion(request, claveIdempotencia)
+        return exigirLimite(OperacionLimitada.EMISION)
+            .chain(() -> comprobanteService.crearRetencion(request, claveIdempotencia))
             .map(resultado -> armarRespuestaCreacion(resultado, uriInfo));
     }
 
@@ -199,7 +214,8 @@ public class ComprobanteResource {
             @HeaderParam(ApiConstants.HEADER_CLAVE_IDEMPOTENCIA) @Parameter(description = DESCRIPCION_CLAVE) String claveIdempotencia,
             @Context UriInfo uriInfo) {
         validarAlcance(request.getEmpresa());
-        return comprobanteService.crearLiquidacionCompra(request, claveIdempotencia)
+        return exigirLimite(OperacionLimitada.EMISION)
+            .chain(() -> comprobanteService.crearLiquidacionCompra(request, claveIdempotencia))
             .map(resultado -> armarRespuestaCreacion(resultado, uriInfo));
     }
 
@@ -305,6 +321,8 @@ public class ComprobanteResource {
     public Uni<Response> reenviarCorreo(
             @Parameter(description = "Id del comprobante", required = true) @PathParam("id") UUID id) {
         tokenPrincipal.exigirEscritura();
-        return reenvioService.reenviarCorreo(id, tokenPrincipal.getRuc()).map(v -> Respuestas.aceptado());
+        return exigirLimite(OperacionLimitada.REENVIO_CORREO)
+            .chain(() -> reenvioService.reenviarCorreo(id, tokenPrincipal.getRuc()))
+            .map(v -> Respuestas.aceptado());
     }
 }

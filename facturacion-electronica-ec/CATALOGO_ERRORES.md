@@ -34,6 +34,7 @@ Toda respuesta de error de los microservicios tiene el mismo cuerpo (`ApiErrorRe
 | `GEN-403-006` | 403 | Esta operación requiere una api-key con rol ADMIN (la actual es {0}). |
 | `GEN-404-001` | 404 | {0} |
 | `GEN-409-001` | 409 | {0} |
+| `GEN-429-001` | 429 | Se alcanzó el límite de esta operación: reintenta en {0} segundos |
 | `GEN-503-001` | 503 | El servicio está ocupado en este momento: reintenta en unos segundos |
 | `GEN-500-001` | 500 | Ocurrió un error inesperado |
 | `GEN-500-002` | 500 | No se pudo serializar el payload del outbox (el cliente recibe el texto genérico; el detalle queda en el log GEN-403) |
@@ -258,6 +259,9 @@ Todo log del código propio lleva un código estable: `[FIR-401] texto (comproba
 | `GEN-101` | DEBUG | Token rechazado: {0} |
 | `GEN-301` | WARN | Revocación de api-key ignorada: {0} |
 | `GEN-302` | WARN | La base de datos venció un plazo (estado SQL {0}: bloqueo, sentencia o transacción inactiva); el cliente recibe 503 y reintenta |
+| `GEN-303` | WARN | Límite {0} superado en la operación {1} (usuario {2}); el cliente recibe 429 |
+| `GEN-304` | WARN | La base de límites no respondió en la operación {0} ({1}): se deja pasar |
+| `GEN-305` | WARN | La operación {0} no tiene límite en limite_configuracion: no se limita |
 | `GEN-401` | ERROR | Excepción no controlada en un endpoint; el cliente recibe el 500 genérico |
 | `GEN-402` | ERROR | Falló el procesamiento de un mensaje del canal {0} ({1}): según la estrategia del canal pasa a su DLQ (.dlq) o se descarta |
 | `GEN-403` | ERROR | Falló una operación interna ({0}): {1} — la lanzó una `ErrorInternoException`; el cliente recibe solo el texto genérico y el código |

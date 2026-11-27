@@ -23,6 +23,8 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.limite.LimitadorDeUso;
+import com.facturacion.commons.limite.OperacionLimitada;
 import com.facturacion.commons.rest.Respuestas;
 import com.facturacion.identidad.application.dto.ApiKeyResponse;
 import com.facturacion.identidad.application.dto.CrearApiKeyRequest;
@@ -37,11 +39,13 @@ public class ApiKeyResource {
 
     private final ApiKeyService apiKeyService;
     private final SesionActual sesionActual;
+    private final LimitadorDeUso limitador;
 
     @Inject
-    public ApiKeyResource(ApiKeyService apiKeyService, SesionActual sesionActual) {
+    public ApiKeyResource(ApiKeyService apiKeyService, SesionActual sesionActual, LimitadorDeUso limitador) {
         this.apiKeyService = apiKeyService;
         this.sesionActual = sesionActual;
+        this.limitador = limitador;
     }
 
     @POST
@@ -50,8 +54,12 @@ public class ApiKeyResource {
     @APIResponse(responseCode = "201", description = "Api-key creada, con su valor")
     @APIResponse(responseCode = "403", description = "El usuario no está asociado al ruc indicado")
     @APIResponse(responseCode = "409", description = "Ya existe una api-key con ese nombre para este usuario")
+    @APIResponse(responseCode = "429", description = "Límite de creación de api-keys del usuario o de la empresa superado")
     public Uni<Response> crear(@Valid CrearApiKeyRequest request) {
-        return apiKeyService.crear(sesionActual.getUsuarioId(), request)
+        return apiKeyService.exigirAsociacion(sesionActual.getUsuarioId(), request.getRuc())
+            .chain(() -> limitador.exigir(OperacionLimitada.CREACION_API_KEY, sesionActual.getUsuarioId(),
+                request.getRuc()))
+            .chain(() -> apiKeyService.crear(sesionActual.getUsuarioId(), request))
             .map(response -> Respuestas.creado(response));
     }
 

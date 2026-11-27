@@ -25,6 +25,8 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.limite.LimitadorDeUso;
+import com.facturacion.commons.limite.OperacionLimitada;
 import com.facturacion.commons.rest.Respuestas;
 import com.facturacion.commons.paging.PageRequest;
 import com.facturacion.commons.security.TokenPrincipal;
@@ -48,13 +50,15 @@ public class SagaResource {
     private final SagaQueryService sagaQueryService;
     private final SagaOrchestratorService sagaOrchestratorService;
     private final TokenPrincipal tokenPrincipal;
+    private final LimitadorDeUso limitador;
 
     @Inject
     public SagaResource(SagaQueryService sagaQueryService, SagaOrchestratorService sagaOrchestratorService,
-            TokenPrincipal tokenPrincipal) {
+            TokenPrincipal tokenPrincipal, LimitadorDeUso limitador) {
         this.sagaQueryService = sagaQueryService;
         this.sagaOrchestratorService = sagaOrchestratorService;
         this.tokenPrincipal = tokenPrincipal;
+        this.limitador = limitador;
     }
 
     @GET
@@ -103,7 +107,8 @@ public class SagaResource {
             @Parameter(description = "Máximo de correos por llamada (1 a 500)")
             @QueryParam("limite") @DefaultValue("100") @Min(1) @Max(500) int limite) {
         tokenPrincipal.exigirEscritura();
-        return sagaOrchestratorService.reenviarNotificacionesFallidas(tokenPrincipal.getRuc(), limite)
+        return limitador.exigir(OperacionLimitada.REENVIO_CORREO, tokenPrincipal.getUsuarioId(), tokenPrincipal.getRuc())
+            .chain(() -> sagaOrchestratorService.reenviarNotificacionesFallidas(tokenPrincipal.getRuc(), limite))
             .map(solicitados -> Respuestas.aceptado(new ReenvioMasivoResponse(solicitados)));
     }
 }

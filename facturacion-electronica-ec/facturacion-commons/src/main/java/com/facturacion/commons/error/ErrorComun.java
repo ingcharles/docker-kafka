@@ -26,6 +26,7 @@ public enum ErrorComun implements ErrorCatalogo {
     API_KEY_REQUIERE_ADMIN("GEN-403-006", 403, "comun.api_key_requiere_admin"),
     RECURSO_NO_ENCONTRADO("GEN-404-001", 404, "comun.recurso_no_encontrado"),
     CONFLICTO("GEN-409-001", 409, "comun.conflicto"),
+    LIMITE_EXCEDIDO("GEN-429-001", 429, "comun.limite_excedido"),
     ERROR_INTERNO("GEN-500-001", 500, "comun.error_interno"),
     PAYLOAD_NO_SERIALIZABLE("GEN-500-002", 500, "comun.payload_no_serializable"),
     SERVICIO_OCUPADO("GEN-503-001", 503, "comun.servicio_ocupado");

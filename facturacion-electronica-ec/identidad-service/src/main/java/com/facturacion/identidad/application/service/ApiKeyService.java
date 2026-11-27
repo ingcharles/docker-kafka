@@ -66,6 +66,14 @@ public class ApiKeyService {
         this.maxDiasExpiracion = maxDiasExpiracion;
     }
 
+    /** 403 si el usuario no está asociado al ruc: se comprueba antes de contar un uso a esa empresa. */
+    @WithSession
+    public Uni<Void> exigirAsociacion(UUID usuarioId, String ruc) {
+        return empresaRolRepository.findByUsuarioIdAndRuc(usuarioId, ruc)
+            .onItem().ifNull().failWith(() -> new SinAsociacionException(ruc))
+            .replaceWithVoid();
+    }
+
     @WithTransaction
     public Uni<ApiKeyCreadaResponse> crear(UUID usuarioId, @Valid CrearApiKeyRequest request) {
         if (request.getPuntoEmision() != null && request.getEstablecimiento() == null) {

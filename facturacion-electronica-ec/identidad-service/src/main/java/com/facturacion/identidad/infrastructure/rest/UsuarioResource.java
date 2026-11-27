@@ -34,6 +34,7 @@ import com.facturacion.identidad.application.dto.EmpresaRolResponse;
 import com.facturacion.identidad.application.dto.LoginRequest;
 import com.facturacion.identidad.application.dto.TokenResponse;
 import com.facturacion.identidad.application.dto.UsuarioResponse;
+import com.facturacion.identidad.application.service.LimiteDeLogin;
 import com.facturacion.identidad.application.service.UsuarioService;
 
 @Path("/usuarios")
@@ -43,11 +44,13 @@ public class UsuarioResource {
 
     private final UsuarioService usuarioService;
     private final SesionActual sesionActual;
+    private final LimiteDeLogin limiteDeLogin;
 
     @Inject
-    public UsuarioResource(UsuarioService usuarioService, SesionActual sesionActual) {
+    public UsuarioResource(UsuarioService usuarioService, SesionActual sesionActual, LimiteDeLogin limiteDeLogin) {
         this.usuarioService = usuarioService;
         this.sesionActual = sesionActual;
+        this.limiteDeLogin = limiteDeLogin;
     }
 
     @POST
@@ -68,8 +71,10 @@ public class UsuarioResource {
     @Operation(summary = "Autenticarse", description = "Devuelve un token de sesión — solo sirve para hablar con este servicio, no es una api-key.")
     @APIResponse(responseCode = "200", description = "Token de sesión")
     @APIResponse(responseCode = "401", description = "Email o contraseña incorrectos")
+    @APIResponse(responseCode = "429", description = "Demasiados intentos sin éxito en la cuenta; ver Retry-After")
     public Uni<Response> iniciarSesion(@Valid LoginRequest request) {
-        return usuarioService.iniciarSesion(request).map(Respuestas::actualizado);
+        return limiteDeLogin.proteger(request.getEmail(), () -> usuarioService.iniciarSesion(request))
+            .map(Respuestas::actualizado);
     }
 
     @GET

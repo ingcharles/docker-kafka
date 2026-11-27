@@ -2,6 +2,7 @@ package com.facturacion.commons.error.mapper;
 
 import java.util.Map;
 
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
@@ -15,6 +16,7 @@ import com.facturacion.commons.error.ErrorComun;
 import com.facturacion.commons.error.LogCodificado;
 import com.facturacion.commons.error.Mensajes;
 import com.facturacion.commons.exception.ApiException;
+import com.facturacion.commons.exception.LimiteExcedidoException;
 
 /**
  * El único mapper de las excepciones del catálogo: cualquier {@link ApiException} (NotFound, SinPermiso,
@@ -30,10 +32,12 @@ public class ApiExceptionMapper implements ExceptionMapper<ApiException> {
     private static final Logger LOG = Logger.getLogger(ApiExceptionMapper.class);
 
     private static final int HTTP_ENTIDAD_NO_PROCESABLE = 422;
+    private static final int HTTP_DEMASIADAS_PETICIONES = 429;
 
     /** Estados HTTP que JAX-RS no trae en {@link Response.Status}, con su frase estándar. */
     private static final Map<Integer, String> FRASES_NO_ESTANDAR = Map.of(
-        HTTP_ENTIDAD_NO_PROCESABLE, "Unprocessable Entity");
+        HTTP_ENTIDAD_NO_PROCESABLE, "Unprocessable Entity",
+        HTTP_DEMASIADAS_PETICIONES, "Too Many Requests");
 
     @Override
     public Response toResponse(ApiException exception) {
@@ -42,7 +46,12 @@ public class ApiExceptionMapper implements ExceptionMapper<ApiException> {
                 exception.getMessage());
         }
         ApiErrorResponse cuerpo = construirCuerpo(exception);
-        return Response.status(cuerpo.getStatus()).entity(cuerpo).type(MediaType.APPLICATION_JSON).build();
+        Response.ResponseBuilder respuesta = Response.status(cuerpo.getStatus()).entity(cuerpo)
+            .type(MediaType.APPLICATION_JSON);
+        if (exception instanceof LimiteExcedidoException limite) {
+            respuesta.header(HttpHeaders.RETRY_AFTER, limite.getSegundosEspera());
+        }
+        return respuesta.build();
     }
 
     private static boolean esFalloInterno(ApiException exception) {

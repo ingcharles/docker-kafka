@@ -29,6 +29,8 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.smallrye.mutiny.Uni;
 
+import com.facturacion.commons.limite.LimitadorDeUso;
+import com.facturacion.commons.limite.OperacionLimitada;
 import com.facturacion.commons.exception.ErrorNegocioException;
 import com.facturacion.commons.reactive.TrabajoBloqueante;
 import com.facturacion.commons.rest.Respuestas;
@@ -70,17 +72,20 @@ public class EmpresaResource {
     private final TokenPrincipal tokenPrincipal;
     private final AccesoEmpresa acceso;
     private final LogoEmpresaService logoService;
+    private final LimitadorDeUso limitador;
 
     @Inject
     public EmpresaResource(EmpresaService empresaService, CertificadoService certificadoService,
             ConfiguracionEmpresaService configuracionService, TokenPrincipal tokenPrincipal,
-            AccesoEmpresa acceso, LogoEmpresaService logoService) {
+            AccesoEmpresa acceso, LogoEmpresaService logoService,
+            LimitadorDeUso limitador) {
         this.empresaService = empresaService;
         this.certificadoService = certificadoService;
         this.configuracionService = configuracionService;
         this.tokenPrincipal = tokenPrincipal;
         this.acceso = acceso;
         this.logoService = logoService;
+        this.limitador = limitador;
     }
 
     /**
@@ -170,6 +175,8 @@ public class EmpresaResource {
         // OJO: solo la lectura del archivo va fuera del event loop; la comprobación de acceso usa Hibernate Reactive y
         // debe correr en el hilo de eventos de Vert.x (envolver toda la cadena fallaría con HR000068).
         return acceso.exigirEmpresaAdmin(id)
+            .chain(() -> limitador.exigir(OperacionLimitada.CARGA_CERTIFICADO, tokenPrincipal.getUsuarioId(),
+                tokenPrincipal.getRuc()))
             .chain(() -> TrabajoBloqueante.ejecutar(() -> leerArchivo(form)))
             .onItem().transformToUni(contenido ->
                 certificadoService.subirCertificado(id, contenido, form.contrasena))
