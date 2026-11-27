@@ -2,7 +2,7 @@
 # En producción WSO2 es de la plataforma (con su propia base, clúster y TLS): aquí solo sirve para probar la integración.
 #
 #   docker compose -f wso2/docker-compose.yml up -d
-#   wso2/scripts/configurar-wso2.sh desarrollo-local        # crea las APIs, políticas, aplicación y api-key (ver wso2/README.md)
+#   WSO2_ADMIN_CLAVE=admin perl wso2/scripts/configurar-wso2.pl desarrollo-local        # crea las APIs, políticas, aplicación y api-key (ver wso2/README.md)
 #
 # Puertos (cambiables en wso2/.env o con variables de entorno):
 #   9443  consola, Publisher (/publisher), Developer Portal (/devportal) y Admin (/admin)  — https, certificado autofirmado

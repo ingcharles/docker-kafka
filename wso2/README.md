@@ -6,7 +6,7 @@ Los 7 servicios no se publican: solo el gateway (WSO2) llega al Ingress del clú
 ```
 cliente ──► WSO2 (8243)  ──► Ingress del clúster ──► servicio
             · exige la api-key de WSO2 (cabecera ApiKey)
-            · límites por minuto (aplicación, suscripción, operaciones sensibles)
+            · límites por minuto (por aplicación; en login y emisión, además por operación)
             · TLS / WAF / tamaño de cuerpo (plataforma)
             · publica SOLO las rutas de negocio (sin /q/health, /q/metrics ni swagger)
 ```
@@ -29,11 +29,31 @@ servicio el que responde `401`.
 | `docker-compose.yml` | WSO2 API Manager 4.3.0 de desarrollo (H2 interna; en producción es el de la plataforma) |
 | `openapi/*.yaml` | **Generado** de las clases `*Resource` (83 operaciones): lo que el gateway acepta. No se edita a mano |
 | `openapi/servicios.tsv` | servicio → ruta base (`/identidad/api/v1`, …) |
-| `politicas.conf` | operaciones con límite propio (login, alta de usuarios, cambio de clave, api-keys → `sensible`; POST de comprobantes → `emision`) |
+| `politicas.conf` | operaciones con límite propio (login, alta de usuarios, cambio de clave, api-keys → `sensible`; POST de comprobantes → `emision`). Ver [Límites](#límites) |
 | `env/<ambiente>.env` | URL de WSO2, destino de las APIs y **límites por minuto** de `desarrollo-local`, `pruebas` y `produccion` |
 | `scripts/generar-contrato.pl` | regenera `openapi/` y el `ingress.yaml` de los overlays del repositorio de despliegue |
 | `scripts/configurar-wso2.pl` | crea/actualiza en WSO2 las políticas, las 7 APIs, la aplicación cliente y su api-key (idempotente) |
 | `scripts/exponer-servicios-k3s.sh` | solo local: abre un `port-forward` por servicio del k3s para que WSO2 los alcance |
+
+## Límites
+
+Peticiones por minuto, en `env/<ambiente>.env`. La aplicación cliente es la dueña de la `ApiKey`: todos sus usuarios comparten sus cupos.
+
+| Variable | Qué cuenta | Cómo se hace en WSO2 |
+|---|---|---|
+| `LIMITE_APLICACION_POR_MIN` | todo lo que hace **una aplicación**, sumando las APIs | política de aplicación |
+| `LIMITE_SUSCRIPCION_POR_MIN` | **una aplicación** en cada API | política de suscripción |
+| `LIMITE_SENSIBLE_POR_MIN`, `LIMITE_EMISION_POR_MIN` | **una aplicación** en cada operación marcada en `politicas.conf` | regla personalizada `...PorCliente` (clave: aplicación + operación) |
+| `LIMITE_SENSIBLE_TOTAL_POR_MIN`, `LIMITE_EMISION_TOTAL_POR_MIN` | cada operación marcada, **sumando a todos los clientes** (protege al servicio) | política de recurso |
+
+- Una aplicación que agota su cupo recibe `429` sin afectar a las demás. Para separar a dos consumidores, dale una aplicación a cada uno.
+- El conteo es asíncrono: pueden pasar una o dos peticiones por encima del límite.
+- Las reglas personalizadas las crea solo el **super administrador** de WSO2; en un WSO2 compartido hay que pedirlas a la plataforma.
+- No hay límite por **IP** ni por **cuenta** (correo). WSO2 toma la IP de `X-Forwarded-For`, que el cliente puede inventar si el balanceador no la reescribe.
+
+> **Tras reiniciar el contenedor de desarrollo (`docker restart`, `stop`/`start` o reinicio del equipo) WSO2 4.3.0 deja de aplicar todos los
+> límites, sin errores visibles.** Recréalo (`down`, `up -d`) y vuelve a configurarlo con `--rotar`. En un ambiente real, comprueba los
+> límites después de cada reinicio: más intentos de login que el cupo en un minuto deben terminar en `429`.
 
 ## Probarlo en tu máquina (WSO2 en Docker + servicios en el k3s de `facturacion-despliegue/pruebas-locales`)
 
@@ -52,7 +72,7 @@ curl -k -H "ApiKey: $K" -H "Authorization: Bearer <token de sesión>" $G/usuario
 ```
 
 El gateway escucha en **8243** (https) y **8280** (http). Publisher: `https://localhost:9443/publisher`; Developer Portal: `/devportal`.
-Otro cliente: `APLICACION_NOMBRE=otro-cliente` crea su aplicación y guarda su api-key en `wso2/.local/api-key-<ambiente>-otro-cliente.txt`. `--rotar` genera otra api-key de WSO2. El WSO2 de desarrollo no guarda nada entre `down` y `up`: vuelve a correr `configurar-wso2.pl`.
+Otro cliente: `APLICACION_NOMBRE=otro-cliente` crea su aplicación y guarda su api-key en `wso2/.local/api-key-<ambiente>-otro-cliente.txt`. `--rotar` genera otra api-key de WSO2. El WSO2 de desarrollo no guarda nada entre `down` y `up`: vuelve a correr `configurar-wso2.pl --rotar` (la api-key anterior es de la instalación borrada).
 
 ## En un ambiente real (pruebas, producción)
 
@@ -75,6 +95,5 @@ Otro cliente: `APLICACION_NOMBRE=otro-cliente` crea su aplicación y guarda su a
 ## Lo que NO está probado
 
 - Un WSO2 de producción real (clúster, base propia, TLS verdadero, Vault): se probó la imagen de desarrollo 4.3.0.
-- Las reglas regex del Ingress en un ingress-nginx real (el k3s de pruebas no tiene controlador): se validó que `kustomize` compila.
-- El límite por IP: las políticas cuentan por aplicación (api-key de WSO2). Si necesitas contar por IP de origen hay que agregar grupos
-  condicionales a las políticas avanzadas.
+- La causa de que los límites dejen de aplicarse al reiniciar el contenedor de desarrollo.
+- Límites por IP: no están configurados. Los límites por usuario y por empresa no van aquí: los aplica cada microservicio, configurados en su base (`facturacion-electronica-ec/ARQUITECTURA.md` 10.6).

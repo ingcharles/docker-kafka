@@ -1,7 +1,8 @@
 #!/usr/bin/env perl
 # Configura WSO2 API Manager para facturación electrónica a partir de archivos del repositorio (configuración como código):
 #
-#   1. Políticas de throttling (límites por minuto de wso2/env/<ambiente>.env): aplicación, suscripción y las de operaciones sensibles.
+#   1. Políticas de throttling (límites por minuto de wso2/env/<ambiente>.env): aplicación, suscripción, tope total de las operaciones
+#      sensibles y su cupo por aplicación (reglas personalizadas).
 #   2. Una API por servicio (contrato wso2/openapi/<servicio>.yaml, SOLO rutas de negocio: /q/health y /q/metrics no se publican).
 #      Seguridad del gateway = api-key de WSO2 (cabecera ApiKey). La cabecera Authorization NO se toca: viaja al servicio, que valida su
 #      propia api-key o sesión (identidad-service). Se despliega en el gateway y se publica.
@@ -144,11 +145,45 @@ sub asegurar_politica {
         ok "$nombre: $por_min/min (creada)";
     }
 }
+
+# Límite por cliente de una operación marcada: WSO2 cuenta las políticas de recurso en un solo contador para todos los clientes, así que el
+# cupo de cada aplicación se hace con una regla personalizada (solo del super tenant) cuya clave incluye la aplicación y la operación.
+# La política de recurso queda como tope total (la marca que la regla usa para elegir las operaciones).
+sub asegurar_regla_por_cliente {
+    my ($politica, $prefijo, $descripcion, $por_min) = @_;
+    my $nombre = "${politica}PorCliente";
+    die "Límite inválido para $nombre: '$por_min'\n" unless defined $por_min && $por_min =~ /^\d+$/ && $por_min > 0;
+    my $consulta = join("\n",
+        'FROM RequestStream',
+        "SELECT messageID, (apiTenant == 'carbon.super' and resourceTier == '$politica') AS isEligible,",
+        "       str:concat('$prefijo:', appId, ':', resourceKey) AS throttleKey",
+        'INSERT INTO EligibilityStream;',
+        '',
+        'FROM EligibilityStream[isEligible==true]#throttler:timeBatch(1 min)',
+        "SELECT throttleKey, (count(messageID) >= $por_min) AS isThrottled, expiryTimeStamp GROUP BY throttleKey",
+        'INSERT ALL EVENTS INTO ResultStream;');
+    my %cuerpo = (policyName => $nombre, displayName => $nombre, description => $descripcion,
+                  keyTemplate => "$prefijo:\$appId:\$resourceKey", siddhiQuery => $consulta);
+    my ($c, $d, $crudo) = http('GET', "$ADM/custom", %t);
+    my ($existente) = grep { $_->{policyName} eq $nombre } @{ exigir('listar reglas personalizadas (requiere el super administrador)', [200], $c, $d, $crudo)->{list} };
+    if ($existente) {
+        $cuerpo{policyId} = $existente->{policyId};
+        ($c, $d, $crudo) = http('PUT', "$ADM/custom/$existente->{policyId}", %t, json => \%cuerpo);
+        exigir("actualizar la regla $nombre", [200], $c, $d, $crudo);
+        ok "$nombre: $por_min/min por aplicación (actualizada)";
+    } else {
+        ($c, $d, $crudo) = http('POST', "$ADM/custom", %t, json => \%cuerpo);
+        exigir("crear la regla $nombre", [200, 201], $c, $d, $crudo);
+        ok "$nombre: $por_min/min por aplicación (creada)";
+    }
+}
 paso "políticas de throttling";
 asegurar_politica('application',  $POL{aplicacion},  'Facturación: tope de la aplicación cliente',        $E{LIMITE_APLICACION_POR_MIN});
 asegurar_politica('subscription', $POL{suscripcion}, 'Facturación: tope por API suscrita',              $E{LIMITE_SUSCRIPCION_POR_MIN});
-asegurar_politica('advanced',     $POL{sensible},    'Facturación: login, alta de usuarios, claves y api-keys', $E{LIMITE_SENSIBLE_POR_MIN});
-asegurar_politica('advanced',     $POL{emision},     'Facturación: emisión de comprobantes',            $E{LIMITE_EMISION_POR_MIN});
+asegurar_politica('advanced',     $POL{sensible},    'Facturación: tope total de login, alta de usuarios, claves y api-keys', $E{LIMITE_SENSIBLE_TOTAL_POR_MIN});
+asegurar_politica('advanced',     $POL{emision},     'Facturación: tope total de emisión de comprobantes', $E{LIMITE_EMISION_TOTAL_POR_MIN});
+asegurar_regla_por_cliente($POL{sensible}, 'sensible', 'Facturación: login, alta de usuarios, claves y api-keys por aplicación', $E{LIMITE_SENSIBLE_POR_MIN});
+asegurar_regla_por_cliente($POL{emision},  'emision',  'Facturación: emisión de comprobantes por aplicación',                    $E{LIMITE_EMISION_POR_MIN});
 
 # Operaciones con límite propio (wso2/politicas.conf)
 my @reglas;
